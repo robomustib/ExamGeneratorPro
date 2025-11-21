@@ -10,7 +10,6 @@ A comprehensive web application for creating practice exams with structured grad
 - Automatic point distribution
 
 ## Usage
-
 1. Upload a CSV file with questions or create questions manually
 2. Optionally upload a structured grading rubric CSV
 3. Configure the exam header and logo
@@ -20,11 +19,14 @@ A comprehensive web application for creating practice exams with structured grad
 ## CSV Format
 
 ### Questions CSV
+```bash
 Question;Points;Type;Solution;Criterion1:Points1;Criterion2:Points2;...
+```
 
 ### Rubric CSV
+```bash
 Question;Solution;Criterion1:Points1;Criterion2:Points2;...
-
+```
 
 ## Question Types
 - `open`: Open questions
@@ -33,5 +35,9 @@ Question;Solution;Criterion1:Points1;Criterion2:Points2;...
 - `memory`: Matching pairs
 - `connection`: Connection tasks
 
+## Demo
+Click here to try out:
+[ExamGeneratorPro Demo](https://www.mustafa-bilgin.de/)
+
 ## License
-MIT License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
