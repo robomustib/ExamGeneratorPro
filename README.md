@@ -2,12 +2,12 @@
 A comprehensive web application for creating practice exams with structured grading rubrics and assessment sheets.
 
 # Features
-- Create various question types (open questions, multiple choice, fill-in-the-blank, matching, connection tasks)
-- CSV import for existing questions
-- Structured grading rubric with assessment criteria
-- PDF export of exams and assessment sheets
-- Customizable exam header with logo
-- Automatic point distribution
+- Versatile Question Types: Create open questions, multiple choice, fill-in-the-blank, matching pairs, and connection tasks.
+- CSV Import: Easily import existing questions and rubrics via CSV.
+- Structured Assessment: Integrated grading rubric with specific assessment criteria and points.
+- PDF Export: Generate professional PDFs for both the exam (including student data fields) and the teacher's assessment sheet.
+- Customization: Customizable exam header with logo support (upload or default).
+- Smart Generation: Automatic random selection of questions to match a target point total.
 
 ## Usage
 1. Upload a CSV file with questions or create questions manually
