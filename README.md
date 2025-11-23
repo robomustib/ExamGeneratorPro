@@ -10,11 +10,11 @@ A comprehensive web application for creating practice exams with structured grad
 - Smart Generation: Automatic random selection of questions to match a target point total.
 
 ## Usage
-1. Upload a CSV file with questions or create questions manually
-2. Optionally upload a structured grading rubric CSV
-3. Configure the exam header and logo
-4. Set the total points and generate the exam
-5. Export as PDF or assessment sheet
+1. Upload a CSV file with questions or use the built-in form to create them.
+2. (Optional) Upload a structured grading rubric CSV.
+3. Configure the exam header, upload a logo, and set total points.
+4. Enter student/class details (optional preview).
+5. Generate the exam and export it as a PDF or download the assessment sheet.
 
 ## CSV Format
 
