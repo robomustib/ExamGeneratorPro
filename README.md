@@ -37,7 +37,7 @@ Question;Solution;Criterion1:Points1;Criterion2:Points2;...
 
 ## Demo
 Click here to try out:
-[ExamGeneratorPro Demo](https://www.mustafa-bilgin.de/)
+[ExamGeneratorPro Demo]([https://www.mustafa-bilgin.de/](https://www.mustafa-bilgin.de/examgenerator-pro))
 
 ## License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
