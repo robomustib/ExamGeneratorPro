@@ -1,6 +1,8 @@
 # ExamGeneratorPro
 A comprehensive web application for creating practice exams with structured grading rubrics and assessment sheets.
 
+<img src="https://github.com/robomustib/Minimal-Exam-Generator/blob/main/img/KlausurgeneratorLogo.png?raw=true" alt="Exam-Generator-Logo" width="25%"/>
+
 # Features
 - Versatile Question Types: Create open questions, multiple choice, fill-in-the-blank, matching pairs, and connection tasks.
 - CSV Import: Easily import existing questions and rubrics via CSV.
@@ -41,3 +43,24 @@ Click here to try out:
 
 ## License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Citation
+
+If you use this software for your research, please cite it using the DOI:
+
+**APA Format (7th Ed.):**
+> Bilgin, M. (2025). *ExamGeneratorPro* (Version 1.0.0) [Computer software]. Zenodo. [[https://doi.org/10.5281/zenodo.17635298](https://doi.org/10.5281/zenodo.17742765)
+
+**BibTeX:**
+```bibtex
+@software{gladia_batch_transcriber,
+  author       = {Bilgin, Mustafa},
+  title        = {ExamGeneratorPro},
+  year         = {2025},
+  publisher    = {Zenodo},
+  version      = {1.0.0},
+  doi          = {10.5281/zenodo.17742765},
+  url          = {https://doi.org/10.5281/zenodo.17742765}  
+}
+
+```
