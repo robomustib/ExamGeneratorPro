@@ -1,3 +1,9 @@
+"""
+ExamGeneratorPro (https://github.com/robomustib/ExamGeneratorPro)
+Copyright (c) 2025 Mustafa Bilgin
+Licensed under Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)
+"""
+
     console.log('Loading script...');
 
     let questions = [];
