@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
+import { initResearch } from "./research.js";
 
 // ── Zurück-Taste / Zurück-Geste im Browser ────────────────────────────────────
 // Ohne diese Weiche würde „Zurück" auf dem Handy die ganze Seite verlassen.
@@ -34,6 +35,9 @@ if ("serviceWorker" in navigator && window.isSecureContext && import.meta.env.PR
     });
   });
 }
+
+// Forschungsmodus: nur aktiv, wenn forschung/config.json auf dem Server ihn einschaltet
+initResearch();
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>

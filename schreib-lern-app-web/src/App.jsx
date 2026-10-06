@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
+import { useResearch, enroll, withdraw, exportMyData, logTrial, markWaveDone, trialMetrics, setFieldScale } from "./research.js";
 
 // ─── CSS animations injected once ────────────────────────────────────────────
 const STYLE = `
@@ -680,7 +681,7 @@ function checkFormation(drawn,tpl,tol){
 
 // Bewertung: Genauigkeit 50 %, Abdeckung der Vorlage 40 %, Längen-Abzug fürs Kritzeln
 function scoreDrawing(drawnStrokes,tpl,TOL){
-  const pts=drawnStrokes.flat();if(pts.length<4)return 0;
+  const pts=drawnStrokes.flat();if(pts.length<4)return{raw:0,accuracy:0,coverage:0};
   let acc=0;
   for(const p of pts){
     const d=distToPolyline(p[0],p[1],tpl);
@@ -693,7 +694,7 @@ function scoreDrawing(drawnStrokes,tpl,TOL){
   const drawnLen=drawnStrokes.reduce((s,st)=>s+polyLength(st),0);
   const ratio=drawnLen/Math.max(1,tpl.reduce((s,st)=>s+polyLength(st),0));
   const lengthPenalty=ratio>2?Math.min(1,(ratio-2)/3):0;
-  return(accuracy*0.5+coverage*0.4)*(1-lengthPenalty*0.1);
+  return{raw:(accuracy*0.5+coverage*0.4)*(1-lengthPenalty*0.1),accuracy,coverage};
 }
 const shiftStrokes=(strokes,dx)=>strokes.map(s=>s.map(([x,y])=>[x+dx,y]));
 // Spiegelbild um die senkrechte Mittelachse (typisch bei J, Z, 3, 7, 9 …)
@@ -957,14 +958,16 @@ function AnimCanvas({letter, onDone, scale=1, W=260, H=310}){
 // mode "copy":   Vorlage steht daneben, das Feld ist leer (abschreiben).
 // mode "memory": Vorlage kurz zeigen, verstecken, kurz warten, dann aus dem Kopf.
 //                Die Wartezeit wächst mit jedem Erfolg (memoryDelay Sekunden).
+// mode "probe":  Schreibtest der Studie — keine Vorlage, keine Rückmeldung.
 // In copy/memory gibt es während des Schreibens kein Grün/Rot — die Rückmeldung
 // kommt danach als Vergleich mit der Vorlage.
+// onTrial (nur im Forschungsmodus) erhält Zeiten und Messwerte jedes Versuchs.
 const COACH={
   start:"👆 Fang beim gelben Punkt an!",
   direction:"↩️ Andersherum! Fang beim gelben Punkt an.",
 };
 function TraceCanvas({letter,onComplete,difficulty="medium",mode="trace",memoryDelay=1,activeReward,
-                     lefthanded=false,highContrast=false,hapticsEnabled=true,onSpeak=()=>{},scale=1,W=260,H=310}){
+                     lefthanded=false,highContrast=false,hapticsEnabled=true,onSpeak=()=>{},onTrial=null,scale=1,W=260,H=310}){
   const bgRef=useRef(null);const ovRef=useRef(null);
   const [k]=useState(()=>pixelRatio(scale));
   useCanvasScale([bgRef,ovRef],k);
@@ -974,6 +977,12 @@ function TraceCanvas({letter,onComplete,difficulty="medium",mode="trace",memoryD
   const segStarts=useRef([]);
   const strokeIdx=useRef(0);
   const formationErrors=useRef(0);
+  // Messung: Aufgabenbeginn und alle Strichversuche mit Zeitstempeln
+  const onsetRef=useRef(null);
+  const attempts=useRef([]);
+  const reported=useRef(false);
+  const onTrialRef=useRef(onTrial);onTrialRef.current=onTrial;
+  const markOnset=()=>requestAnimationFrame(ts=>{onsetRef.current=ts;});
   const [done,setDone]=useState(false);const [result,setResult]=useState(null);
   const [hasLines,setHasLines]=useState(false);const [confetti,setConfetti]=useState(false);
   const [animalBounce,setAnimalBounce]=useState(false);
@@ -991,6 +1000,7 @@ function TraceCanvas({letter,onComplete,difficulty="medium",mode="trace",memoryD
   const strokes=useStrokes(letter,W,H);
   const animal=mascotOf(letter);
   const guided=mode==="trace";                         // Vorlage im Feld?
+  const probe=mode==="probe";                          // Schreibtest: keine Rückmeldung
   const canWrite=memPhase==="write"&&!done;
 
   const drawRules=useCallback((ctx)=>{drawLineatur(ctx,W,H);},[W,H]);
@@ -1070,7 +1080,19 @@ function TraceCanvas({letter,onComplete,difficulty="medium",mode="trace",memoryD
     if(speakIt)onSpeak(text);
   },[onSpeak]);
 
+  // Versuch an den Forschungsmodus melden (einmal pro Versuch)
+  const report=(completed,extra={})=>{
+    if(!onTrialRef.current||reported.current||onsetRef.current==null)return;
+    if(!completed&&!attempts.current.length&&!extra.skipped)return;
+    reported.current=true;
+    const m=trialMetrics({attempts:attempts.current,onset:onsetRef.current,W,H});
+    onTrialRef.current({...m,onset:onsetRef.current,completed:completed?1:0,mode,
+      memory_delay_s:mode==="memory"?memoryDelay:null,...extra});
+  };
+
   const reset=useCallback(()=>{
+    report(false);
+    attempts.current=[];reported.current=false;markOnset();
     drawn.current=[];segs.current=[];segStarts.current=[];strokeIdx.current=0;formationErrors.current=0;
     isDrawing.current=false;
     setDone(false);setResult(null);setHasLines(false);setConfetti(false);setCoach(null);
@@ -1082,14 +1104,14 @@ function TraceCanvas({letter,onComplete,difficulty="medium",mode="trace",memoryD
   useEffect(()=>{reset();},[letter,difficulty,mode,round]);
   // Vorlage neu zeichnen, wenn sich die Phase ändert (zeigen → verstecken)
   useEffect(()=>{if(bgRef.current)drawTemplate(bgRef.current.getContext("2d"));},[memPhase]);
-  useEffect(()=>()=>clearTimeout(coachTimer.current),[]);
+  useEffect(()=>()=>{clearTimeout(coachTimer.current);report(false);},[]);
 
   // Aus-dem-Kopf: zeigen → warten (Countdown) → schreiben
   useEffect(()=>{
     if(mode!=="memory"){setMemPhase("write");return;}
     setMemPhase("show");
     const timers=[];
-    const write=()=>{setMemPhase("write");onSpeak("Jetzt du! Schreib ihn aus dem Kopf.");};
+    const write=()=>{setMemPhase("write");markOnset();onSpeak("Jetzt du! Schreib ihn aus dem Kopf.");};
     timers.push(setTimeout(()=>{
       if(memoryDelay<=0){write();return;}
       setMemPhase("wait");setCountdown(memoryDelay);
@@ -1129,7 +1151,8 @@ function TraceCanvas({letter,onComplete,difficulty="medium",mode="trace",memoryD
     return()=>{clearTimeout(t);cancelAnimationFrame(pulseRafRef.current);};
   },[letter,startPulse]);
 
-  const getPos=(e)=>{const c=ovRef.current;const rect=c.getBoundingClientRect();const sx=W/rect.width,sy=H/rect.height;const src=e.touches?e.touches[0]:e;return[(src.clientX-rect.left)*sx,(src.clientY-rect.top)*sy];};
+  // Punkt = [x, y, Zeit in ms] — die Zeit stammt vom Ereignis selbst (gleiche Uhr wie performance.now)
+  const getPos=(e)=>{const c=ovRef.current;const rect=c.getBoundingClientRect();const sx=W/rect.width,sy=H/rect.height;const src=e.touches?e.touches[0]:e;return[(src.clientX-rect.left)*sx,(src.clientY-rect.top)*sy,e.timeStamp||performance.now()];};
 
   const startDraw=(e)=>{
     e.preventDefault();if(!canWrite)return;
@@ -1144,8 +1167,8 @@ function TraceCanvas({letter,onComplete,difficulty="medium",mode="trace",memoryD
     const a=stroke[stroke.length-1],b=getPos(e);
     stroke.push(b);
     let seg;
-    if(activeReward==="rainbow"){seg={a,b,kind:"rainbow",color:RAINBOW_COLS[rainbowIdx++%RAINBOW_COLS.length]};}
-    else if(!guided){seg={a,b,kind:activeReward==="glitter"?"glitter":"ink",color:"#1e3a8a"};}
+    if(activeReward==="rainbow"&&!probe){seg={a,b,kind:"rainbow",color:RAINBOW_COLS[rainbowIdx++%RAINBOW_COLS.length]};}
+    else if(!guided){seg={a,b,kind:activeReward==="glitter"&&!probe?"glitter":"ink",color:"#1e3a8a"};}
     else{
       // Nachfahren: Grün auf der Linie, Rot daneben
       const d=distToPolyline(b[0],b[1],strokes);
@@ -1173,6 +1196,7 @@ function TraceCanvas({letter,onComplete,difficulty="medium",mode="trace",memoryD
     if(stroke.length<3){undoLastStroke();return;}
     if(guided&&strokeIdx.current<strokes.length){
       const verdict=checkFormation(stroke,strokes[strokeIdx.current],diff.tolerance);
+      attempts.current.push({pts:stroke.slice(),accepted:!verdict,verdict:verdict||"ok",expected:strokeIdx.current});
       if(verdict){
         formationErrors.current++;
         undoLastStroke();haptic("off",hapticsEnabled);
@@ -1186,7 +1210,7 @@ function TraceCanvas({letter,onComplete,difficulty="medium",mode="trace",memoryD
       setAnimalBounce(true);setTimeout(()=>setAnimalBounce(false),400);
       if(strokeIdx.current<strokes.length)setTimeout(startPulse,80);
       resetIdleTimer();
-    } else haptic("tick",hapticsEnabled);
+    } else {attempts.current.push({pts:stroke.slice(),accepted:true,verdict:"ok",expected:null});haptic("tick",hapticsEnabled);}
   };
 
   const checkScore=()=>{
@@ -1198,20 +1222,31 @@ function TraceCanvas({letter,onComplete,difficulty="medium",mode="trace",memoryD
       const dx=Math.max(-W*0.3,Math.min(W*0.3,(d.x0+d.x1)/2-(t.x0+t.x1)/2));
       tpl=shiftStrokes(strokes,dx);
     }
-    const raw=scoreDrawing(drawn.current,tpl,TOL);
+    const sc=scoreDrawing(drawn.current,tpl,TOL),raw=sc.raw;
     if(!guided){
       // Gespiegelt? Nur bei Zeichen, die gespiegelt anders aussehen
       const m=mirrorStrokes(tpl);
       const symmetric=m.flat().every(p=>distToPolyline(p[0],p[1],tpl)<TOL*0.6);
-      if(!symmetric){const rawM=scoreDrawing(drawn.current,m,TOL);mirrored=rawM>raw+0.12&&rawM>0.45;}
+      if(!symmetric){const rawM=scoreDrawing(drawn.current,m,TOL).raw;mirrored=rawM>raw+0.12&&rawM>0.45;}
+    }
+    let s=Math.max(1,Math.min(5,Math.round(raw*5)));
+    if(mirrored)s=Math.min(s,2);
+    report(true,{accuracy:+sc.accuracy.toFixed(3),coverage:+sc.coverage.toFixed(3),score_raw:+raw.toFixed(3),stars:s,mirrored:guided?null:mirrored?1:0});
+    if(probe){
+      // Schreibtest: keine Bewertung zeigen, direkt weiter
+      setResult({stars:s,note:null});setDone(true);clearTimeout(idleTimerRef.current);setShowHintBtn(false);
+      haptic("tick",hapticsEnabled);
+      setTimeout(()=>onComplete(s,{mode,mirrored}),500);
+      return;
+    }
+    if(!guided){
       // Vergleich zeigen: Vorlage hinter die Schrift des Kindes legen
       const ctx=bgRef.current.getContext("2d");
       ctx.clearRect(0,0,W,H);drawRules(ctx);
       drawModel(ctx,tpl,{color:"#22c55e",width:16,alpha:0.35,numbers:false,arrows:false});
     }
-    let s=Math.max(1,Math.min(5,Math.round(raw*5)));
     let note=null;
-    if(mirrored){s=Math.min(s,2);note="🪞 Gespiegelt! Schau, in welche Richtung er zeigt.";}
+    if(mirrored)note="🪞 Gespiegelt! Schau, in welche Richtung er zeigt.";
     else if(formationErrors.current>=2)note="➡️ Tipp: Immer beim gelben Punkt anfangen.";
     setResult({stars:s,note});setDone(true);
     clearTimeout(idleTimerRef.current);setShowHintBtn(false);
@@ -1226,9 +1261,10 @@ function TraceCanvas({letter,onComplete,difficulty="medium",mode="trace",memoryD
     :mode==="memory"&&memPhase==="wait"?"🤫 Gleich bist du dran …"
     :mode==="memory"?"✏️ Jetzt aus dem Kopf schreiben!"
     :mode==="copy"?"👀 Schau auf die Vorlage und schreib ihn ab!"
+    :probe?"✏️ Schreib ihn aus dem Kopf!"
     :allStrokesDone?"✓ Super! Tippe auf Fertig."
     :`👉 Strich ${strokeIdx.current+1} von ${strokes.length} — nachfahren!`;
-  const rewardHint=activeReward==="glitter"?"✨ Glitzerstift aktiv!":activeReward==="rainbow"?"🌈 Regenbogenstift aktiv!":activeReward==="stardust"?"🌟 Sternenregen aktiv!":null;
+  const rewardHint=probe?null:activeReward==="glitter"?"✨ Glitzerstift aktiv!":activeReward==="rainbow"?"🌈 Regenbogenstift aktiv!":activeReward==="stardust"?"🌟 Sternenregen aktiv!":null;
   const banner=coach||rewardHint||hint;
 
   return(
@@ -1249,7 +1285,8 @@ function TraceCanvas({letter,onComplete,difficulty="medium",mode="trace",memoryD
                 <div key={countdown} style={{fontSize:90*scale,fontWeight:900,color:"#a855f7",opacity:0.8,animation:"popIn 0.4s ease-out"}}>{countdown}</div>
               </div>
             )}
-            {done&&result&&(
+            {done&&probe&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:80,animation:"popIn 0.3s ease-out",pointerEvents:"none"}}>👍</div>}
+            {done&&result&&!probe&&(
               <div style={{position:"absolute",left:0,right:0,bottom:0,background:"#ffffffe8",display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"10px 8px 12px",borderTop:"1px solid #e2e8f0",animation:"slideUp 0.3s ease-out"}}>
                 <div style={{display:"flex",gap:4,alignItems:"center"}}>
                   <span style={{fontSize:26,marginRight:4}}>{result.stars===5?"🏆":"🎉"}</span>
@@ -1262,10 +1299,11 @@ function TraceCanvas({letter,onComplete,difficulty="medium",mode="trace",memoryD
             )}
           </div>
         </div>
-        <div style={{position:"absolute",bottom:-14,right:-14,fontSize:38,transform:animalBounce?"scale(1.4) rotate(-12deg)":"scale(1)",transition:"transform 0.25s cubic-bezier(.34,1.56,.64,1)",filter:"drop-shadow(0 2px 4px #0003)",userSelect:"none"}}>{animal}</div>
+        {!probe&&<div style={{position:"absolute",bottom:-14,right:-14,fontSize:38,transform:animalBounce?"scale(1.4) rotate(-12deg)":"scale(1)",transition:"transform 0.25s cubic-bezier(.34,1.56,.64,1)",filter:"drop-shadow(0 2px 4px #0003)",userSelect:"none"}}>{animal}</div>}
         {confetti&&<Confetti/>}
       </div>
       <div style={{display:"flex",gap:8,marginTop:6}}>
+        {probe&&!done&&<button onClick={()=>{report(false,{skipped:1});setDone(true);onComplete(0,{mode,skipped:true});}} style={{padding:"8px 16px",borderRadius:20,border:"2px solid #cbd5e1",background:"white",color:"#64748b",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"Arial,sans-serif"}}>🤷 Weiß ich nicht</button>}
         <button onClick={()=>mode==="memory"?setRound(r=>r+1):reset()} style={{padding:"8px 16px",borderRadius:20,border:"2px solid #f87171",background:"white",color:"#ef4444",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"Arial,sans-serif"}}>🗑️ Neu</button>
         {hasLines&&!done&&<button onClick={checkScore} style={{padding:"8px 16px",borderRadius:20,border:"none",background:"linear-gradient(135deg,#4ade80,#16a34a)",color:"white",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"Arial,sans-serif",animation:allStrokesDone?"glowPulse 1.6s infinite":"none"}}>✓ Fertig</button>}
         {showHintBtn&&!done&&!hasLines&&guided&&(
@@ -1299,12 +1337,26 @@ function TraceCanvas({letter,onComplete,difficulty="medium",mode="trace",memoryD
 // ═══════════════════════════════════════════════════════════════════════════════
 // GUIDED CANVAS  — Phase 1: geführt, Phase 2: frei nachzeichnen, Phase 3: Vergleich
 // ═══════════════════════════════════════════════════════════════════════════════
-function GuidedCanvas({letter, onComplete, onSpeak=()=>{}, scale=1, W=260, H=310}){
+function GuidedCanvas({letter, onComplete, onSpeak=()=>{}, onTrial=null, scale=1, W=260, H=310}){
   const bgRef=useRef(null);
   const ovRef=useRef(null);
   const compareRef=useRef(null);
   const [k]=useState(()=>pixelRatio(scale));
   useCanvasScale([bgRef,ovRef,compareRef],k);
+  // Messung (Forschungsmodus): Beginn, erste Berührung, Ende — die Linie hilft hier mit,
+  // deshalb nur Grunddaten und keine Strichdetails
+  const onsetRef=useRef(null),firstTouch=useRef(null),reported=useRef(false);
+  const onTrialRef=useRef(onTrial);onTrialRef.current=onTrial;
+  const reportG=(completed,extra={})=>{
+    if(!onTrialRef.current||reported.current||onsetRef.current==null)return;
+    if(!completed&&firstTouch.current==null)return;
+    reported.current=true;
+    const end=performance.now();
+    onTrialRef.current({onset:onsetRef.current,completed:completed?1:0,mode:"guided",
+      latency_ms:firstTouch.current!=null?Math.round(firstTouch.current-onsetRef.current):null,
+      movement_ms:firstTouch.current!=null?Math.round(end-firstTouch.current):null,strokes:[],...extra});
+  };
+  useEffect(()=>()=>reportG(false),[]);
   const isDrawing=useRef(false);
   const strokeStarted=useRef(false);
   const progressRef=useRef(0);
@@ -1477,6 +1529,8 @@ function GuidedCanvas({letter, onComplete, onSpeak=()=>{}, scale=1, W=260, H=310
   },[strokes]);
 
   const reset=useCallback(()=>{
+    reportG(false);reported.current=false;firstTouch.current=null;
+    requestAnimationFrame(ts=>{onsetRef.current=ts;});
     strokeIdx.current=0;progressRef.current=0;
     isDrawing.current=false;strokeStarted.current=false;lastSnapped.current=null;currentStrokePts.current=[];
     freeLastPos.current=null;freePoints.current=[];freeStrokeIdx.current=0;freeStrokePts.current=[];
@@ -1512,6 +1566,7 @@ function GuidedCanvas({letter, onComplete, onSpeak=()=>{}, scale=1, W=260, H=310
   };
   const guidedStart=(e)=>{
     e.preventDefault();if(phase!=="guided")return;
+    if(firstTouch.current==null)firstTouch.current=e.timeStamp||performance.now();
     const pos=getPos(e);
     if(!strokeStarted.current){
       if(nearStart(pos.x,pos.y)){
@@ -1605,6 +1660,7 @@ function GuidedCanvas({letter, onComplete, onSpeak=()=>{}, scale=1, W=260, H=310
     const label=pct>=90?"🌟 Ausgezeichnet!":pct>=70?"👍 Sehr gut!":pct>=50?"😊 Gut gemacht!":"💪 Weiter üben!";
     const color=pct>=90?"#16a34a":pct>=70?"#4361ee":pct>=50?"#f59e0b":"#f97316";
     setScoreInfo({score:pct,label,color});setPhase("compare");
+    reportG(true,{score_raw:pct/100,stars:Math.max(1,Math.round(pct/20)),n_strokes:strokes.length});
     setTimeout(()=>onComplete(Math.max(1,Math.round(pct/20))),1800);
   };
 
@@ -1656,7 +1712,213 @@ function GuidedCanvas({letter, onComplete, onSpeak=()=>{}, scale=1, W=260, H=310
     </div>
   );
 }
-function ParentZone({settings,onChange,onClose,journal}){
+// ═══════════════════════════════════════════════════════════════════════════════
+// FORSCHUNG — Teilnahme im Elternbereich, Zustimmung des Kindes, Schreibtest
+// ═══════════════════════════════════════════════════════════════════════════════
+const fmtCode=(pid)=>pid?`${pid.slice(0,3)}-${pid.slice(3)}`:"";
+const studyBtn=(bg,fg="white",border="none")=>({width:"100%",padding:10,background:bg,color:fg,border,borderRadius:14,fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"Arial,sans-serif",marginTop:6});
+
+function StudySection({onStartProbe}){
+  const rs=useResearch();
+  const [open,setOpen]=useState(false);
+  const [msg,setMsg]=useState(null);
+  const [busy,setBusy]=useState(false);
+  if(!rs.available&&!msg)return null;
+  const doneCount=Object.keys(rs.wavesDone||{}).length;
+  return(
+    <div style={{marginBottom:14,paddingBottom:14,borderBottom:"1px solid #e2e8f0"}}>
+      <h4 style={{margin:"0 0 6px",fontSize:14,fontWeight:800,color:"#1e3a8a"}}>🔬 Forschung</h4>
+      {msg&&<p style={{fontSize:12,color:"#0f766e",background:"#f0fdfa",borderRadius:10,padding:"6px 10px",margin:"0 0 8px"}}>{msg}</p>}
+      {rs.available&&!rs.enrolled&&(
+        <>
+          <p style={{fontSize:12,color:"#475569",margin:"0 0 6px",lineHeight:1.5}}>
+            <b>{rs.studyTitle}</b> — Mit Ihrer Einwilligung sendet die App pseudonyme Messwerte (z. B. Reaktionszeiten und Genauigkeit) an das Studienteam. Die Teilnahme ist freiwillig und jederzeit beendbar.
+          </p>
+          <button onClick={()=>setOpen(true)} style={studyBtn("#0f766e")}>Mehr erfahren und teilnehmen</button>
+        </>
+      )}
+      {rs.enrolled&&(
+        <>
+          <div style={{background:"#f0fdfa",borderRadius:12,padding:10,fontSize:12,lineHeight:1.7,color:"#134e4a"}}>
+            <div>Teilnahmecode: <b style={{fontSize:15,letterSpacing:1}}>{fmtCode(rs.pid)}</b></div>
+            <div>Studientag {rs.day} · Schreibtests {doneCount} von {rs.waves.length}</div>
+            <div>{rs.pending?`${rs.pending} Messungen warten auf das Senden`:"Alle Messungen gesendet"}</div>
+          </div>
+          {rs.dueWave!=null&&<button onClick={onStartProbe} style={studyBtn("#0f766e")}>🔬 Schreibtest jetzt starten</button>}
+          <button disabled={busy} onClick={async()=>{setBusy(true);try{await exportMyData();}catch{setMsg("Herunterladen hat nicht geklappt. Bitte mit Internet erneut versuchen.");}setBusy(false);}}
+            style={studyBtn("white","#0f766e","2px solid #99f6e4")}>📥 Meine Studiendaten herunterladen</button>
+          <button disabled={busy} onClick={async()=>{
+              if(!window.confirm("Teilnahme wirklich beenden? Alle Studiendaten Ihres Kindes werden auf dem Server gelöscht."))return;
+              setBusy(true);
+              try{await withdraw();setMsg("Die Teilnahme ist beendet und alle Studiendaten sind gelöscht.");}
+              catch{setMsg(`Löschen hat nicht geklappt. Bitte mit Internet erneut versuchen${rs.contact?` oder mit dem Teilnahmecode an ${rs.contact} schreiben`:""}.`);}
+              setBusy(false);
+            }}
+            style={studyBtn("white","#ef4444","2px solid #fecaca")}>Teilnahme beenden und Daten löschen</button>
+        </>
+      )}
+      {open&&<StudyEnroll onClose={()=>setOpen(false)} onStartProbe={onStartProbe}/>}
+    </div>
+  );
+}
+
+function StudyEnroll({onClose,onStartProbe}){
+  const rs=useResearch();
+  const [step,setStep]=useState("info");   // info | consent | data | child | sending | done | declined
+  const [c,setC]=useState({custody:false,consent:false,voluntary:false,traces:false});
+  const now=new Date();
+  const [d,setD]=useState({month:"",year:"",grade:"",handedness:"",homeLang:"",gender:"keine_angabe"});
+  const [err,setErr]=useState(null);
+  const ageMonths=d.month&&d.year?(now.getFullYear()-Number(d.year))*12+(now.getMonth()+1-Number(d.month)):null;
+  const ageOk=ageMonths!=null&&ageMonths>=48&&ageMonths<=107;
+  const dataOk=ageOk&&d.grade&&d.handedness&&d.homeLang;
+  const send=async()=>{
+    setStep("sending");setErr(null);
+    try{
+      await enroll({ageMonths,grade:d.grade,handedness:d.handedness,homeLang:d.homeLang,gender:d.gender,traces:c.traces});
+      setStep("done");
+    }catch{setErr("Keine Verbindung zum Studienserver. Bitte mit Internet erneut versuchen.");setStep("child");}
+  };
+  const box={background:"white",borderRadius:24,padding:20,maxWidth:440,width:"100%",maxHeight:"88vh",overflowY:"auto",position:"relative",boxShadow:"0 20px 60px #0004",fontFamily:"Arial,sans-serif",color:"#334155"};
+  const p={fontSize:13,lineHeight:1.55,margin:"0 0 8px"};
+  const check=(k,label)=>(
+    <label style={{display:"flex",gap:9,alignItems:"flex-start",fontSize:13,lineHeight:1.45,marginBottom:10,cursor:"pointer"}}>
+      <input type="checkbox" checked={c[k]} onChange={e=>setC({...c,[k]:e.target.checked})} style={{width:18,height:18,marginTop:1,flexShrink:0}}/>
+      <span>{label}</span>
+    </label>
+  );
+  const select=(k,label,opts)=>(
+    <label style={{display:"block",fontSize:12,fontWeight:700,margin:"0 0 8px"}}>{label}
+      <select value={d[k]} onChange={e=>setD({...d,[k]:e.target.value})} style={{display:"block",width:"100%",marginTop:3,padding:8,borderRadius:10,border:"2px solid #e2e8f0",fontSize:13,fontFamily:"Arial,sans-serif"}}>
+        <option value="">Bitte wählen</option>
+        {opts.map(([v,l])=><option key={v} value={v}>{l}</option>)}
+      </select>
+    </label>
+  );
+  const years=Array.from({length:8},(_,i)=>now.getFullYear()-3-i);
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2100,padding:16}}>
+      <div style={box}>
+        <button onClick={onClose} style={{position:"absolute",top:14,right:14,background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#94a3b8"}}>✕</button>
+        {step==="info"&&(<>
+          <h3 style={{margin:"0 0 10px",fontSize:18,color:"#0f766e"}}>🔬 {rs.studyTitle}</h3>
+          <p style={p}><b>Worum geht es?</b> Wir möchten herausfinden, ob Kinder Buchstaben besser lernen, wenn die App ihre Hilfe Schritt für Schritt abbaut.</p>
+          <p style={p}><b>Ablauf:</b> Ihr Kind übt wie gewohnt. Dazu kommen drei kurze Schreibtests von 3 bis 5 Minuten: heute, nach 4 und nach 8 Wochen.</p>
+          <p style={p}><b>Zwei Gruppen:</b> Der Zufall teilt Ihr Kind einer Gruppe zu. In einer Gruppe gibt es bis zum Studienende nur „Geführt“ und „Nachfahren“, danach alle Übungen.</p>
+          <p style={p}><b>Welche Daten?</b> Messwerte wie Reaktionszeit, Schreibdauer und Genauigkeit sowie Alter in Monaten, Klassenstufe, Händigkeit und Familiensprache. Kein Name, keine E-Mail, keine IP-Adresse in der Datenbank.</p>
+          <p style={p}><b>Freiwillig:</b> Sie können jederzeit hier im Elternbereich aufhören. Dann werden alle Studiendaten gelöscht.</p>
+          {rs.infoUrl&&<p style={p}><a href={rs.infoUrl} target="_blank" rel="noreferrer" style={{color:"#0f766e",fontWeight:700}}>Vollständige Elterninformation lesen</a></p>}
+          <button onClick={()=>setStep("consent")} style={studyBtn("#0f766e")}>Weiter</button>
+        </>)}
+        {step==="consent"&&(<>
+          <h3 style={{margin:"0 0 12px",fontSize:17,color:"#0f766e"}}>Einwilligung</h3>
+          {check("custody","Ich bin sorgeberechtigt für das Kind, das die App nutzt.")}
+          {check("consent","Ich habe die Elterninformation gelesen und willige ein, dass die dort beschriebenen Daten meines Kindes pseudonym für die Studie verarbeitet werden.")}
+          {check("voluntary","Ich weiß, dass die Teilnahme freiwillig ist und ich sie jederzeit ohne Nachteile beenden kann.")}
+          <div style={{borderTop:"1px solid #e2e8f0",margin:"6px 0 10px"}}/>
+          {check("traces","Freiwillig zusätzlich: Die Schreibspuren (Linien mit Zeitstempeln) dürfen gespeichert werden.")}
+          <button disabled={!(c.custody&&c.consent&&c.voluntary)} onClick={()=>setStep("data")}
+            style={{...studyBtn(c.custody&&c.consent&&c.voluntary?"#0f766e":"#cbd5e1")}}>Weiter</button>
+        </>)}
+        {step==="data"&&(<>
+          <h3 style={{margin:"0 0 6px",fontSize:17,color:"#0f766e"}}>Angaben zum Kind</h3>
+          <p style={{...p,fontSize:12,color:"#64748b"}}>Monat und Jahr der Geburt bleiben auf diesem Gerät. Gesendet wird nur das Alter in Monaten.</p>
+          <div style={{display:"flex",gap:8}}>
+            <div style={{flex:1}}>{select("month","Geburtsmonat",Array.from({length:12},(_,i)=>[String(i+1),String(i+1).padStart(2,"0")]))}</div>
+            <div style={{flex:1}}>{select("year","Geburtsjahr",years.map(y=>[String(y),String(y)]))}</div>
+          </div>
+          {ageMonths!=null&&!ageOk&&<p style={{...p,fontSize:12,color:"#b91c1c"}}>Die Studie richtet sich an Kinder von 4 bis 8 Jahren.</p>}
+          {select("grade","Kita oder Schule",[["kita","Kita / Vorschuljahr"],["k1","Klasse 1"],["k2","Klasse 2"],["andere","Anderes"]])}
+          {select("handedness","Schreibhand",[["rechts","Rechts"],["links","Links"],["beide","Mal so, mal so"],["unklar","Noch nicht klar"]])}
+          {select("homeLang","Sprache in der Familie",[["deutsch","Deutsch"],["teilweise","Deutsch und eine andere Sprache"],["andere","Eine andere Sprache"],["keine_angabe","Keine Angabe"]])}
+          {select("gender","Geschlecht (freiwillig)",[["keine_angabe","Keine Angabe"],["w","Mädchen"],["m","Junge"],["d","Divers"]])}
+          <button disabled={!dataOk} onClick={()=>setStep("child")} style={studyBtn(dataOk?"#0f766e":"#cbd5e1")}>Weiter — jetzt das Kind fragen</button>
+        </>)}
+        {step==="child"&&(<>
+          <div style={{textAlign:"center"}}>
+            <div style={{fontSize:56}}>🔬✏️</div>
+            <p style={{fontSize:17,fontWeight:800,color:"#1e3a8a",margin:"8px 0",lineHeight:1.4}}>Hallo! Wir möchten herausfinden, wie Kinder am besten schreiben lernen.</p>
+            <p style={{fontSize:15,color:"#334155",margin:"0 0 6px",lineHeight:1.4}}>Darf die App sich merken, wie du schreibst? Du kannst jederzeit aufhören.</p>
+            <p style={{fontSize:11,color:"#64748b",margin:"0 0 12px"}}>(Bitte lesen Sie Ihrem Kind diese Frage vor.)</p>
+            {err&&<p style={{fontSize:12,color:"#b91c1c"}}>{err}</p>}
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={send} style={{flex:1,padding:"16px 8px",borderRadius:18,border:"none",background:"#22c55e",color:"white",fontSize:20,fontWeight:900,cursor:"pointer"}}>👍 Ja</button>
+              <button onClick={()=>setStep("declined")} style={{flex:1,padding:"16px 8px",borderRadius:18,border:"none",background:"#94a3b8",color:"white",fontSize:20,fontWeight:900,cursor:"pointer"}}>👎 Nein</button>
+            </div>
+          </div>
+        </>)}
+        {step==="sending"&&<p style={{textAlign:"center",fontSize:15,padding:30}}>Einen Moment …</p>}
+        {step==="declined"&&(<>
+          <p style={{fontSize:16,textAlign:"center",lineHeight:1.5,margin:"20px 0"}}>👍 Alles gut! Dann machen wir nicht mit. Die App funktioniert ganz normal weiter.</p>
+          <button onClick={onClose} style={studyBtn("#0f766e")}>Schließen</button>
+        </>)}
+        {step==="done"&&(<>
+          <h3 style={{margin:"0 0 8px",fontSize:17,color:"#0f766e"}}>Danke für die Teilnahme!</h3>
+          <p style={p}>Ihr Teilnahmecode:</p>
+          <div style={{fontSize:30,fontWeight:900,letterSpacing:3,textAlign:"center",background:"#f0fdfa",borderRadius:14,padding:12,color:"#134e4a"}}>{fmtCode(rs.pid)}</div>
+          <p style={{...p,marginTop:8,fontSize:12}}>Bitte notieren Sie den Code. Sie brauchen ihn, wenn Sie Fragen haben oder die Daten löschen lassen möchten.</p>
+          <p style={p}>Am besten macht Ihr Kind jetzt den ersten kurzen Schreibtest.</p>
+          <button onClick={()=>{onClose();onStartProbe();}} style={studyBtn("#0f766e")}>🔬 Ersten Schreibtest starten</button>
+          <button onClick={onClose} style={studyBtn("white","#0f766e","2px solid #99f6e4")}>Später</button>
+        </>)}
+      </div>
+    </div>
+  );
+}
+
+// Schreibtest: Zeichen aus dem Gedächtnis, ohne Vorlage und ohne Rückmeldung
+function probePrompt(ch){
+  const name=LETTER_NAMES[ch]||ch;
+  if(NUMBERS.includes(ch))return`Schreib die Zahl ${name}.`;
+  const a=anlautOf(ch);const wie=a?`, wie ${a[2]?"in ":""}${a[1]}`:"";
+  if(ch==="ß")return`Schreib das Eszett${wie}.`;
+  return UPPERCASE.includes(ch)?`Schreib das große ${name}${wie}.`:`Schreib das kleine ${name.replace("kleines ","")}${wie}.`;
+}
+function ProbeTest({wave,chars,difficulty,scale,onSpeak,onLog,onFinish,onExit}){
+  const [order]=useState(()=>{const a=[...chars];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;});
+  const [i,setI]=useState(-1);
+  const ch=order[i];
+  useEffect(()=>{if(ch)onSpeak(probePrompt(ch));},[i]);
+  const page={minHeight:"100vh",background:"linear-gradient(160deg,#ecfeff,#f0fdfa)",fontFamily:"Arial,sans-serif",display:"flex",flexDirection:"column",alignItems:"center",padding:12,gap:10};
+  const big={padding:"14px 28px",borderRadius:18,border:"none",background:"#0f766e",color:"white",fontWeight:900,fontSize:17,cursor:"pointer",fontFamily:"Arial,sans-serif"};
+  if(i<0)return(
+    <div style={{...page,justifyContent:"center",textAlign:"center"}}>
+      <div style={{fontSize:64}}>🔬</div>
+      <h2 style={{margin:0,color:"#134e4a"}}>Kleiner Schreibtest</h2>
+      <p style={{maxWidth:320,color:"#334155",lineHeight:1.5,fontSize:15}}>Ich zeige dir ein Bild und sage dir einen Buchstaben oder eine Zahl. Schreib ihn so gut du kannst — ganz ohne Vorlage. Wenn du ihn nicht weißt, tippe auf 🤷.</p>
+      <button onClick={()=>setI(0)} style={big}>Los geht's!</button>
+      <button onClick={onExit} style={{background:"none",border:"none",color:"#64748b",fontSize:13,cursor:"pointer",marginTop:6}}>Später</button>
+    </div>
+  );
+  if(i>=order.length)return(
+    <div style={{...page,justifyContent:"center",textAlign:"center"}}>
+      <div style={{fontSize:72}}>🎉</div>
+      <h2 style={{margin:0,color:"#134e4a"}}>Danke! Du hast toll mitgemacht.</h2>
+      <button onClick={onFinish} style={{...big,marginTop:12}}>Zurück zum Menü</button>
+    </div>
+  );
+  const a=anlautOf(ch);
+  return(
+    <div style={page}>
+      <div style={{display:"flex",alignItems:"center",gap:8,width:"100%",maxWidth:480}}>
+        <button onClick={onExit} style={{background:"white",border:"1px solid #e2e8f0",borderRadius:50,width:36,height:36,fontSize:16,cursor:"pointer"}}>←</button>
+        <div style={{flex:1,height:10,background:"#ccfbf1",borderRadius:6,overflow:"hidden"}}>
+          <div style={{width:`${i/order.length*100}%`,height:"100%",background:"#14b8a6",transition:"width 0.3s"}}/>
+        </div>
+        <span style={{fontSize:12,fontWeight:800,color:"#0f766e"}}>{i+1}/{order.length}</span>
+      </div>
+      <button onClick={()=>onSpeak(probePrompt(ch))} style={{display:"flex",alignItems:"center",gap:12,background:"white",border:"2px solid #99f6e4",borderRadius:18,padding:"8px 18px",cursor:"pointer"}}>
+        <span style={{fontSize:a?44:20,lineHeight:1.1,maxWidth:130,display:"inline-block",wordBreak:"break-all"}}>{a?a[0]:ch==="0"?"⭕":"●".repeat(Number(ch))}</span>
+        <span style={{fontSize:22}}>🔊</span>
+      </button>
+      <TraceCanvas key={`probe-${i}`} letter={ch} mode="probe" difficulty={difficulty} scale={scale}
+        onTrial={t=>onLog({...t,kind:"probe",wave,ch})}
+        onComplete={()=>setTimeout(()=>setI(n=>n+1),250)}/>
+    </div>
+  );
+}
+
+function ParentZone({settings,onChange,onClose,journal,onStartProbe}){
   const [access,setAccess]=useState(false);
   const [ans,setAns]=useState("");
   const [err,setErr]=useState(false);
@@ -1793,6 +2055,8 @@ function ParentZone({settings,onChange,onClose,journal}){
             </label>
           ))}
         </div>
+
+        <StudySection onStartProbe={onStartProbe}/>
 
         {/* Stats */}
         <div style={{marginBottom:14}}>
@@ -1986,7 +2250,7 @@ function WordsPanel({learnedMap, onPractice}){
 // ═══════════════════════════════════════════════════════════════════════════════
 // WORD PRACTICE SCREEN — writes each letter of a word in sequence
 // ═══════════════════════════════════════════════════════════════════════════════
-function WordPractice({word, settings, onSpeak=()=>{}, scale=1, onBack}){
+function WordPractice({word, settings, onSpeak=()=>{}, onTrial=null, scale=1, onBack}){
   const letters=word.word.split("");
   const [idx,setIdx]=useState(0);           // current letter index
   const [doneLetters,setDoneLetters]=useState([]); // stars per letter
@@ -2097,12 +2361,13 @@ function WordPractice({word, settings, onSpeak=()=>{}, scale=1, onBack}){
           <AnimCanvas key={`wanim-${current}-${idx}-${replayKey}`} letter={current} scale={scale}
             onDone={()=>setPhase(settings.allowedModes?.guided?"trace_guided":"trace_free")}/>}
         {phase==="trace_guided"&&
-          <GuidedCanvas key={`wguided-${current}-${idx}-${replayKey}`} letter={current} onComplete={handleLetterDone} onSpeak={onSpeak} scale={scale}/>}
+          <GuidedCanvas key={`wguided-${current}-${idx}-${replayKey}`} letter={current} onComplete={handleLetterDone} onSpeak={onSpeak} scale={scale}
+            onTrial={onTrial&&(t=>onTrial(current,t))}/>}
         {phase==="trace_free"&&
           <TraceCanvas key={`wtrace-${current}-${idx}-${replayKey}`} letter={current}
             onComplete={handleLetterDone} difficulty={settings.difficulty} mode="trace" activeReward={null}
             lefthanded={!!settings.lefthanded} highContrast={!!settings.highContrast} hapticsEnabled={settings.hapticsEnabled!==false}
-            onSpeak={onSpeak} scale={scale}/>}
+            onSpeak={onSpeak} scale={scale} onTrial={onTrial&&(t=>onTrial(current,t))}/>}
       </div>
     </div>
   );
@@ -2173,7 +2438,9 @@ export default function App(){
   const [memMap,setMemMap]=useState(()=>persisted.memMap||{});           // Erfolge aus dem Kopf
   const [lastPracticed,setLastPracticed]=useState(()=>persisted.lastPracticed||{});
   const [levelUp,setLevelUp]=useState(null);
-  const allowed=(m)=>!!settings.allowedModes?.[m];
+  const rs=useResearch();
+  // Wartekontrollgruppe der Studie: bis zum Studienende nur geführt und nachfahren
+  const allowed=(m)=>!!settings.allowedModes?.[m]&&(!rs.restricted||m==="guided"||m==="trace");
   const stageOf=(l)=>stageMap[l]||1;
   // Empfohlener Modus für einen Buchstaben: seine Lernstufe, sonst die nächstniedrigere erlaubte
   const modeFor=(l)=>{
@@ -2185,6 +2452,9 @@ export default function App(){
   };
   const [mode,setMode]=useState(()=>modeFor("A"));
   const fs=useMemo(()=>fieldScale(),[]);
+  useEffect(()=>{setFieldScale(fs);},[fs,rs.enrolled]);
+  // Messwerte eines Versuchs an den Forschungsmodus geben (nur bei Teilnahme)
+  const studyLog=rs.enrolled?(extra)=>(t)=>logTrial({...t,difficulty:settings.difficulty,restricted:rs.restricted?1:0,...extra}):null;
   const [gridOpen,setGridOpen]=useState(false);
   const gridOpenedOnce=useRef(false);
   const [showParent,setShowParent]=useState(false);
@@ -2274,7 +2544,7 @@ export default function App(){
     if(s>=4){
       if(used==="memory")setMemMap(m=>({...m,[letter]:(m[letter]||0)+1}));
       const target=Math.min(3,MODE_STAGE[used]+1);   // wer es schon aus dem Kopf kann, bleibt dort
-      if(target>cur){
+      if(target>cur&&!rs.restricted){
         next=target;
         setStageMap(m=>({...m,[letter]:next}));
         setLevelUp({letter,stage:next});setTimeout(()=>setLevelUp(null),4000);
@@ -2328,6 +2598,11 @@ export default function App(){
       <div style={{background:"rgba(255,255,255,0.15)",borderRadius:14,padding:"8px 16px",color:"white",fontSize:13,fontWeight:700}}>
         🏆 {totalScore} &nbsp;·&nbsp; {learnedCount} gelernt &nbsp;·&nbsp; {perfectCount} 🌻
       </div>
+      {rs.enrolled&&rs.dueWave!=null&&(
+        <button onClick={()=>setScreen("probe")} style={{background:"linear-gradient(135deg,#14b8a6,#0f766e)",border:"none",borderRadius:18,padding:"12px 16px",width:280,color:"white",fontWeight:900,fontSize:15,cursor:"pointer",fontFamily:"Arial,sans-serif",boxShadow:"0 4px 16px #0f766e60",animation:"glowPulse 2s infinite"}}>
+          🔬 Kleiner Schreibtest
+        </button>
+      )}
       {due.length>0&&(
         <div style={{background:"rgba(255,255,255,0.95)",borderRadius:18,padding:"10px 14px",width:280,boxShadow:"0 4px 16px #0003",animation:"slideUp 0.4s ease-out"}}>
           <div style={{fontSize:13,fontWeight:900,color:"#312e81",marginBottom:6}}>🔁 Heute wiederholen</div>
@@ -2352,15 +2627,24 @@ export default function App(){
           📄 Impressum
         </button>
       </div>
-      {showParent&&<ParentZone settings={settingsWithData} onChange={updateSettings} onClose={()=>setShowParent(false)} journal={journal}/>}
+      {showParent&&<ParentZone settings={settingsWithData} onChange={updateSettings} onStartProbe={()=>{setShowParent(false);setScreen("probe");}} onClose={()=>setShowParent(false)} journal={journal}/>}
     </div>
   );
 
   if(screen==="impressum") return <ImpressumScreen onBack={()=>setScreen("menu")}/>;
 
+  if(screen==="probe"){
+    if(!rs.enrolled||rs.dueWave==null){setTimeout(()=>setScreen("menu"),0);return null;}
+    const wave=rs.dueWave;
+    return <ProbeTest key={wave} wave={wave} chars={rs.probeChars} difficulty={settings.difficulty} scale={fs} onSpeak={sayIt}
+      onLog={t=>logTrial({...t,difficulty:settings.difficulty,restricted:rs.restricted?1:0})}
+      onFinish={()=>{markWaveDone(wave);setScreen("menu");}} onExit={()=>setScreen("menu")}/>;
+  }
+
   if(screen==="words"){
     if(practiceWord) return(
       <WordPractice word={practiceWord} settings={settings} onSpeak={sayIt} scale={fs}
+        onTrial={studyLog&&((ch,t)=>studyLog({kind:"word",ch,stage:stageOf(ch)})(t))}
         onBack={()=>setPracticeWord(null)}/>
     );
     return(
@@ -2476,12 +2760,13 @@ export default function App(){
         {phase==="anim"
           ?<AnimCanvas key={`anim-${letter}-${replayKey}`} letter={letter} onDone={()=>setPhase("write")} scale={fs}/>
           :mode==="guided"
-            ?<GuidedCanvas key={`guided-${letter}-${replayKey}`} letter={letter} onComplete={handleDone} onSpeak={sayIt} scale={fs}/>
+            ?<GuidedCanvas key={`guided-${letter}-${replayKey}`} letter={letter} onComplete={handleDone} onSpeak={sayIt} scale={fs}
+               onTrial={studyLog&&studyLog({kind:"practice",ch:letter,stage:stageOf(letter)})}/>
             :<TraceCanvas key={`trace-${letter}-${mode}-${replayKey}`} letter={letter} onComplete={handleDone}
                difficulty={settings.difficulty} mode={mode} activeReward={activeReward}
                memoryDelay={MEMORY_DELAYS[Math.min(memMap[letter]||0,MEMORY_DELAYS.length-1)]}
                lefthanded={!!settings.lefthanded} highContrast={!!settings.highContrast} hapticsEnabled={settings.hapticsEnabled!==false}
-               onSpeak={sayIt} scale={fs}/>
+               onSpeak={sayIt} scale={fs} onTrial={studyLog&&studyLog({kind:"practice",ch:letter,stage:stageOf(letter)})}/>
         }
       </div>
 
@@ -2495,7 +2780,7 @@ export default function App(){
       {showUnicorn&&<UnicornRun onDone={()=>setShowUnicorn(false)}/>}
       {showStarRain&&<StarRain onDone={()=>setShowStarRain(false)}/>}
       {showScreenTime&&<ScreenTimeReminder limit={settings.screenTime} onDismiss={()=>setShowScreenTime(false)}/>}
-      {showParent&&<ParentZone settings={settingsWithData} onChange={updateSettings} onClose={()=>setShowParent(false)} journal={journal}/>}
+      {showParent&&<ParentZone settings={settingsWithData} onChange={updateSettings} onStartProbe={()=>{setShowParent(false);setScreen("probe");}} onClose={()=>setShowParent(false)} journal={journal}/>}
     </div>
   );
 }
@@ -2597,6 +2882,9 @@ function ImpressumScreen({onBack}){
 
             <h3 style={s.h3}>3. Aufruf der Webseite (Server-Logfiles)</h3>
             <p style={s.p}>Beim Aufrufen der App überträgt dein Browser technisch bedingt Daten an unseren Webserver bzw. Hoster <span style={{background:"#fde68a",borderRadius:4,padding:"1px 5px"}}>[Name des Hosters]</span>: IP-Adresse, Datum und Uhrzeit, aufgerufene Datei, Browsertyp und Betriebssystem. Diese Daten sind für die Auslieferung der App erforderlich (Art. 6 Abs. 1 lit. f DSGVO), werden nicht mit anderen Daten zusammengeführt und nach <span style={{background:"#fde68a",borderRadius:4,padding:"1px 5px"}}>[z. B. 7]</span> Tagen gelöscht. Nach dem ersten Laden funktioniert die App auch offline.</p>
+
+            <h3 style={s.h3}>3a. Forschungsmodus (nur mit Einwilligung)</h3>
+            <p style={s.p}>Nur wenn Eltern im Elternbereich in die Teilnahme an einer Studie einwilligen und das Kind zustimmt, sendet die App pseudonyme Messwerte (z. B. Reaktionszeiten, Schreibdauer, Genauigkeit sowie Alter in Monaten, Klassenstufe, Händigkeit, Familiensprache) unter einem zufälligen Teilnahmecode an unseren Server. Namen, E-Mail- und IP-Adressen werden dabei nicht gespeichert. Einzelheiten stehen in der Elterninformation zur Studie. Die Teilnahme kann jederzeit im Elternbereich beendet werden; dann werden alle Studiendaten gelöscht.</p>
 
             <h3 style={s.h3}>4. Kinder & besonderer Schutz (Art. 8 DSGVO)</h3>
             <p style={s.p}>Diese App richtet sich an Kinder im Vorschul- und Grundschulalter. Wir erheben bewusst keinerlei personenbezogene Daten. Es werden keine Nutzerkonten erstellt, keine E-Mail-Adressen abgefragt und keine Tracking-Technologien eingesetzt.</p>

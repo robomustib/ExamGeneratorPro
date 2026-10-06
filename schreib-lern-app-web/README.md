@@ -78,6 +78,23 @@ lehrt.
 | **Verteiltes, abrufendes Wiederholen** wirkt auch bei kleinen Kindern (z. B. [Haebig u. a. 2021](https://learninglab.psych.purdue.edu/downloads/2021/2021_Haebig_et_al_JSLHR.pdf)) | Im Menü erscheint **„🔁 Heute wiederholen“** mit Buchstaben, die vor über einem Tag geübt wurden. |
 | Buchstabe, **Laut und Bild** zusammen lernen hilft beim Lesenlernen ([Bara, Gentaz u. a.](https://hal.archives-ouvertes.fr/hal-00733557)) | **Anlaut-Bilder** wie auf der Anlauttabelle („🐭 **M**aus“, vorgelesen als „Em, wie Maus“). Vorher passten einige Bilder nicht (U = 🦄 Einhorn, S = 🐍 Schlange). |
 
+## Forschungsmodus (für Studien)
+
+Die App enthält einen eingebauten, standardmäßig **ausgeschalteten** Forschungsmodus.
+Er misst nach Einwilligung der Eltern und Zustimmung des Kindes Reaktionszeiten,
+Schreibdauer, Genauigkeit, Form- und Spiegelfehler und lädt sie pseudonym in eine
+MySQL-Datenbank. Dazu gehören ein Schreibtest (Vortest, Nachtest, Follow-up) und eine
+randomisierte Wartekontrollgruppe.
+
+- App-Seite: `src/research.js`, Einwilligung im Elternbereich unter „🔬 Forschung“
+- Server-Seite: `public/forschung/` (wird nach `dist/forschung/` kopiert):
+  `api.php`, `export.php`, `schema.sql`, `config.sample.php`, `config.json`, `elterninfo.html`
+- Einschalten: `forschung/config.json` → `"enabled": true` (erst nach Ethikvotum und
+  Datenschutzprüfung). Ohne Server oder bei `false` sendet die App nichts.
+
+Forschungsdesign, Datenschutzkonzept und Einrichtung stehen im Dokument
+„Forschungsdesign und Datenschutzkonzept: Schreib & Lern“.
+
 ## Vor dem Veröffentlichen
 
 Im Impressum und in der Datenschutzerklärung (in der App unter
@@ -105,8 +122,10 @@ schreib-lern-app-web/
 ├── index.html          Touch-Sperren, Safe-Area, Meta-Tags
 ├── vite.config.js      baut alles in eine einzige index.html
 ├── public/             Icons, Manifest, Service Worker (werden nach dist/ kopiert)
+│   └── forschung/      Server-Teil des Forschungsmodus (PHP, SQL, Elterninformation)
 ├── src/
 │   ├── main.jsx        Einstieg, Zurück-Taste, Service Worker
-│   └── App.jsx         die gesamte App
+│   ├── App.jsx         die gesamte App
+│   └── research.js     Forschungsmodus: Messung, Warteschlange, Upload
 └── dist/               ← fertige Webseite zum Hochladen
 ```

@@ -1,2 +1,4 @@
 node_modules/
 .DS_Store
+# Zugangsdaten des Forschungsmodus nie einchecken
+config.php

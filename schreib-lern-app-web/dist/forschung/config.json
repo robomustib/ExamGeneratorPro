@@ -1,0 +1,12 @@
+{
+  "enabled": false,
+  "studyId": "slk-2026",
+  "studyTitle": "Wie lernen Kinder am besten schreiben?",
+  "consentVersion": "1.0",
+  "endpoint": "api.php",
+  "infoUrl": "elterninfo.html",
+  "contact": "studie@deine-domain.de",
+  "waves": [0, 28, 56],
+  "probeChars": ["M", "B", "J", "Z", "a", "b", "d", "g", "k", "3", "7", "9"],
+  "uploadDelaySec": 20
+}

@@ -1,0 +1,17 @@
+# Forschungsmodus: Zugangsdaten und Datenbank-Skript nie ausliefern
+<FilesMatch "^(config\.php|config\.sample\.php|schema\.sql|README\.md)$">
+  Require all denied
+</FilesMatch>
+
+# Anmeldung für export.php auch bei PHP als CGI/FPM durchreichen
+<IfModule mod_setenvif.c>
+  SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
+</IfModule>
+
+# Kein Verzeichnislisting
+Options -Indexes
+
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "no-referrer"
+</IfModule>
