@@ -1,8 +1,14 @@
 # Blitz-Mengen-Knacker 2.0
 
 Ein Lernspiel für Kinder von 5 bis 7 Jahren, die Mengen bis 10 auf einen Blick erfassen lernen sollen, statt jedes Ding einzeln abzuzählen.
-Es ist eine einzige Datei (`index.php`, reines HTML/JavaScript) und kann auf jeden Webserver gelegt oder lokal im Browser geöffnet werden.
 Alle Daten bleiben im Browser des Geräts (localStorage). Es wird nichts verschickt.
+
+## Was drin ist (7 Dateien)
+
+- `index.html`: die komplette App in einer einzigen Datei. Sie braucht keine Bibliothek (reines JavaScript) und kein Internet, auch die Schriften sind eingebettet. Zum Ausprobieren kannst du sie per Doppelklick öffnen.
+- `manifest.webmanifest`, `sw.js`, `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `apple-touch-icon.png`: Damit lässt sich die Seite auf Handy oder Tablet wie eine App installieren. In Chrome geht das über ⋮ → „App installieren“, auf dem iPhone/iPad in Safari über Teilen → „Zum Home-Bildschirm“. Sie startet dann im Vollbild mit eigenem Icon und läuft nach dem ersten Aufruf auch ohne Internet.
+
+Installieren und Offline-Modus gehen nur, wenn der Webserver HTTPS hat. Alle 7 Dateien kommen in denselben Ordner. Nach Änderungen an den Dateien in `sw.js` die Versionsnummer (`CACHE`) erhöhen, damit installierte Geräte die neue Version laden.
 
 ## Spiele
 
