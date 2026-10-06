@@ -2,6 +2,7 @@
 // Blitz-Mengen-Knacker – Konfiguration der Studie
 // Diese Datei als config.php speichern und alle Werte anpassen.
 // config.php gehört nicht ins öffentliche Repository und ist per .htaccess gesperrt.
+// Prüfen nach dem Hochladen: https://…/api/study.php?action=status muss "ok": true melden.
 
 return [
     'db' => [

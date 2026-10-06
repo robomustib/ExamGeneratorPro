@@ -42,6 +42,10 @@ try {
         requireMethod('GET');
         respond(200, ['api' => API_VERSION, 'study' => publicStudyInfo($study)]);
     }
+    if ($action === 'status') {
+        requireMethod('GET');
+        respond(200, serverStatus($config));
+    }
 
     requireMethod('POST');
     $body = readJsonBody((int)($config['max_body_bytes'] ?? 524288));
@@ -116,6 +120,56 @@ function publicStudyInfo(array $s): array
     $keys = ['enrol_open', 'title', 'summary', 'institution', 'lead', 'contact_email', 'dpo', 'authority',
         'ethics', 'privacy_url', 'retention', 'consent_version', 'check_exposure_ms', 'schedule'];
     return array_intersect_key($s, array_flip($keys));
+}
+
+// Prüfseite für die Einrichtung: zeigt, ob Datenbank und Tabellen erreichbar sind.
+// Gibt keine Zugangsdaten und keine Teilnahmedaten aus.
+function serverStatus(array $config): array
+{
+    $out = [
+        'api' => API_VERSION,
+        'php' => PHP_VERSION,
+        'anmeldung' => empty($config['study']['enrol_open']) ? 'geschlossen' : 'offen',
+    ];
+    $hints = [];
+    if (strpos((string)($config['pepper'] ?? ''), 'BITTE') !== false || strlen((string)($config['pepper'] ?? '')) < 32) {
+        $hints[] = 'In config.php fehlt ein langer Zufallswert bei pepper.';
+    }
+    if (!extension_loaded('pdo_mysql')) {
+        return $out + ['ok' => false, 'datenbank' => 'nicht verbunden', 'hinweis' => 'Die PHP-Erweiterung pdo_mysql fehlt. Bitte beim Hoster aktivieren.'];
+    }
+    try {
+        $pdo = db($config['db']);
+    } catch (PDOException $e) {
+        preg_match('/\[(\d{4})\]/', $e->getMessage(), $m);
+        $code = (int)($m[1] ?? 0);
+        $msg = [
+            1045 => 'Benutzername oder Passwort stimmt nicht.',
+            1044 => 'Dieser Benutzer darf nicht auf die Datenbank zugreifen, oder die Datenbank heißt anders (dbname in der DSN prüfen).',
+            1049 => 'Eine Datenbank mit diesem Namen gibt es nicht (dbname in der DSN prüfen).',
+            2002 => 'Der Datenbank-Server ist nicht erreichbar (host in der DSN prüfen).',
+            2003 => 'Der Datenbank-Server ist nicht erreichbar (host und Port in der DSN prüfen).',
+            2005 => 'Der Datenbank-Server ist unbekannt (host in der DSN prüfen).',
+        ][$code] ?? 'Die Verbindung zur Datenbank ist fehlgeschlagen' . ($code ? " (Fehler $code)." : '.');
+        return $out + ['ok' => false, 'datenbank' => 'nicht verbunden', 'hinweis' => $msg];
+    }
+    $missing = [];
+    foreach (['mk_participants', 'mk_sessions', 'mk_trials', 'mk_rand_blocks', 'mk_audit_log', 'mk_v_check_scores', 'mk_v_participants_blind'] as $table) {
+        try {
+            $pdo->query("SELECT 1 FROM `$table` LIMIT 1");
+        } catch (PDOException $e) {
+            $missing[] = $table;
+        }
+    }
+    if ($missing) {
+        $hints[] = 'Es fehlen Tabellen: ' . implode(', ', $missing) . '. Bitte schema.sql in genau diese Datenbank importieren.';
+    }
+    return $out + [
+        'ok' => !$hints,
+        'datenbank' => 'verbunden',
+        'tabellen' => $missing ? 'unvollständig' : 'vollständig',
+        'hinweis' => $hints ? implode(' ', $hints) : 'Alles bereit.',
+    ];
 }
 
 // --- Prüfen der Eingaben ----------------------------------------------------

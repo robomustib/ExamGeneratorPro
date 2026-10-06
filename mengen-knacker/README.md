@@ -63,6 +63,8 @@ Für eine wissenschaftliche Studie kann die App Antworten und Reaktionszeiten ps
 - `api/config.sample.php`: Vorlage für `api/config.php` (Zugangsdaten, Studientexte, Zeitplan, Faktor B an/aus)
 - `api/.htaccess`: sperrt Konfiguration und Schema (Apache)
 
+Nach dem Hochladen prüft `https://…/api/study.php?action=status`, ob Datenbank, Tabellen und Konfiguration stimmen. Die Seite meldet `"ok": true` oder nennt den Fehler.
+
 Ablauf in der App: Eltern-Bereich → Reiter „Studie“ → Teilnahmeinformation, Einwilligung, Angaben zum Kind → Zustimmung des Kindes → Teilnahme-Code. Danach Mengen-Checks an Tag 0, 14, 28, 56 und 84, dazwischen normales Üben. Die Gruppe (adaptive oder statische Lern-Steuerung, Lernstufe basal zuerst oder Struktur von Anfang an) teilt der Server zufällig zu. Widerruf mit oder ohne Löschung und der Download der eigenen Daten sind im selben Reiter möglich. Nach dem letzten Check endet die Studie automatisch.
 
 Erfasst werden keine Namen, E-Mail-Adressen, Geburtsdaten, IP-Adressen oder Geräte-Kennungen. Vor dem Start sind Ethikvotum, Datenschutz-Folgenabschätzung und Auftragsverarbeitungsvertrag nötig. Forschungsdesign und Datenschutzkonzept stehen im Begleitdokument.
