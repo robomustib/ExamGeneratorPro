@@ -1,10 +1,13 @@
 -- Blitz-Mengen-Knacker – Datenbankschema für die Studie
 -- MySQL 8.0+ oder MariaDB 10.5+, Zeichensatz utf8mb4. Alle Zeitangaben in UTC.
 -- Es gibt keine Spalten für Namen, E-Mail-Adressen, Geburtsdaten oder IP-Adressen.
+-- Empfohlen: eine eigene Datenbank mit eigenem Benutzer nur für die Studie.
+-- Alle Tabellen und Sichten beginnen mit mk_, damit sie nicht mit anderen Anwendungen
+-- in derselben Datenbank zusammenstoßen.
 
 SET NAMES utf8mb4;
 
-CREATE TABLE IF NOT EXISTS participants (
+CREATE TABLE IF NOT EXISTS mk_participants (
   pid                 VARCHAR(12)  NOT NULL COMMENT 'zufälliger Teilnahme-Code, z. B. MK-7F3K-92QD',
   secret_hash         VARCHAR(255) NOT NULL COMMENT 'password_hash() des Geräte-Schlüssels',
   status              ENUM('active','withdrawn') NOT NULL DEFAULT 'active',
@@ -12,10 +15,10 @@ CREATE TABLE IF NOT EXISTS participants (
   withdrawn_at        DATETIME     NULL,
   last_upload_at      DATETIME     NULL,
   consent_version     VARCHAR(16)  NOT NULL,
-  consent_participate TINYINT(1)   NOT NULL,
-  consent_health      TINYINT(1)   NOT NULL DEFAULT 0 COMMENT 'Art. 9 DSGVO: Angabe zur Rechenschwäche',
-  consent_open_data   TINYINT(1)   NOT NULL DEFAULT 0 COMMENT 'anonymisierte Veröffentlichung erlaubt',
-  child_assent        TINYINT(1)   NOT NULL,
+  consent_participate TINYINT      NOT NULL,
+  consent_health      TINYINT      NOT NULL DEFAULT 0 COMMENT 'Art. 9 DSGVO: Angabe zur Rechenschwäche',
+  consent_open_data   TINYINT      NOT NULL DEFAULT 0 COMMENT 'anonymisierte Veröffentlichung erlaubt',
+  child_assent        TINYINT      NOT NULL,
   age_months          SMALLINT     NOT NULL COMMENT 'Alter bei Anmeldung, 60–95',
   grade               ENUM('kita','1','2','other') NOT NULL,
   gender              ENUM('f','m','d','na') NOT NULL DEFAULT 'na',
@@ -30,7 +33,7 @@ CREATE TABLE IF NOT EXISTS participants (
   KEY idx_arm (arm_engine, arm_stage)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS sessions (
+CREATE TABLE IF NOT EXISTS mk_sessions (
   pid           VARCHAR(12) NOT NULL,
   sid           CHAR(36)    NOT NULL,
   kind          ENUM('train','check') NOT NULL,
@@ -42,17 +45,17 @@ CREATE TABLE IF NOT EXISTS sessions (
   n_trials      SMALLINT    NOT NULL,
   n_correct     SMALLINT    NOT NULL,
   n_fast        SMALLINT    NOT NULL,
-  completed     TINYINT(1)  NOT NULL,
+  completed     TINYINT     NOT NULL,
   only_task     VARCHAR(10) NULL COMMENT 'Kind hat nur dieses Spiel gewählt',
-  standalone    TINYINT(1)  NOT NULL COMMENT 'als App installiert',
+  standalone    TINYINT     NOT NULL COMMENT 'als App installiert',
   device_class  ENUM('phone','tablet','desktop') NULL,
   app_version   VARCHAR(16) NOT NULL,
   received_at   DATETIME    NOT NULL,
   PRIMARY KEY (pid, sid),
-  CONSTRAINT fk_sessions_pid FOREIGN KEY (pid) REFERENCES participants (pid) ON DELETE CASCADE
+  CONSTRAINT fk_mk_sessions_pid FOREIGN KEY (pid) REFERENCES mk_participants (pid) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS trials (
+CREATE TABLE IF NOT EXISTS mk_trials (
   pid             VARCHAR(12)  NOT NULL,
   seq             INT UNSIGNED NOT NULL COMMENT 'laufende Nummer pro Gerät, verhindert Doppelte',
   sid             CHAR(36)     NOT NULL,
@@ -75,26 +78,26 @@ CREATE TABLE IF NOT EXISTS trials (
   max_n           TINYINT      NOT NULL,
   exposure_ms     SMALLINT     NULL COMMENT 'Zeigezeit, NULL wenn Bild stehen bleibt',
   answer          TINYINT      NULL COMMENT 'getippte Zahl, Menge oder Position; NULL bei „Weiß nicht“',
-  correct         TINYINT(1)   NOT NULL,
+  correct         TINYINT      NOT NULL,
   rt_ms           INT          NOT NULL COMMENT 'ab Erscheinen des Bildes',
   cls             ENUM('fast','ok','slow','wrong','guess','help') NOT NULL,
-  answered_visible TINYINT(1)  NULL COMMENT '1 = Antwort, solange das Bild noch zu sehen war',
+  answered_visible TINYINT     NULL COMMENT '1 = Antwort, solange das Bild noch zu sehen war',
   theta_before    FLOAT        NULL COMMENT 'Elo-Fähigkeit vor der Antwort',
   beta_before     FLOAT        NULL COMMENT 'Elo-Schwierigkeit der Aufgabe vor der Antwort',
   p_pred          FLOAT        NULL COMMENT 'vorhergesagte Lösungswahrscheinlichkeit',
   ladder_level    TINYINT      NULL COMMENT 'Zeigezeit-Stufe 0–7',
-  is_retry        TINYINT(1)   NOT NULL DEFAULT 0,
-  interrupted     TINYINT(1)   NOT NULL DEFAULT 0 COMMENT 'App war während der Aufgabe im Hintergrund',
+  is_retry        TINYINT      NOT NULL DEFAULT 0,
+  interrupted     TINYINT      NOT NULL DEFAULT 0 COMMENT 'App war während der Aufgabe im Hintergrund',
   baseline_ms     SMALLINT     NULL COMMENT 'persönliches Grundtempo zu diesem Zeitpunkt',
   received_at     DATETIME     NOT NULL,
   PRIMARY KEY (pid, seq),
   KEY idx_session (pid, sid),
   KEY idx_check (kind, check_id),
-  CONSTRAINT fk_trials_pid FOREIGN KEY (pid) REFERENCES participants (pid) ON DELETE CASCADE
+  CONSTRAINT fk_mk_trials_pid FOREIGN KEY (pid) REFERENCES mk_participants (pid) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Zuteilung: Blöcke zu 4 Plätzen je Altersschicht, Reihenfolge zufällig, vorher nicht einsehbar.
-CREATE TABLE IF NOT EXISTS rand_blocks (
+CREATE TABLE IF NOT EXISTS mk_rand_blocks (
   stratum   ENUM('young','old') NOT NULL,
   block_no  INT     NOT NULL,
   slots     VARCHAR(64) NOT NULL COMMENT 'z. B. A2,S1,A1,S2 (A/S = adaptiv/statisch, 1/2 = basal/strukturiert)',
@@ -103,7 +106,7 @@ CREATE TABLE IF NOT EXISTS rand_blocks (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Nachweis von Anmeldung und Widerruf ohne Klartext-Code (Rechenschaftspflicht, Art. 5 Abs. 2 DSGVO).
-CREATE TABLE IF NOT EXISTS audit_log (
+CREATE TABLE IF NOT EXISTS mk_audit_log (
   id        BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   at        DATETIME    NOT NULL,
   action    ENUM('enrol','withdraw_keep','withdraw_delete','delete_by_staff') NOT NULL,
@@ -115,7 +118,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
 -- Auswertungssichten ------------------------------------------------------------
 
 -- Ein Punktwert je Kind und Mengen-Check. Nur vollständige Checks zählen für den primären Endpunkt.
-CREATE OR REPLACE VIEW v_check_scores AS
+CREATE OR REPLACE VIEW mk_v_check_scores AS
 SELECT
   t.pid,
   t.check_id,
@@ -127,12 +130,12 @@ SELECT
   SUM(t.task = 'compare' AND t.correct = 1)                          AS compare_correct,
   AVG(CASE WHEN t.task = 'line' AND t.answer IS NOT NULL THEN ABS(t.answer - t.quantity) END) AS line_abs_error,
   (COUNT(*) = 36)                                                    AS complete
-FROM trials t
+FROM mk_trials t
 WHERE t.kind = 'check'
 GROUP BY t.pid, t.check_id;
 
 -- Gruppen verblindet: Codes X/Y statt adaptiv/statisch, bis der Auswertungsplan eingefroren ist.
-CREATE OR REPLACE VIEW v_participants_blind AS
+CREATE OR REPLACE VIEW mk_v_participants_blind AS
 SELECT
   pid, enrolled_at, status, age_months, grade, gender, home_language, stratum,
   CASE WHEN consent_health = 1 THEN math_difficulty END AS math_difficulty,
@@ -140,4 +143,4 @@ SELECT
   CASE arm_engine WHEN 'adaptive' THEN 'X' ELSE 'Y' END AS factor_a,
   CASE arm_stage  WHEN 'basal'    THEN 'P' ELSE 'Q' END AS factor_b,
   device_class
-FROM participants;
+FROM mk_participants;

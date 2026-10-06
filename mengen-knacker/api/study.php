@@ -246,7 +246,7 @@ function enrolOnce(PDO $pdo, string $secret, array $study, string $pepper, strin
     $engine = $slot[0] === 'A' ? 'adaptive' : 'static';
     $stage = $slot[1] === '1' ? 'basal' : 'structured';
     $pid = newPid($pdo);
-    $pdo->prepare('INSERT INTO participants (pid, secret_hash, enrolled_at, consent_version, consent_participate,
+    $pdo->prepare('INSERT INTO mk_participants (pid, secret_hash, enrolled_at, consent_version, consent_participate,
             consent_health, consent_open_data, child_assent, age_months, grade, gender, home_language, math_difficulty,
             stratum, arm_engine, arm_stage, device_class, app_version)
         VALUES (?, ?, UTC_TIMESTAMP(), ?, 1, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
@@ -259,11 +259,11 @@ function enrolOnce(PDO $pdo, string $secret, array $study, string $pepper, strin
 // Blöcke zu 4 Plätzen je Altersschicht; im 2×2-Design je ein Platz pro Gruppe.
 function drawSlot(PDO $pdo, string $stratum, bool $factorial): string
 {
-    $q = $pdo->prepare('SELECT block_no, slots, used FROM rand_blocks WHERE stratum = ? AND used < 4 ORDER BY block_no LIMIT 1 FOR UPDATE');
+    $q = $pdo->prepare('SELECT block_no, slots, used FROM mk_rand_blocks WHERE stratum = ? AND used < 4 ORDER BY block_no LIMIT 1 FOR UPDATE');
     $q->execute([$stratum]);
     $row = $q->fetch();
     if (!$row) {
-        $next = $pdo->prepare('SELECT COALESCE(MAX(block_no), 0) + 1 FROM rand_blocks WHERE stratum = ? FOR UPDATE');
+        $next = $pdo->prepare('SELECT COALESCE(MAX(block_no), 0) + 1 FROM mk_rand_blocks WHERE stratum = ? FOR UPDATE');
         $next->execute([$stratum]);
         $blockNo = (int)$next->fetchColumn();
         $slots = $factorial ? ['A1', 'A2', 'S1', 'S2'] : ['A1', 'A1', 'S1', 'S1'];
@@ -271,20 +271,20 @@ function drawSlot(PDO $pdo, string $stratum, bool $factorial): string
             $j = random_int(0, $i);
             [$slots[$i], $slots[$j]] = [$slots[$j], $slots[$i]];
         }
-        $pdo->prepare('INSERT INTO rand_blocks (stratum, block_no, slots, used) VALUES (?, ?, ?, 0)')
+        $pdo->prepare('INSERT INTO mk_rand_blocks (stratum, block_no, slots, used) VALUES (?, ?, ?, 0)')
             ->execute([$stratum, $blockNo, implode(',', $slots)]);
         $row = ['block_no' => $blockNo, 'slots' => implode(',', $slots), 'used' => 0];
     }
     $slots = explode(',', $row['slots']);
     $slot = $slots[(int)$row['used']];
-    $pdo->prepare('UPDATE rand_blocks SET used = used + 1 WHERE stratum = ? AND block_no = ?')
+    $pdo->prepare('UPDATE mk_rand_blocks SET used = used + 1 WHERE stratum = ? AND block_no = ?')
         ->execute([$stratum, $row['block_no']]);
     return $slot;
 }
 
 function newPid(PDO $pdo): string
 {
-    $check = $pdo->prepare('SELECT 1 FROM participants WHERE pid = ?');
+    $check = $pdo->prepare('SELECT 1 FROM mk_participants WHERE pid = ?');
     do {
         $c = '';
         for ($i = 0; $i < 8; $i++) {
@@ -298,7 +298,7 @@ function newPid(PDO $pdo): string
 
 function audit(PDO $pdo, string $action, string $pid, string $pepper, ?string $consentVersion = null): void
 {
-    $pdo->prepare('INSERT INTO audit_log (at, action, pid_hash, consent_version) VALUES (UTC_TIMESTAMP(), ?, ?, ?)')
+    $pdo->prepare('INSERT INTO mk_audit_log (at, action, pid_hash, consent_version) VALUES (UTC_TIMESTAMP(), ?, ?, ?)')
         ->execute([$action, hash('sha256', $pepper . $pid), $consentVersion]);
 }
 
@@ -308,7 +308,7 @@ function authenticate(PDO $pdo, array $b, bool $allowWithdrawn = false): array
 {
     $pid = matches($b['pid'] ?? null, '/^MK-[2-9A-HJKMNP-Z]{4}-[2-9A-HJKMNP-Z]{4}$/');
     $secret = matches($b['secret'] ?? null, '/^[a-f0-9]{48}$/');
-    $q = $pdo->prepare('SELECT * FROM participants WHERE pid = ?');
+    $q = $pdo->prepare('SELECT * FROM mk_participants WHERE pid = ?');
     $q->execute([$pid]);
     $p = $q->fetch();
     if (!$p) {
@@ -339,12 +339,12 @@ function upload(PDO $pdo, array $b, array $study): void
     $earliest = $enrolled->modify('-1 day')->format('Y-m-d H:i:s');
     $latest = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->modify('+1 day')->format('Y-m-d H:i:s');
 
-    $insT = $pdo->prepare('INSERT IGNORE INTO trials (pid, seq, sid, kind, check_id, trial_idx, block_no, ts, day_index,
+    $insT = $pdo->prepare('INSERT IGNORE INTO mk_trials (pid, seq, sid, kind, check_id, trial_idx, block_no, ts, day_index,
             local_hour, task, item_key, quantity, rep, fmt, val_left, val_right, options, stage, max_n, exposure_ms, answer,
             correct, rt_ms, cls, answered_visible, theta_before, beta_before, p_pred, ladder_level, is_retry, interrupted,
             baseline_ms, received_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())');
-    $insS = $pdo->prepare('INSERT IGNORE INTO sessions (pid, sid, kind, check_id, started_at, day_index, local_hour,
+    $insS = $pdo->prepare('INSERT IGNORE INTO mk_sessions (pid, sid, kind, check_id, started_at, day_index, local_hour,
             duration_s, n_trials, n_correct, n_fast, completed, only_task, standalone, device_class, app_version, received_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())');
 
@@ -431,7 +431,7 @@ function upload(PDO $pdo, array $b, array $study): void
                 $rejected++;
             }
         }
-        $pdo->prepare('UPDATE participants SET last_upload_at = UTC_TIMESTAMP(), app_version = ? WHERE pid = ?')
+        $pdo->prepare('UPDATE mk_participants SET last_upload_at = UTC_TIMESTAMP(), app_version = ? WHERE pid = ?')
             ->execute([$app, $p['pid']]);
         $pdo->commit();
     } catch (Throwable $e) {
@@ -447,9 +447,9 @@ function myData(PDO $pdo, array $b): void
 {
     $p = authenticate($pdo, $b, true);
     unset($p['secret_hash']);
-    $s = $pdo->prepare('SELECT * FROM sessions WHERE pid = ? ORDER BY started_at');
+    $s = $pdo->prepare('SELECT * FROM mk_sessions WHERE pid = ? ORDER BY started_at');
     $s->execute([$p['pid']]);
-    $t = $pdo->prepare('SELECT * FROM trials WHERE pid = ? ORDER BY seq');
+    $t = $pdo->prepare('SELECT * FROM mk_trials WHERE pid = ? ORDER BY seq');
     $t->execute([$p['pid']]);
     respond(200, [
         'exported_at' => gmdate('Y-m-d\TH:i:s\Z'),
@@ -469,10 +469,10 @@ function withdraw(PDO $pdo, array $b, string $pepper): void
     try {
         if ($delete) {
             // Sitzungen und Antworten werden über ON DELETE CASCADE mitgelöscht
-            $pdo->prepare('DELETE FROM participants WHERE pid = ?')->execute([$p['pid']]);
+            $pdo->prepare('DELETE FROM mk_participants WHERE pid = ?')->execute([$p['pid']]);
             audit($pdo, 'withdraw_delete', $p['pid'], $pepper);
         } else {
-            $pdo->prepare("UPDATE participants SET status = 'withdrawn', withdrawn_at = UTC_TIMESTAMP() WHERE pid = ?")
+            $pdo->prepare("UPDATE mk_participants SET status = 'withdrawn', withdrawn_at = UTC_TIMESTAMP() WHERE pid = ?")
                 ->execute([$p['pid']]);
             audit($pdo, 'withdraw_keep', $p['pid'], $pepper);
         }
