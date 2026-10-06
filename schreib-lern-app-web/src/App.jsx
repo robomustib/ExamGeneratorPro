@@ -18,80 +18,179 @@ if (typeof document !== "undefined" && !document.getElementById("slk-style")) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// STROKE DATA
+// STRICHDATEN — Deutsche Druckschrift (Grundschule)
 // ═══════════════════════════════════════════════════════════════════════════════
-const STROKES = {
-  A:[[[50,10],[18,100]],[[50,10],[82,100]],[[27,65],[73,65]]],
-  B:[[[20,10],[20,100]],[[20,10],[58,10],[68,20],[68,35],[58,45],[20,45]],[[20,45],[62,45],[72,56],[72,90],[62,100],[20,100]]],
-  C:[[[75,22],[60,10],[40,10],[22,22],[14,42],[14,68],[22,88],[40,100],[60,100],[75,88]]],
-  D:[[[20,10],[20,100]],[[20,10],[52,10],[72,22],[80,42],[80,68],[72,88],[52,100],[20,100]]],
-  E:[[[20,10],[20,100]],[[20,10],[78,10]],[[20,55],[66,55]],[[20,100],[78,100]]],
-  F:[[[20,10],[20,100]],[[20,10],[78,10]],[[20,55],[66,55]]],
-  G:[[[75,22],[60,10],[40,10],[22,22],[14,42],[14,68],[22,88],[40,100],[60,100],[76,88],[76,65],[52,65]]],
-  H:[[[20,10],[20,100]],[[80,10],[80,100]],[[20,55],[80,55]]],
-  I:[[[32,10],[68,10]],[[50,10],[50,100]],[[32,100],[68,100]]],
-  J:[[[38,10],[70,10]],[[54,10],[54,84],[48,97],[36,100],[24,92]]],
-  K:[[[20,10],[20,100]],[[20,55],[80,10]],[[20,55],[80,100]]],
-  L:[[[25,10],[25,100],[80,100]]],
-  M:[[[15,100],[15,10],[50,55],[85,10],[85,100]]],
-  N:[[[20,100],[20,10],[80,100],[80,10]]],
-  O:[[[50,10],[30,12],[15,28],[10,50],[10,72],[18,90],[36,100],[50,100],[64,100],[82,90],[90,72],[90,50],[84,28],[70,12],[50,10]]],
-  P:[[[20,10],[20,100]],[[20,10],[58,10],[70,20],[70,46],[58,56],[20,56]]],
-  Q:[[[50,10],[30,12],[15,28],[10,50],[10,72],[18,90],[36,100],[50,100],[64,100],[82,90],[90,72],[90,50],[84,28],[70,12],[50,10]],[[62,82],[86,106]]],
-  R:[[[20,10],[20,100]],[[20,10],[58,10],[70,20],[70,46],[58,56],[20,56]],[[20,56],[78,100]]],
-  S:[[[76,24],[66,13],[52,10],[36,12],[22,24],[24,40],[36,50],[52,56],[68,62],[78,74],[78,88],[66,98],[50,100],[34,98],[22,86]]],
-  T:[[[14,10],[86,10]],[[50,10],[50,100]]],
-  U:[[[20,10],[20,78],[26,94],[38,100],[50,100],[62,100],[74,94],[80,78],[80,10]]],
-  V:[[[12,10],[50,100],[88,10]]],
-  W:[[[10,10],[28,100],[50,60],[72,100],[90,10]]],
-  X:[[[14,10],[86,100]],[[86,10],[14,100]]],
-  Y:[[[14,10],[50,58],[86,10]],[[50,58],[50,100]]],
-  Z:[[[14,10],[86,10],[14,100],[86,100]]],
-  a:[[[68,40],[56,34],[44,34],[30,42],[24,56],[24,72],[30,84],[44,90],[58,88],[68,78],[68,56],[68,90]]],
-  b:[[[22,10],[22,90]],[[22,56],[30,46],[42,38],[56,38],[68,46],[74,58],[74,72],[68,82],[56,90],[42,90],[30,82],[22,72]]],
-  c:[[[70,48],[60,38],[48,36],[34,40],[24,52],[22,64],[24,76],[32,86],[46,90],[60,90],[70,82]]],
-  d:[[[78,10],[78,90]],[[78,56],[68,46],[56,38],[42,38],[28,46],[22,58],[22,72],[28,84],[42,90],[56,90],[68,82],[78,72]]],
-  e:[[[22,62],[40,62],[58,62],[74,62],[74,54],[66,42],[52,36],[38,36],[26,44],[20,58],[22,74],[28,86],[44,90],[58,90],[70,82]]],
-  f:[[[72,16],[60,10],[50,14],[46,24],[44,40],[44,90]],[[30,50],[62,50]]],
-  g:[[[68,40],[56,34],[44,34],[30,42],[24,56],[24,72],[30,84],[44,90],[58,88],[68,78],[68,40],[68,92],[64,106],[52,112],[38,110],[26,102]]],
-  h:[[[22,10],[22,90]],[[22,56],[30,44],[42,38],[54,38],[66,46],[70,60],[70,90]]],
-  i:[[[50,36],[50,90]],[[50,18],[50,26]]],
-  j:[[[60,36],[60,100],[56,112],[44,114],[34,108]],[[60,18],[60,26]]],
-  k:[[[22,10],[22,90]],[[22,62],[66,36]],[[22,62],[68,90]]],
-  l:[[[50,10],[50,90]]],
-  m:[[[22,36],[22,90]],[[22,52],[30,42],[42,36],[54,42],[58,54],[58,90]],[[58,54],[66,42],[76,36],[86,44],[90,58],[90,90]]],
-  n:[[[22,36],[22,90]],[[22,56],[30,44],[42,38],[54,38],[66,46],[70,60],[70,90]]],
-  o:[[[50,36],[34,40],[22,52],[20,64],[22,78],[34,88],[50,90],[66,88],[78,78],[80,64],[78,52],[66,40],[50,36]]],
-  p:[[[22,36],[22,114]],[[22,54],[30,44],[42,38],[56,38],[68,46],[74,58],[74,72],[68,82],[56,90],[42,90],[30,82],[22,72]]],
-  q:[[[78,36],[78,114]],[[78,54],[68,44],[56,38],[42,38],[28,46],[22,58],[22,72],[28,82],[42,90],[56,90],[68,82],[78,72]]],
-  r:[[[22,36],[22,90]],[[22,52],[32,42],[44,36],[56,36]]],
-  s:[[[68,44],[58,36],[46,36],[32,44],[30,56],[40,64],[54,68],[66,76],[70,86],[66,94],[52,98],[38,96],[28,88]]],
-  t:[[[50,14],[50,90],[58,98],[68,98]],[[32,48],[68,48]]],
-  u:[[[22,36],[22,74],[28,88],[42,92],[54,90],[64,82],[70,66],[70,36],[70,90]]],
-  v:[[[18,36],[50,90],[82,36]]],
-  w:[[[14,36],[30,90],[50,62],[70,90],[86,36]]],
-  x:[[[20,36],[76,90]],[[76,36],[20,90]]],
-  y:[[[20,36],[50,84]],[[80,36],[50,84],[38,108],[26,114]]],
-  z:[[[20,36],[76,36],[20,90],[76,90]]],
-  // Umlaute
-  "Ä":[[[50,10],[18,100]],[[50,10],[82,100]],[[27,65],[73,65]],[[34,0],[34,8]],[[66,0],[66,8]]],
-  "Ö":[[[50,10],[30,12],[15,28],[10,50],[10,72],[18,90],[36,100],[50,100],[64,100],[82,90],[90,72],[90,50],[84,28],[70,12],[50,10]],[[34,0],[34,8]],[[66,0],[66,8]]],
-  "Ü":[[[20,10],[20,78],[26,94],[38,100],[50,100],[62,100],[74,94],[80,78],[80,10]],[[34,0],[34,8]],[[66,0],[66,8]]],
-  "ä":[[[68,40],[56,34],[44,34],[30,42],[24,56],[24,72],[30,84],[44,90],[58,88],[68,78],[68,56],[68,90]],[[38,24],[38,32]],[[58,24],[58,32]]],
-  "ö":[[[50,36],[34,40],[22,52],[20,64],[22,78],[34,88],[50,90],[66,88],[78,78],[80,64],[78,52],[66,40],[50,36]],[[38,24],[38,32]],[[58,24],[58,32]]],
-  "ü":[[[22,36],[22,74],[28,88],[42,92],[54,90],[64,82],[70,66],[70,36],[70,90]],[[34,24],[34,32]],[[58,24],[58,32]]],
-  "ß":[[[30,10],[30,100]],[[30,10],[54,10],[66,18],[66,34],[54,44],[30,44]],[[30,44],[58,44],[70,56],[70,74],[58,86],[30,86],[30,100]]],
-  "0":[[[50,10],[30,13],[16,28],[10,52],[10,72],[16,90],[30,100],[50,100],[70,100],[84,90],[90,72],[90,52],[84,28],[70,13],[50,10]]],
-  "1":[[[30,28],[50,10],[50,100]],[[28,100],[72,100]]],
-  "2":[[[18,34],[22,20],[34,10],[52,10],[68,18],[74,32],[72,50],[58,64],[18,100],[80,100]]],
-  "3":[[[20,10],[72,10],[44,52],[62,52],[74,64],[76,80],[68,94],[52,100],[34,100],[20,90]]],
-  "4":[[[66,100],[66,10],[10,72],[88,72]]],
-  "5":[[[76,10],[24,10],[20,50],[34,42],[52,42],[66,52],[70,68],[66,86],[52,100],[34,100],[20,90]]],
-  "6":[[[74,18],[56,10],[36,14],[22,28],[14,50],[12,70],[18,88],[32,100],[50,104],[64,102],[76,90],[80,74],[74,58],[60,50],[44,48],[28,52],[18,66]]],
-  "7":[[[16,10],[82,10],[32,100]],[[24,56],[64,56]]],
-  "8":[[[50,55],[28,52],[18,42],[20,26],[32,14],[50,10],[68,10],[80,22],[80,40],[68,52],[50,55],[24,60],[14,74],[16,90],[30,100],[50,100],[70,100],[84,92],[84,76],[70,64],[50,55]]],
-  "9":[[[50,98],[68,96],[82,82],[86,62],[80,44],[68,34],[50,28],[30,28],[18,42],[14,58],[20,74],[34,84],[50,88],[68,84],[82,70],[86,52]]],
-};
+// Koordinaten: x 0–100, y 0–130; sie werden auf das Schreibfeld gestreckt.
+// Vierliniensystem wie im Schulheft:
+//   Oberlinie  — Großbuchstaben, Ziffern und Oberlängen (b d f h k l t) reichen bis hier
+//   Mittellinie — Kleinbuchstaben („Erdgeschoss") beginnen hier
+//   Grundlinie — auf ihr steht jeder Buchstabe
+//   Unterlinie — Unterlängen (g j p q y) reichen bis hier („Keller")
+const OL=14, ML=50, GL=86, UL=122;
+// Das Schreibfeld ist 260×310 px groß, eine x-Einheit ist also etwas breiter als
+// eine y-Einheit. AX rechnet Bogen-Radien so um, dass Kreise wirklich rund werden.
+const AX=(310/130)/(260/100);
+
+// Bausteine für einen Strich:
+//   [x,y]                         — Gerade zu diesem Punkt (bzw. Startpunkt)
+//   arc(cx,cy,rx,ry,von,bis)       — Bogen um (cx,cy); Radien in y-Einheiten,
+//                                    Winkel in Grad: 0 = rechts, 90 = unten.
+//                                    Abnehmender Winkel = gegen den Uhrzeigersinn.
+//   curve(x1,y1,x2,y2,x,y)         — Bézierkurve vom letzten Punkt aus
+const arc=(cx,cy,rx,ry,from,to)=>({arc:[cx,cy,rx,ry,from,to]});
+const curve=(x1,y1,x2,y2,x,y)=>({curve:[x1,y1,x2,y2,x,y]});
+function S(...parts){
+  const pts=[];
+  const add=(x,y)=>{const l=pts[pts.length-1];if(!l||Math.hypot(l[0]-x,l[1]-y)>0.05)pts.push([+x.toFixed(2),+y.toFixed(2)]);};
+  for(const p of parts){
+    if(Array.isArray(p)){add(p[0],p[1]);continue;}
+    if(p.arc){
+      const[cx,cy,rx,ry,a0,a1]=p.arc;const n=Math.max(2,Math.ceil(Math.abs(a1-a0)/4));
+      for(let i=0;i<=n;i++){const a=(a0+(a1-a0)*i/n)*Math.PI/180;add(cx+rx*AX*Math.cos(a),cy+ry*Math.sin(a));}
+    } else if(p.curve){
+      const[x1,y1,x2,y2,x,y]=p.curve;const[x0,y0]=pts[pts.length-1];
+      for(let i=1;i<=24;i++){const t=i/24,u=1-t;
+        add(u*u*u*x0+3*u*u*t*x1+3*u*t*t*x2+t*t*t*x, u*u*u*y0+3*u*u*t*y1+3*u*t*t*y2+t*t*t*y);}
+    }
+  }
+  return pts;
+}
+
+const STROKES=(()=>{
+  const R=18, RX=R*AX;                 // Kreis im Mittelband, Radius in y- und x-Einheiten
+  const MID=(ML+GL)/2;                 // Mitte des Mittelbands
+  const dot=(x,y=33)=>S([x,y-1.5],[x,y+1.5]);     // i-Punkt, Umlaut-Punkte
+  // Kreis gegen den Uhrzeigersinn, beginnt oben rechts (a, d, g, q)
+  const ring=(cx)=>S(arc(cx,MID,R,R,-35,-395));
+  // Bauch im Uhrzeigersinn, beginnt am Strich (b, p)
+  const belly=(x0)=>S(arc(x0+RX,MID,R,R,180,540));
+  // Bogen für h, n, m, r: löst sich vom Strich, berührt die Mittellinie und geht
+  // rechts senkrecht hinunter (end < 360 ergibt nur die „Schulter" des r)
+  const arch=(x0,w,end=360)=>{
+    const ry=17,c=Math.cos(Math.PI/12),rx=w/(1+c);
+    const a=S(arc(x0+rx*c,ML+ry,rx/AX,ry,195,end));
+    return end===360?[...a,[x0+w,GL]]:a;
+  };
+
+  const A_=[S([50,OL],[22,GL]),S([50,OL],[78,GL]),S([31,62],[69,62])];
+  const O_=[S(arc(50,ML,36,36,-90,-450))];
+  const U_=[S([24,OL],[24,58],arc(50,58,26/AX,28,180,0),[76,OL])];
+  const a_=[ring(46),S([46+RX,ML],[46+RX,GL])];
+  const o_=[S(arc(50,MID,R,R,-90,-450))];
+  const u_=[S([30,ML],[30,MID],arc(30+RX,MID,R,R,180,0),[30+2*RX,ML]),S([30+2*RX,ML],[30+2*RX,GL])];
+
+  return{
+    // ── Großbuchstaben ───────────────────────────────────────────────────────
+    A:A_,
+    B:[S([24,OL],[24,GL]),
+       S([24,OL],[40,OL],arc(40,32,19,18,-90,90),[24,ML]),
+       S([24,ML],[43,ML],arc(43,68,22,18,-90,90),[24,GL])],
+    C:[S(arc(53,ML,36,36,-40,-320))],
+    D:[S([24,OL],[24,GL]),S([24,OL],[40,OL],arc(40,ML,36,36,-90,90),[24,GL])],
+    E:[S([26,OL],[26,GL]),S([26,OL],[72,OL]),S([26,ML],[66,ML]),S([26,GL],[72,GL])],
+    F:[S([26,OL],[26,GL]),S([26,OL],[72,OL]),S([26,ML],[66,ML])],
+    G:[S(arc(52,ML,36,36,-40,-360),[60,ML])],
+    H:[S([24,OL],[24,GL]),S([76,OL],[76,GL]),S([24,ML],[76,ML])],
+    I:[S([50,OL],[50,GL])],
+    J:[S([62,OL],[62,66],arc(62-18*AX,66,18,20,0,160))],
+    K:[S([26,OL],[26,GL]),S([74,OL],[27,54],[76,GL])],
+    L:[S([28,OL],[28,GL],[74,GL])],
+    M:[S([20,OL],[20,GL]),S([20,OL],[50,62],[80,OL],[80,GL])],
+    N:[S([24,OL],[24,GL]),S([24,OL],[76,GL],[76,OL])],
+    O:O_,
+    P:[S([24,OL],[24,GL]),S([24,OL],[42,OL],arc(42,32,20,18,-90,90),[24,ML])],
+    Q:[...O_,S([60,68],[82,92])],
+    R:[S([24,OL],[24,GL]),S([24,OL],[42,OL],arc(42,32,20,18,-90,90),[24,ML]),S([40,ML],[76,GL])],
+    S:[S(arc(50,32,20,18,-25,-270),arc(50,68,22,18,-90,155))],
+    T:[S([20,OL],[80,OL]),S([50,OL],[50,GL])],
+    U:U_,
+    V:[S([20,OL],[50,GL],[80,OL])],
+    W:[S([12,OL],[31,GL],[50,OL],[69,GL],[88,OL])],
+    X:[S([22,OL],[78,GL]),S([78,OL],[22,GL])],
+    Y:[S([22,OL],[50,ML]),S([78,OL],[50,ML],[50,GL])],
+    Z:[S([22,OL],[78,OL],[22,GL],[78,GL])],
+    "Ä":[...A_,dot(40,6),dot(60,6)],
+    "Ö":[...O_,dot(40,6),dot(60,6)],
+    "Ü":[...U_,dot(38,6),dot(62,6)],
+
+    // ── Kleinbuchstaben ──────────────────────────────────────────────────────
+    a:a_,
+    b:[S([30,OL],[30,GL]),belly(30)],
+    c:[S(arc(52,MID,R,R,-40,-320))],
+    d:[ring(50),S([50+RX,OL],[50+RX,GL])],          // erst der Bauch, dann der Strich
+    e:[S([50-RX,MID],[50+RX,MID],arc(50,MID,R,R,0,-315))],
+    f:[S(arc(44+15*AX,30,15,16,-25,-180),[44,GL]),S([30,ML],[62,ML])],
+    g:[ring(46),S([46+RX,ML],[46+RX,104],arc(46,104,R,R,0,150))],
+    h:[S([28,OL],[28,GL]),arch(28,32)],
+    i:[S([50,ML],[50,GL]),dot(50)],
+    j:[S([56,ML],[56,106],arc(56-16*AX,106,16,16,0,160)),dot(56)],
+    k:[S([30,OL],[30,GL]),S([64,ML],[31,70],[66,GL])],
+    l:[S([50,OL],[50,GL])],
+    m:[S([18,ML],[18,GL]),arch(18,30),arch(48,30)],
+    n:[S([30,ML],[30,GL]),arch(30,32)],
+    o:o_,
+    p:[S([30,ML],[30,UL]),belly(30)],
+    q:[ring(50),S([50+RX,ML],[50+RX,UL])],
+    r:[S([36,ML],[36,GL]),arch(36,30,318)],
+    s:[S(arc(50,59,13,9,-25,-270),arc(50,77,14.5,9,-90,155))],
+    t:[S([46,24],[46,74],arc(46+12*AX,74,12,12,180,60)),S([32,ML],[62,ML])],
+    u:u_,
+    v:[S([22,ML],[50,GL],[78,ML])],
+    w:[S([12,ML],[31,GL],[50,ML],[69,GL],[88,ML])],
+    x:[S([26,ML],[74,GL]),S([74,ML],[26,GL])],
+    y:[S([22,ML],[50,GL]),S([78,ML],[22,UL])],
+    z:[S([26,ML],[74,ML],[26,GL],[74,GL])],
+    "ä":[...a_,dot(38),dot(56)],
+    "ö":[...o_,dot(42),dot(58)],
+    "ü":[...u_,dot(38),dot(56)],
+    "ß":[S([26,GL],[26,30],arc(26+15*AX,30,15,16,180,360),
+           curve(53.5,40,48,47,40,48),curve(60,48,68,56,68,66),curve(68,78,58,GL,46,GL),[38,GL])],
+
+    // ── Ziffern ──────────────────────────────────────────────────────────────
+    "0":[S(arc(50,ML,24,36,-90,-450))],
+    "1":[S([34,34],[56,OL],[56,GL])],                           // ohne Fuß
+    "2":[S(arc(50,32,22,18,200,400),[26,GL],[76,GL])],
+    "3":[S(arc(48,32,20,18,210,470),arc(48,68,22,18,-110,150))],  // zwei runde Bäuche
+    "4":[S([38,OL],[22,62],[80,62]),S([64,OL],[64,GL])],          // oben offen
+    "5":[S([32,OL],[32,52],arc(46,66,21,20,224,500)),S([32,OL],[72,OL])], // Hut zuletzt
+    "6":[S([68,20],curve(56,10,32,14,31.7,48),arc(50,66,20,20,180,-180))],
+    "7":[S([22,OL],[78,OL],[40,GL]),S([46,ML],[72,ML])],
+    "8":[S([50,OL],curve(41,OL,35,20,35,28),curve(35,38,44,44,50,49),curve(57,54,68,59,68,70),
+           curve(68,80,60,GL,50,GL),curve(40,GL,32,80,32,70),curve(32,59,43,54,50,49),
+           curve(56,44,65,38,65,28),curve(65,20,59,OL,50,OL))],
+    "9":[S(arc(48,33,19,19,-20,-360),[48+19*AX,GL])],
+  };
+})();
+
+// Vierliniensystem zeichnen (Mittelband leicht hinterlegt wie im Schulheft)
+function drawLineatur(ctx,W,H,{alpha="30",width=1.5,dash=[4,4]}={}){
+  ctx.save();
+  ctx.fillStyle="#fde68a26";
+  ctx.fillRect(0,H*ML/130,W,H*(GL-ML)/130);
+  ctx.lineWidth=width;ctx.setLineDash(dash);
+  [[OL,"#3b82f6"],[ML,"#3b82f6"],[GL,"#ef4444"],[UL,"#3b82f6"]].forEach(([y,c])=>{
+    ctx.strokeStyle=c+alpha;
+    ctx.beginPath();ctx.moveTo(0,H*y/130);ctx.lineTo(W,H*y/130);ctx.stroke();
+  });
+  ctx.restore();
+}
+
+// Buchstabe als kleines Bild aus denselben Strichdaten (Auswahlraster, Anzeige),
+// damit dort dieselbe Schulschrift erscheint wie beim Schreiben (z. B. „a" statt Arial-„a").
+function Glyph({letter,height=24,color="currentColor",weight=2.2,crop=true}){
+  const strokes=STROKES[letter]||[];
+  // Großbuchstaben/Ziffern: Oberlinie–Grundlinie; Kleinbuchstaben mit Unterlänge bis Unterlinie
+  const top=crop?2:0, bottom=crop?UL+4:130;
+  const w=height*(100/(bottom-top))/AX;
+  return(
+    <svg width={w} height={height} viewBox={`0 ${top} 100 ${bottom-top}`} preserveAspectRatio="none" style={{display:"block",overflow:"visible"}}>
+      {strokes.map((s,i)=>(
+        <polyline key={i} points={s.map(p=>p.join(",")).join(" ")} fill="none" stroke={color}
+          strokeWidth={weight} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke"/>
+      ))}
+    </svg>
+  );
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ANIMALS, STICKERS, WORDS
@@ -512,10 +611,7 @@ function StrokePreview({letter, W=80, H=96}){
       // Light background
       ctx.fillStyle="#f8fafc";ctx.fillRect(0,0,W,H);
       // Ruled lines
-      [[0.077,"#3b82f618"],[0.462,"#3b82f618"],[0.769,"#ef444415"]].forEach(([y,col])=>{
-        ctx.save();ctx.strokeStyle=col;ctx.lineWidth=1;ctx.setLineDash([3,3]);
-        ctx.beginPath();ctx.moveTo(0,H*y);ctx.lineTo(W,H*y);ctx.stroke();ctx.restore();
-      });
+      drawLineatur(ctx,W,H,{alpha:"30",width:1,dash:[3,3]});
       // All previous strokes faint grey
       for(let i=0;i<si;i++){
         const p=strokes[i];
@@ -583,10 +679,7 @@ function AnimCanvas({letter, onDone, W=260, H=310}){
   const ref=useRef(null);const rafRef=useRef(null);const tmrRef=useRef(null);
   const strokes=useStrokes(letter,W,H);
   const drawRules=useCallback((ctx)=>{
-    [[0.077,"#3b82f630"],[0.462,"#3b82f630"],[0.769,"#ef444425"]].forEach(([y,c])=>{
-      ctx.save();ctx.strokeStyle=c;ctx.lineWidth=1.5;ctx.setLineDash([4,4]);
-      ctx.beginPath();ctx.moveTo(0,H*y);ctx.lineTo(W,H*y);ctx.stroke();ctx.restore();
-    });
+    drawLineatur(ctx,W,H);
   },[W,H]);
   useEffect(()=>{
     const canvas=ref.current;if(!canvas)return;
@@ -704,10 +797,7 @@ function TraceCanvas({letter,onComplete,difficulty="medium",memoryMode=false,act
   const animal=ANIMALS[letter]||"🐾";
 
   const drawRules=useCallback((ctx)=>{
-    [[0.077,"#3b82f630"],[0.462,"#3b82f630"],[0.769,"#ef444425"]].forEach(([y,c])=>{
-      ctx.save();ctx.strokeStyle=c;ctx.lineWidth=1.5;ctx.setLineDash([4,4]);
-      ctx.beginPath();ctx.moveTo(0,H*y);ctx.lineTo(W,H*y);ctx.stroke();ctx.restore();
-    });
+    drawLineatur(ctx,W,H);
   },[W,H]);
 
   const drawTemplate=useCallback((ctx,hidden=false,pulseR=11)=>{
@@ -996,10 +1086,7 @@ function GuidedCanvas({letter, onComplete, onSpeak=()=>{}, W=260, H=310}){
   const animal=ANIMALS[letter]||"🐾";
 
   const drawRules=useCallback((ctx)=>{
-    [[0.077,"#3b82f630"],[0.462,"#3b82f630"],[0.769,"#ef444425"]].forEach(([y,c])=>{
-      ctx.save();ctx.strokeStyle=c;ctx.lineWidth=1.5;ctx.setLineDash([4,4]);
-      ctx.beginPath();ctx.moveTo(0,H*y);ctx.lineTo(W,H*y);ctx.stroke();ctx.restore();
-    });
+    drawLineatur(ctx,W,H);
   },[W,H]);
 
   // Shared arrow helper
@@ -1079,10 +1166,7 @@ function GuidedCanvas({letter, onComplete, onSpeak=()=>{}, W=260, H=310}){
     const sx=c.width/W,sy=c.height/H;
     ctx.clearRect(0,0,c.width,c.height);
     ctx.fillStyle="#f8fafc";ctx.fillRect(0,0,c.width,c.height);
-    [[0.077,"#3b82f625"],[0.462,"#3b82f625"],[0.769,"#ef444420"]].forEach(([y,col])=>{
-      ctx.save();ctx.strokeStyle=col;ctx.lineWidth=1;ctx.setLineDash([3,3]);
-      ctx.beginPath();ctx.moveTo(0,H*y*sy);ctx.lineTo(c.width,H*y*sy);ctx.stroke();ctx.restore();
-    });
+    drawLineatur(ctx,c.width,c.height,{alpha:"25",width:1,dash:[3,3]});
     strokes.forEach(pts=>{
       ctx.beginPath();ctx.moveTo(pts[0][0]*sx,pts[0][1]*sy);
       for(let j=1;j<pts.length;j++)ctx.lineTo(pts[j][0]*sx,pts[j][1]*sy);
@@ -1578,7 +1662,7 @@ function LetterGrid({items,learnedMap,onSelect,current}){
         const border=active?"2.5px solid #4361ee":s>=5?"2px solid #fbbf24":s>=3?"2px solid #4ade80":s>=1?"2px solid #93c5fd":"2px solid #e2e8f0";
         return(
           <button key={item} onClick={()=>onSelect(item)} style={{background:bg,border,borderRadius:10,padding:"6px 2px 4px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:0,transform:active?"scale(1.12)":"scale(1)",transition:"all 0.12s",boxShadow:active?"0 4px 14px #4361ee40":"none"}}>
-            <span style={{fontSize:17,fontWeight:900,fontFamily:"Arial,sans-serif",color:active?"white":s>0?"#14532d":"#374151"}}>{item}</span>
+            <Glyph letter={item} height={30} weight={2.6} color={active?"white":s>0?"#14532d":"#374151"}/>
             {s>0&&<span style={{fontSize:7,lineHeight:1.2}}>{s>=5?"🌻":s>=3?"🌼":"🌱"}</span>}
           </button>
         );
@@ -2029,7 +2113,7 @@ export default function App(){
 
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:4}}>
         <div style={{display:"flex",alignItems:"center",gap:5,flexShrink:0}}>
-          <div style={{background:"#4361ee",color:"white",borderRadius:12,width:46,height:46,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,fontWeight:900,fontFamily:"Arial,sans-serif"}}>{letter}</div>
+          <div style={{background:"#4361ee",color:"white",borderRadius:12,width:46,height:46,display:"flex",alignItems:"center",justifyContent:"center"}}><Glyph letter={letter} height={42} weight={3.2} color="white"/></div>
           <button onClick={()=>sayLetter(letter)} style={{background:"#fbbf24",border:"none",borderRadius:50,width:38,height:38,fontSize:18,cursor:"pointer",boxShadow:"0 2px 8px #fbbf2460"}}>🔊</button>
         </div>
         <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>

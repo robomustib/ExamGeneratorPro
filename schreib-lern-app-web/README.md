@@ -44,6 +44,26 @@ auch einfach per Doppelklick im Browser öffnen.
 | Zurück-Taste | Schließt erst Fenster, dann geht es zum Menü — wie in der Android-Version. |
 | Hochformat | Wird nur in der installierten App erzwungen, nicht im Browser-Tab. |
 
+## Schrift: Deutsche Druckschrift (Grundschule)
+
+Die Buchstaben folgen der Druckschrift, wie sie in deutschen Grundschulen
+geübt wird:
+
+- **Vierliniensystem** mit Ober-, Mittel-, Grund- und Unterlinie. Kleinbuchstaben
+  stehen im Mittelband („Erdgeschoss"), Unterlängen (g j p q y) reichen in den
+  „Keller", Oberlängen (b d f h k l t) bis unter das „Dach".
+- **Runde Formen** sind echte Kreise und Bögen (B, D, P, R, S, a, b, …).
+- **Schreibrichtung:** von oben nach unten, von links nach rechts; runde
+  Buchstaben (c, a, d, g, o, q) oben beginnen und gegen den Uhrzeigersinn.
+- **b und d** verwechselt man nicht mehr: b = erst Strich, dann Bauch;
+  d = erst Bauch, dann Strich.
+- **Ziffern:** 1 ohne Fuß, 4 oben offen, 5 mit dem Hut zuletzt, 3 mit zwei
+  runden Bäuchen, 9 = Kreis und Strich.
+
+Die Strichdaten stehen gesammelt in `src/App.jsx` (Abschnitt „STRICHDATEN")
+und lassen sich dort anpassen, falls eure Schule einzelne Buchstaben anders
+lehrt.
+
 ## Vor dem Veröffentlichen
 
 Im Impressum und in der Datenschutzerklärung (in der App unter
