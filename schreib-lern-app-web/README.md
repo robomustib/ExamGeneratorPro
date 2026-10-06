@@ -64,6 +64,20 @@ Die Strichdaten stehen gesammelt in `src/App.jsx` (Abschnitt „STRICHDATEN")
 und lassen sich dort anpassen, falls eure Schule einzelne Buchstaben anders
 lehrt.
 
+## Was die Forschung sagt – und wie die App es umsetzt
+
+| Befund | Umsetzung in der App |
+|---|---|
+| Am wirksamsten: Buchstaben mit **nummerierten Pfeilen** ansehen und dann **aus dem Gedächtnis** schreiben, mit wachsender Merkzeit ([Berninger u. a. 1997](https://www.washington.edu/news/1998/01/30/in-spite-of-computers-handwriting-instruction-is-important-because-of-carry-over-to-composition/)) | **Lernweg pro Buchstabe:** 🖐️ Geführt → 👀 Abschreiben → 🧠 Aus dem Kopf. Ab 4 Sternen geht es eine Stufe weiter (⭐ zeigt den nächsten Schritt). Beim Aus-dem-Kopf-Schreiben: Vorlage mit Pfeilen zeigen, verstecken, Countdown von 1 s, später 3 s und 5 s. |
+| Nur **selbst geschriebene** Buchstaben (nicht nachgefahrene oder getippte) aktivieren bei Kindern das Lese-Netzwerk im Gehirn ([James & Engelhardt 2012](https://pmc.ncbi.nlm.nih.gov/articles/PMC4274624)); Abschreiben baut genauere Buchstabenbilder auf als Tippen (Longcamp u. a. 2005, *Acta Psychologica*) | Nachfahren ist nur die erste Stufe; danach Abschreiben (Vorlage daneben, leeres Feld) und freies Schreiben. |
+| Beim Nachfahren kann man **irgendwo anfangen** und falsche Bewegungen einüben ([OT Toolbox](https://www.theottoolbox.com/to-trace-or-not-to-trace/)) | **Startpunkt und Richtung** jedes Strichs werden geprüft. Ein falscher Strich wird zurückgenommen: „Andersherum! Fang beim gelben Punkt an.“ |
+| **Ständiges Sofort-Feedback** verbessert das Lernen nicht ([Patchan & Puranik 2016](https://researchconnections.org/childcare/resources/32955)); zu viel Hilfe macht abhängig ([Guidance-Hypothese](https://www.frontiersin.org/journals/neuroscience/articles/10.3389/fnins.2016.00251/full)) | Grün/Rot nur beim Nachfahren. Beim Abschreiben und Aus-dem-Kopf-Schreiben gibt es erst danach einen **Vergleich mit der Vorlage**. |
+| Mit dem **Finger** lernen Vorschulkinder auf dem Tablet besser als mit dem Stift (Patchan & Puranik 2016) | Größeres Schreibfeld, das sich an Handy und Tablet anpasst. |
+| Kinder schreiben vor allem **nach links zeigende Zeichen spiegelverkehrt**: 1, 2, 3, 7, 9, J, Z ([Fischer & Tazouti 2012](https://www.frontiersin.org/journals/human-neuroscience/articles/10.3389/fnhum.2018.00375/full)) | **Spiegel-Erkennung** beim freien Schreiben: „🪞 Gespiegelt! Schau, in welche Richtung er zeigt.“ |
+| **Verwechselbare Buchstaben** (b/d, p/q) nicht direkt nacheinander einführen ([Shanahan](https://www.readingrockets.org/blogs/shanahan-on-literacy/why-instructional-sequence-doesnt-always-matter)) | „Automatisch weiter“ folgt einem **Lernweg**: gleiche Bewegungen zusammen (Striche, Kreise, Bögen, Schrägen), b und d weit auseinander. |
+| **Verteiltes, abrufendes Wiederholen** wirkt auch bei kleinen Kindern (z. B. [Haebig u. a. 2021](https://learninglab.psych.purdue.edu/downloads/2021/2021_Haebig_et_al_JSLHR.pdf)) | Im Menü erscheint **„🔁 Heute wiederholen“** mit Buchstaben, die vor über einem Tag geübt wurden. |
+| Buchstabe, **Laut und Bild** zusammen lernen hilft beim Lesenlernen ([Bara, Gentaz u. a.](https://hal.archives-ouvertes.fr/hal-00733557)) | **Anlaut-Bilder** wie auf der Anlauttabelle („🐭 **M**aus“, vorgelesen als „Em, wie Maus“). Vorher passten einige Bilder nicht (U = 🦄 Einhorn, S = 🐍 Schlange). |
+
 ## Vor dem Veröffentlichen
 
 Im Impressum und in der Datenschutzerklärung (in der App unter

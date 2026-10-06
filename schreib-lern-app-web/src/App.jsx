@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
 
 // ─── CSS animations injected once ────────────────────────────────────────────
 const STYLE = `
@@ -11,6 +11,7 @@ const STYLE = `
 @keyframes rainbowShift{ 0%{filter:hue-rotate(0deg)} 100%{filter:hue-rotate(360deg)} }
 @keyframes glowPulse   { 0%,100%{box-shadow:0 0 12px #fbbf24aa} 50%{box-shadow:0 0 28px #fbbf24ff} }
 @keyframes slideUp     { from{transform:translateY(40px);opacity:0} to{transform:translateY(0);opacity:1} }
+@keyframes shake       { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
 `;
 if (typeof document !== "undefined" && !document.getElementById("slk-style")) {
   const s = document.createElement("style"); s.id = "slk-style"; s.textContent = STYLE;
@@ -26,7 +27,13 @@ if (typeof document !== "undefined" && !document.getElementById("slk-style")) {
 //   Mittellinie — Kleinbuchstaben („Erdgeschoss") beginnen hier
 //   Grundlinie — auf ihr steht jeder Buchstabe
 //   Unterlinie — Unterlängen (g j p q y) reichen bis hier („Keller")
+// LINES sind die Linien auf dem Schreibfeld. Über der Oberlinie bleibt Platz für
+// die Umlaut-Punkte der Großbuchstaben (Ä Ö Ü).
+const LINES={top:22, mid:55, base:88, bottom:121};
+// Die Buchstaben selbst sind in einem Entwurfsraster gezeichnet (Bänder je 36).
+// S() verkleinert sie gleichmäßig auf das Schreibfeld, damit Kreise rund bleiben.
 const OL=14, ML=50, GL=86, UL=122;
+const FIT=(LINES.base-LINES.top)/(GL-OL);
 // Das Schreibfeld ist 260×310 px groß, eine x-Einheit ist also etwas breiter als
 // eine y-Einheit. AX rechnet Bogen-Radien so um, dass Kreise wirklich rund werden.
 const AX=(310/130)/(260/100);
@@ -53,13 +60,14 @@ function S(...parts){
         add(u*u*u*x0+3*u*u*t*x1+3*u*t*t*x2+t*t*t*x, u*u*u*y0+3*u*u*t*y1+3*u*t*t*y2+t*t*t*y);}
     }
   }
-  return pts;
+  return pts.map(([x,y])=>[+(50+(x-50)*FIT).toFixed(2),+(LINES.top+(y-OL)*FIT).toFixed(2)]);
 }
 
 const STROKES=(()=>{
   const R=18, RX=R*AX;                 // Kreis im Mittelband, Radius in y- und x-Einheiten
   const MID=(ML+GL)/2;                 // Mitte des Mittelbands
   const dot=(x,y=33)=>S([x,y-1.5],[x,y+1.5]);     // i-Punkt, Umlaut-Punkte
+  const CAPDOT=-2.5;                   // Umlaut-Punkte der Großbuchstaben: deutlich über der Oberlinie
   // Kreis gegen den Uhrzeigersinn, beginnt oben rechts (a, d, g, q)
   const ring=(cx)=>S(arc(cx,MID,R,R,-35,-395));
   // Bauch im Uhrzeigersinn, beginnt am Strich (b, p)
@@ -109,9 +117,9 @@ const STROKES=(()=>{
     X:[S([22,OL],[78,GL]),S([78,OL],[22,GL])],
     Y:[S([22,OL],[50,ML]),S([78,OL],[50,ML],[50,GL])],
     Z:[S([22,OL],[78,OL],[22,GL],[78,GL])],
-    "Ä":[...A_,dot(40,6),dot(60,6)],
-    "Ö":[...O_,dot(40,6),dot(60,6)],
-    "Ü":[...U_,dot(38,6),dot(62,6)],
+    "Ä":[...A_,dot(40,CAPDOT),dot(60,CAPDOT)],
+    "Ö":[...O_,dot(40,CAPDOT),dot(60,CAPDOT)],
+    "Ü":[...U_,dot(38,CAPDOT),dot(62,CAPDOT)],
 
     // ── Kleinbuchstaben ──────────────────────────────────────────────────────
     a:a_,
@@ -166,9 +174,9 @@ const STROKES=(()=>{
 function drawLineatur(ctx,W,H,{alpha="30",width=1.5,dash=[4,4]}={}){
   ctx.save();
   ctx.fillStyle="#fde68a26";
-  ctx.fillRect(0,H*ML/130,W,H*(GL-ML)/130);
+  ctx.fillRect(0,H*LINES.mid/130,W,H*(LINES.base-LINES.mid)/130);
   ctx.lineWidth=width;ctx.setLineDash(dash);
-  [[OL,"#3b82f6"],[ML,"#3b82f6"],[GL,"#ef4444"],[UL,"#3b82f6"]].forEach(([y,c])=>{
+  [[LINES.top,"#3b82f6"],[LINES.mid,"#3b82f6"],[LINES.base,"#ef4444"],[LINES.bottom,"#3b82f6"]].forEach(([y,c])=>{
     ctx.strokeStyle=c+alpha;
     ctx.beginPath();ctx.moveTo(0,H*y/130);ctx.lineTo(W,H*y/130);ctx.stroke();
   });
@@ -179,8 +187,9 @@ function drawLineatur(ctx,W,H,{alpha="30",width=1.5,dash=[4,4]}={}){
 // damit dort dieselbe Schulschrift erscheint wie beim Schreiben (z. B. „a" statt Arial-„a").
 function Glyph({letter,height=24,color="currentColor",weight=2.2,crop=true}){
   const strokes=STROKES[letter]||[];
-  // Großbuchstaben/Ziffern: Oberlinie–Grundlinie; Kleinbuchstaben mit Unterlänge bis Unterlinie
-  const top=crop?2:0, bottom=crop?UL+4:130;
+  // Gleicher Ausschnitt für alle Zeichen (Umlaut-Punkte bis Unterlinie), damit Groß- und
+  // Kleinbuchstaben in der richtigen Größe zueinander stehen
+  const top=crop?3:0, bottom=crop?LINES.bottom+5:130;
   const w=height*(100/(bottom-top))/AX;
   return(
     <svg width={w} height={height} viewBox={`0 ${top} 100 ${bottom-top}`} preserveAspectRatio="none" style={{display:"block",overflow:"visible"}}>
@@ -193,18 +202,24 @@ function Glyph({letter,height=24,color="currentColor",weight=2.2,crop=true}){
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ANIMALS, STICKERS, WORDS
+// ANLAUT-BILDER, STICKERS, WORDS
 // ═══════════════════════════════════════════════════════════════════════════════
-const ANIMALS = {
-  A:"🐒",B:"🐻",C:"🐊",D:"🐬",E:"🐘",F:"🦊",G:"🦒",H:"🐹",I:"🦔",
-  J:"🐆",K:"🦘",L:"🦁",M:"🐭",N:"🦕",O:"🐙",P:"🐧",Q:"🦆",R:"🐰",
-  S:"🐍",T:"🐯",U:"🦄",V:"🦅",W:"🐺",X:"🦂",Y:"🦋",Z:"🦓",
-  a:"🐒",b:"🐻",c:"🐊",d:"🐬",e:"🐘",f:"🦊",g:"🦒",h:"🐹",i:"🦔",
-  j:"🐆",k:"🦘",l:"🦁",m:"🐭",n:"🦕",o:"🐙",p:"🐧",q:"🦆",r:"🐰",
-  s:"🐍",t:"🐯",u:"🦄",v:"🦅",w:"🐺",x:"🦂",y:"🦋",z:"🦓",
-  "Ä":"🦅","Ö":"🦦","Ü":"🦉","ä":"🦅","ö":"🦦","ü":"🦉","ß":"🐝",
-  "6":"🐡","7":"🦩","8":"🐝","9":"🦀",
+// Anlaut-Bilder wie auf der Anlauttabelle in der Schule: Das Wort beginnt mit dem
+// Laut des Buchstabens („M wie Maus"). Das verbindet Form, Laut und Bild.
+// Drittes Feld: true = Buchstabe steht nicht am Wortanfang („ß wie in Fuß").
+const ANLAUT={
+  A:["🐒","Affe"],B:["🐻","Bär"],C:["🦎","Chamäleon"],D:["🐬","Delfin"],E:["🐘","Elefant"],
+  F:["🦊","Fuchs"],G:["🦍","Gorilla"],H:["🐹","Hamster"],I:["🦔","Igel"],J:["🐆","Jaguar"],
+  K:["🦘","Känguru"],L:["🦁","Löwe"],M:["🐭","Maus"],N:["🦏","Nashorn"],O:["🐙","Oktopus"],
+  P:["🐧","Pinguin"],Q:["🦆","Quietscheente"],R:["🐛","Raupe"],S:["☀️","Sonne"],T:["🐯","Tiger"],
+  U:["🦉","Uhu"],V:["🐦","Vogel"],W:["🐺","Wolf"],X:["🧙","Hexe",true],Y:["⛵","Yacht"],
+  Z:["🦓","Zebra"],"Ä":["🐒","Äffchen"],"Ö":["🛢️","Öl"],"Ü":["🎁","Überraschung"],"ß":["🦶","Fuß",true],
 };
+const anlautOf=(l)=>ANLAUT[l]||ANLAUT[l.toUpperCase()]||null;
+// Zahlenbilder: Dinge, die wie die Ziffer aussehen (2 = Schwan, 8 = Schneemann …)
+const ANIMALS={"0":"🥚","1":"🕯️","2":"🦢","3":"🐪","4":"⛵","5":"🖐️","6":"🐌","7":"🦩","8":"⛄","9":"🎈"};
+const mascotOf=(l)=>anlautOf(l)?.[0]||ANIMALS[l]||"🐾";
+
 const STICKERS = {
   A:"🍎",B:"🦋",C:"🌸",D:"💎",E:"🌍",F:"🌺",G:"🌟",H:"🏠",I:"🌈",
   J:"💫",K:"👑",L:"🍀",M:"🌙",N:"🌊",O:"🍊",P:"🎀",Q:"👸",R:"🌹",
@@ -256,6 +271,32 @@ const UPPERCASE="ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜ".split("");
 const LOWERCASE="abcdefghijklmnopqrstuvwxyzäöüß".split("");
 const NUMBERS="0123456789".split("");
 
+// Lernweg: Reihenfolge für „automatisch weiter". Buchstaben mit gleicher Bewegung
+// stehen zusammen (Striche, Kreise, Bögen, Schrägen); leicht verwechselbare Paare
+// wie b/d und p/q liegen weit auseinander.
+const LEARN_PATH={
+  "GROß":"LITEFHOCQGSDPBRUJVAWMNKXYZÄÖÜ".split(""),
+  klein:"litcoadgqesnmhrubpvwxyzkfjäöüß".split(""),
+  Zahlen:NUMBERS,
+};
+const tabOf=(l)=>UPPERCASE.includes(l)?"GROß":LOWERCASE.includes(l)?"klein":"Zahlen";
+
+// Übungsmodi. Pro Buchstabe gibt es drei Lernstufen, bei denen die Hilfe Schritt
+// für Schritt verschwindet: nachfahren → abschreiben → aus dem Kopf schreiben.
+const MODES={
+  guided:{label:"🖐️ Geführt",color:"#22c55e"},
+  trace: {label:"✏️ Nachfahren",color:"#4361ee"},
+  copy:  {label:"👀 Abschreiben",color:"#f97316"},
+  memory:{label:"🧠 Aus dem Kopf",color:"#a855f7"},
+};
+const STAGE_MODE={1:"guided",2:"copy",3:"memory"};
+const MODE_STAGE={guided:1,trace:1,copy:2,memory:3};
+// Wartezeit beim Aus-dem-Kopf-Schreiben wächst mit jedem Erfolg (in Sekunden)
+const MEMORY_DELAYS=[1,3,5];
+const STAGE_NEXT_TEXT={2:"Nächstes Mal schreibst du ihn ab!",3:"Nächstes Mal schreibst du ihn aus dem Kopf!"};
+// Ab wann ein Buchstabe zur Wiederholung vorgeschlagen wird (verteiltes Üben)
+const REVIEW_AFTER_MS=20*60*60*1000;
+
 const DIFFICULTY={
   easy:  {label:"Einfach 😊",ghostAlpha:0.38,ghostWidth:34,tolerance:24,dashLine:[8,6]},
   medium:{label:"Mittel 🎯", ghostAlpha:0.22,ghostWidth:22,tolerance:14,dashLine:[6,5]},
@@ -302,6 +343,9 @@ const EDU_TIPS=[
   {icon:"💪",title:"Fehlerkultur",text:"Zeigen Sie: Fehler sind Lernchancen. 'Schau, der Strich ist etwas daneben – versuch's nochmal!'"},
   {icon:"📅",title:"Lern-Rhythmus",text:"Täglich 10–15 Minuten üben ist effektiver als einmal pro Woche eine Stunde."},
   {icon:"👀",title:"Bereitschaft erkennen",text:"Wenn Ihr Kind unruhig oder frustriert wirkt, ist es Zeit für eine Pause oder einen anderen Tag."},
+  {icon:"🧠",title:"Aus dem Kopf schreiben",text:"Nachfahren ist nur der Anfang. Am meisten lernen Kinder, wenn sie einen Buchstaben ansehen, abdecken und dann aus dem Gedächtnis schreiben. Die App führt Schritt für Schritt dorthin."},
+  {icon:"➡️",title:"Richtung zählt",text:"Achten Sie auf Startpunkt und Schreibrichtung, nicht nur auf das Aussehen. Wer Buchstaben immer gleich schreibt, schreibt später flüssiger."},
+  {icon:"🔁",title:"Wiederholen lohnt sich",text:"Ein Buchstabe sitzt besser, wenn er nach einem Tag noch einmal geübt wird. Die App schlägt dafür im Menü passende Buchstaben vor."},
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -352,7 +396,12 @@ function webSpeak(clean,rate,pitch){
 }
 function useSpeech(enabled){
   const say=useCallback((t,r,p)=>{if(enabled)speak(t,r,p);},[enabled]);
-  const sayLetter=useCallback((l)=>{if(enabled)speak(LETTER_NAMES[l]||l,0.85,1.2);},[enabled]);
+  // Buchstabe mit Anlaut-Wort: „Em, wie Maus" — verknüpft Name, Laut und Bild
+  const sayLetter=useCallback((l)=>{
+    if(!enabled)return;
+    const a=anlautOf(l),name=LETTER_NAMES[l]||l;
+    speak(a?`${name}, wie ${a[2]?"in ":""}${a[1]}`:name,0.85,1.2);
+  },[enabled]);
   const sayIt=useCallback((t)=>{if(enabled)speak(t,0.85,1.1);},[enabled]);
   return{say,sayLetter,sayIt};
 }
@@ -572,6 +621,130 @@ function useStrokes(letter,W,H){
   },[letter,W,H]);
 }
 
+// ── Schreibfeld-Größe ─────────────────────────────────────────────────────────
+// Gezeichnet wird immer im 260×310-Raster. Auf größeren Bildschirmen wird das Feld
+// größer dargestellt (größere Buchstaben sind für Kinderfinger leichter zu treffen)
+// und in Bildschirmauflösung gerendert, damit die Linien scharf bleiben.
+function fieldScale(W=260,H=310){
+  if(typeof window==="undefined")return 1;
+  return Math.max(1,Math.min(1.8,(window.innerWidth-48)/W,(window.innerHeight-360)/H));
+}
+function pixelRatio(scale=1){
+  const dpr=typeof window!=="undefined"&&window.devicePixelRatio||1;
+  return scale*Math.min(dpr,2);
+}
+// Setzt den Maßstab auf den Canvas-Kontexten, bevor die Effekte zeichnen
+function useCanvasScale(refs,k){
+  useLayoutEffect(()=>{
+    for(const r of refs){const c=r.current;if(c)c.getContext("2d").setTransform(k,0,0,k,0,0);}
+  });
+}
+
+// ── Geometrie für Rückmeldungen ───────────────────────────────────────────────
+function polyLength(p){let L=0;for(let i=1;i<p.length;i++)L+=Math.hypot(p[i][0]-p[i-1][0],p[i][1]-p[i-1][1]);return L;}
+function nearestIndex(pt,poly){
+  let best=0,bd=Infinity;
+  poly.forEach((q,i)=>{const d=Math.hypot(pt[0]-q[0],pt[1]-q[1]);if(d<bd){bd=d;best=i;}});
+  return best;
+}
+function signedArea(p){let a=0;for(let i=0;i<p.length;i++){const[x1,y1]=p[i],[x2,y2]=p[(i+1)%p.length];a+=x1*y2-x2*y1;}return a/2;}
+function bbox(pts){
+  const xs=pts.map(p=>p[0]),ys=pts.map(p=>p[1]);
+  return{x0:Math.min(...xs),x1:Math.max(...xs),y0:Math.min(...ys),y1:Math.max(...ys)};
+}
+
+// Prüft Startpunkt und Richtung eines Strichs gegen die Vorlage.
+// Ergebnis: null (passt), "start" (woanders angefangen) oder "direction" (falschherum).
+function checkFormation(drawn,tpl,tol){
+  if(drawn.length<4)return null;
+  const L=polyLength(tpl);if(L<25)return null;                   // Punkte (i, ä …) egal
+  const mean=drawn.reduce((s,p)=>s+distToPolyline(p[0],p[1],[tpl]),0)/drawn.length;
+  if(mean>Math.max(28,tol*2.2))return "start";                    // ganz anderer Strich
+  const first=drawn[0],last=drawn[drawn.length-1],n=tpl.length-1;
+  const startOff=Math.hypot(first[0]-tpl[0][0],first[1]-tpl[0][1]);
+  const closed=Math.hypot(tpl[0][0]-tpl[n][0],tpl[0][1]-tpl[n][1])<L*0.1;
+  if(closed){
+    // Kreise: Drehrichtung über die Fläche bestimmen (nicht bei der 8)
+    const a=signedArea(tpl),b=signedArea(drawn),bb=bbox(tpl);
+    const round=Math.abs(a)>0.3*(bb.x1-bb.x0)*(bb.y1-bb.y0);
+    if(round&&Math.abs(b)>Math.abs(a)*0.3&&Math.sign(a)!==Math.sign(b))return "direction";
+    // Sonst (z. B. 8): Wo liegt der Stift nach dem ersten Fünftel? Falschherum liegt er hinten.
+    if(!round&&nearestIndex(drawn[Math.floor(drawn.length*0.2)],tpl)>n*0.5)return "direction";
+    return startOff>Math.max(40,tol*3)?"start":null;
+  }
+  const i0=nearestIndex(first,tpl),i1=nearestIndex(last,tpl);
+  if(i0-i1>n*0.25)return "direction";
+  if(i0>n*0.35)return "start";
+  return null;
+}
+
+// Bewertung: Genauigkeit 50 %, Abdeckung der Vorlage 40 %, Längen-Abzug fürs Kritzeln
+function scoreDrawing(drawnStrokes,tpl,TOL){
+  const pts=drawnStrokes.flat();if(pts.length<4)return 0;
+  let acc=0;
+  for(const p of pts){
+    const d=distToPolyline(p[0],p[1],tpl);
+    if(d<=TOL*0.5)acc+=1;else if(d<=TOL)acc+=1-(d-TOL*0.5)/(TOL*0.5);
+  }
+  const accuracy=acc/pts.length;
+  const tplPts=tpl.flat();let covered=0;
+  for(const t of tplPts){if(pts.some(p=>Math.hypot(p[0]-t[0],p[1]-t[1])<TOL*1.4))covered++;}
+  const coverage=covered/tplPts.length;
+  const drawnLen=drawnStrokes.reduce((s,st)=>s+polyLength(st),0);
+  const ratio=drawnLen/Math.max(1,tpl.reduce((s,st)=>s+polyLength(st),0));
+  const lengthPenalty=ratio>2?Math.min(1,(ratio-2)/3):0;
+  return(accuracy*0.5+coverage*0.4)*(1-lengthPenalty*0.1);
+}
+const shiftStrokes=(strokes,dx)=>strokes.map(s=>s.map(([x,y])=>[x+dx,y]));
+// Spiegelbild um die senkrechte Mittelachse (typisch bei J, Z, 3, 7, 9 …)
+function mirrorStrokes(strokes){
+  const b=bbox(strokes.flat()),cx=(b.x0+b.x1)/2;
+  return strokes.map(s=>s.map(([x,y])=>[2*cx-x,y]));
+}
+
+// Vorlage mit Startpunkten, Nummern und Richtungspfeilen (zum Einprägen)
+function drawModel(ctx,strokes,{color="#4361ee",width=9,alpha=1,numbers=true,arrows=true,font=12}={}){
+  ctx.save();ctx.globalAlpha=alpha;ctx.lineCap="round";ctx.lineJoin="round";
+  strokes.forEach(pts=>{
+    ctx.beginPath();ctx.moveTo(pts[0][0],pts[0][1]);
+    for(let j=1;j<pts.length;j++)ctx.lineTo(pts[j][0],pts[j][1]);
+    ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke();
+  });
+  if(numbers||arrows)strokes.forEach((pts,i)=>{
+    if(arrows&&pts.length>4&&polyLength(pts)>width*3){
+      const m=Math.floor(pts.length*0.55),p=pts[m],pv=pts[m-1];
+      const a=Math.atan2(p[1]-pv[1],p[0]-pv[0]),sz=width*1.3;
+      ctx.save();ctx.translate(p[0],p[1]);ctx.rotate(a);
+      ctx.beginPath();ctx.moveTo(sz*0.6,0);ctx.lineTo(-sz*0.5,-sz*0.6);ctx.lineTo(-sz*0.5,sz*0.6);ctx.closePath();
+      ctx.fillStyle="#fbbf24";ctx.fill();ctx.restore();
+    }
+    if(numbers){
+      ctx.beginPath();ctx.arc(pts[0][0],pts[0][1],width*0.75,0,Math.PI*2);ctx.fillStyle="#f59e0b";ctx.fill();
+      ctx.font=`bold ${font}px Arial`;ctx.fillStyle="#92400e";
+      ctx.fillText(i+1,pts[0][0]+width*0.9,pts[0][1]-width*0.5);
+    }
+  });
+  ctx.restore();
+}
+
+// Kleine Vorlagenkarte neben dem Schreibfeld (Modus „Abschreiben")
+function ModelCard({letter,W=110,H=131}){
+  const ref=useRef(null);
+  const [k]=useState(()=>pixelRatio(1));
+  const strokes=useStrokes(letter,W,H);
+  useCanvasScale([ref],k);
+  useEffect(()=>{
+    const ctx=ref.current.getContext("2d");
+    ctx.clearRect(0,0,W,H);drawLineatur(ctx,W,H,{alpha:"40",width:1,dash:[3,3]});
+    drawModel(ctx,strokes,{width:4.5,font:10});
+  },[strokes,W,H]);
+  return(
+    <div style={{background:"white",borderRadius:14,padding:4,border:"2px solid #fdba74",boxShadow:"0 2px 10px #f9731630"}}>
+      <canvas ref={ref} width={W*k} height={H*k} style={{display:"block",width:W,height:H,borderRadius:10,background:"#fafafa"}}/>
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // CONFETTI
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -602,11 +775,13 @@ function Confetti(){
 function StrokePreview({letter, W=80, H=96}){
   const strokes=useStrokes(letter,W,H);
   const canvasRefs=useRef([]);
+  const [k]=useState(()=>pixelRatio(1));
 
   useEffect(()=>{
     strokes.forEach((pts,si)=>{
       const c=canvasRefs.current[si];if(!c)return;
       const ctx=c.getContext("2d");
+      ctx.setTransform(k,0,0,k,0,0);
       ctx.clearRect(0,0,W,H);
       // Light background
       ctx.fillStyle="#f8fafc";ctx.fillRect(0,0,W,H);
@@ -661,8 +836,8 @@ function StrokePreview({letter, W=80, H=96}){
             <div style={{background:"white",borderRadius:10,padding:3,boxShadow:"0 2px 8px #0002",border:"1.5px solid #bae6fd"}}>
               <canvas
                 ref={el=>{canvasRefs.current[si]=el;}}
-                width={W} height={H}
-                style={{display:"block",borderRadius:8}}/>
+                width={W*k} height={H*k}
+                style={{display:"block",width:W,height:H,borderRadius:8}}/>
             </div>
           </div>
         ))}
@@ -675,8 +850,10 @@ function StrokePreview({letter, W=80, H=96}){
 // ═══════════════════════════════════════════════════════════════════════════════
 // ANIM CANVAS  — animates stroke-by-stroke before tracing phase
 // ═══════════════════════════════════════════════════════════════════════════════
-function AnimCanvas({letter, onDone, W=260, H=310}){
+function AnimCanvas({letter, onDone, scale=1, W=260, H=310}){
   const ref=useRef(null);const rafRef=useRef(null);const tmrRef=useRef(null);
+  const [k]=useState(()=>pixelRatio(scale));
+  useCanvasScale([ref],k);
   const strokes=useStrokes(letter,W,H);
   const drawRules=useCallback((ctx)=>{
     drawLineatur(ctx,W,H);
@@ -765,7 +942,7 @@ function AnimCanvas({letter, onDone, W=260, H=310}){
   return(
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
       <div style={{background:"#1e1b4b",borderRadius:24,padding:10,boxShadow:"0 8px 32px #1e1b4b50"}}>
-        <canvas ref={ref} width={W} height={H} style={{display:"block",borderRadius:16,background:"#fafafa"}}/>
+        <canvas ref={ref} width={W*k} height={H*k} style={{display:"block",width:W*scale,height:H*scale,borderRadius:16,background:"#fafafa"}}/>
       </div>
       <div style={{fontSize:13,color:"#6b7280",background:"#fff7ed",borderRadius:12,padding:"5px 14px",border:"1px solid #fed7aa"}}>👀 Schau zu — dann bist du dran!</div>
     </div>
@@ -773,35 +950,55 @@ function AnimCanvas({letter, onDone, W=260, H=310}){
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// TRACE CANVAS
+// TRACE CANVAS — Nachfahren, Abschreiben und Aus-dem-Kopf-Schreiben
 // ═══════════════════════════════════════════════════════════════════════════════
-function TraceCanvas({letter,onComplete,difficulty="medium",memoryMode=false,activeReward,
-                     lefthanded=false,highContrast=false,hapticsEnabled=true,W=260,H=310}){
+// mode "trace":  Vorlage liegt im Feld; Startpunkt und Richtung jedes Strichs
+//                werden geprüft, ein falscher Strich wird zurückgenommen.
+// mode "copy":   Vorlage steht daneben, das Feld ist leer (abschreiben).
+// mode "memory": Vorlage kurz zeigen, verstecken, kurz warten, dann aus dem Kopf.
+//                Die Wartezeit wächst mit jedem Erfolg (memoryDelay Sekunden).
+// In copy/memory gibt es während des Schreibens kein Grün/Rot — die Rückmeldung
+// kommt danach als Vergleich mit der Vorlage.
+const COACH={
+  start:"👆 Fang beim gelben Punkt an!",
+  direction:"↩️ Andersherum! Fang beim gelben Punkt an.",
+};
+function TraceCanvas({letter,onComplete,difficulty="medium",mode="trace",memoryDelay=1,activeReward,
+                     lefthanded=false,highContrast=false,hapticsEnabled=true,onSpeak=()=>{},scale=1,W=260,H=310}){
   const bgRef=useRef(null);const ovRef=useRef(null);
-  const isDrawing=useRef(false);const lastPos=useRef(null);
-  const drawnPts=useRef([]);const strokeIdx=useRef(0);
-  const [done,setDone]=useState(false);const [stars,setStars]=useState(0);
+  const [k]=useState(()=>pixelRatio(scale));
+  useCanvasScale([bgRef,ovRef],k);
+  const isDrawing=useRef(false);
+  const drawn=useRef([]);       // gezeichnete Striche: [[x,y], …]
+  const segs=useRef([]);        // gemalte Teilstücke, um einen Strich zurücknehmen zu können
+  const segStarts=useRef([]);
+  const strokeIdx=useRef(0);
+  const formationErrors=useRef(0);
+  const [done,setDone]=useState(false);const [result,setResult]=useState(null);
   const [hasLines,setHasLines]=useState(false);const [confetti,setConfetti]=useState(false);
   const [animalBounce,setAnimalBounce]=useState(false);
-  const [memPhase,setMemPhase]=useState(memoryMode?"show":"trace");
-  // Idle hint state
+  const [memPhase,setMemPhase]=useState(mode==="memory"?"show":"write"); // show | wait | write
+  const [countdown,setCountdown]=useState(0);
+  const [round,setRound]=useState(0);
+  const [coach,setCoach]=useState(null);
+  const coachTimer=useRef(null);
   const [showHintBtn,setShowHintBtn]=useState(false);
   const idleTimerRef=useRef(null);
   const pulseRafRef=useRef(null);
-  const pulsePhaseRef=useRef(0); // 0=idle, 1=pulsing
-  const pulseStartRef=useRef(0);
-  const offTrackRef=useRef(false); // für Haptik beim Verlassen der Linie
+  const offTrackRef=useRef(false);
   const diff=useMemo(()=>applyContrast(DIFFICULTY[difficulty],highContrast),[difficulty,highContrast]);
   const pal=highContrast?PALETTE.high:PALETTE.normal;
   const strokes=useStrokes(letter,W,H);
-  const animal=ANIMALS[letter]||"🐾";
+  const animal=mascotOf(letter);
+  const guided=mode==="trace";                         // Vorlage im Feld?
+  const canWrite=memPhase==="write"&&!done;
 
-  const drawRules=useCallback((ctx)=>{
-    drawLineatur(ctx,W,H);
-  },[W,H]);
+  const drawRules=useCallback((ctx)=>{drawLineatur(ctx,W,H);},[W,H]);
 
-  const drawTemplate=useCallback((ctx,hidden=false,pulseR=11)=>{
-    ctx.clearRect(0,0,W,H);drawRules(ctx);if(hidden)return;
+  const drawTemplate=useCallback((ctx,pulseR=11)=>{
+    ctx.clearRect(0,0,W,H);drawRules(ctx);
+    if(mode==="memory"&&memPhase==="show"){drawModel(ctx,strokes);return;}
+    if(!guided)return;
     const si=strokeIdx.current;
     [...strokes.map((_,i)=>i).filter(i=>i>si),
      ...strokes.map((_,i)=>i).filter(i=>i<si), si]
@@ -851,20 +1048,59 @@ function TraceCanvas({letter,onComplete,difficulty="medium",memoryMode=false,act
         ctx.textAlign="left";
       }
     });
-  },[strokes,diff,drawRules,pal,lefthanded,highContrast,W,H]);
+  },[strokes,diff,drawRules,pal,lefthanded,highContrast,guided,mode,memPhase,W,H]);
+
+  // Ein gemaltes Teilstück zeichnen (auch beim Wiederherstellen nach dem Zurücknehmen)
+  const paintSeg=(ctx,{a,b,kind,color})=>{
+    const line=(c,w)=>{ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.strokeStyle=c;ctx.lineWidth=w;ctx.stroke();};
+    ctx.save();ctx.lineCap="round";ctx.lineJoin="round";
+    if(kind==="glitter"){ctx.shadowColor="#fbbf24";ctx.shadowBlur=16;line("#fde68a",10);ctx.shadowBlur=0;line("#4ade80",6);}
+    else if(kind==="rainbow")line(color,11);
+    else{ctx.globalAlpha=0.85;line(color,10);}
+    ctx.restore();
+  };
+  const repaintInk=()=>{
+    const ctx=ovRef.current.getContext("2d");ctx.clearRect(0,0,W,H);
+    segs.current.forEach(s=>paintSeg(ctx,s));
+  };
+
+  const showCoach=useCallback((text,speakIt=true)=>{
+    setCoach(text);clearTimeout(coachTimer.current);
+    coachTimer.current=setTimeout(()=>setCoach(null),3200);
+    if(speakIt)onSpeak(text);
+  },[onSpeak]);
 
   const reset=useCallback(()=>{
-    drawnPts.current=[];strokeIdx.current=0;isDrawing.current=false;
-    setDone(false);setHasLines(false);setConfetti(false);
+    drawn.current=[];segs.current=[];segStarts.current=[];strokeIdx.current=0;formationErrors.current=0;
+    isDrawing.current=false;
+    setDone(false);setResult(null);setHasLines(false);setConfetti(false);setCoach(null);
     const bg=bgRef.current;const ov=ovRef.current;if(!bg||!ov)return;
     ov.getContext("2d").clearRect(0,0,W,H);
-    drawTemplate(bg.getContext("2d"),memPhase==="hide");
-  },[drawTemplate,memPhase,W,H]);
+    drawTemplate(bg.getContext("2d"));
+  },[drawTemplate,W,H]);
 
-  useEffect(()=>{reset();},[letter,difficulty,memPhase]);
-  useEffect(()=>{if(!memoryMode)return;setMemPhase("show");const t=setTimeout(()=>setMemPhase("hide"),2200);return()=>clearTimeout(t);},[letter,memoryMode]);
+  useEffect(()=>{reset();},[letter,difficulty,mode,round]);
+  // Vorlage neu zeichnen, wenn sich die Phase ändert (zeigen → verstecken)
+  useEffect(()=>{if(bgRef.current)drawTemplate(bgRef.current.getContext("2d"));},[memPhase]);
+  useEffect(()=>()=>clearTimeout(coachTimer.current),[]);
 
-  // ── Idle timer: show hint button after 4s of no drawing ──
+  // Aus-dem-Kopf: zeigen → warten (Countdown) → schreiben
+  useEffect(()=>{
+    if(mode!=="memory"){setMemPhase("write");return;}
+    setMemPhase("show");
+    const timers=[];
+    const write=()=>{setMemPhase("write");onSpeak("Jetzt du! Schreib ihn aus dem Kopf.");};
+    timers.push(setTimeout(()=>{
+      if(memoryDelay<=0){write();return;}
+      setMemPhase("wait");setCountdown(memoryDelay);
+      for(let i=1;i<=memoryDelay;i++)timers.push(setTimeout(()=>{
+        if(i===memoryDelay)write();else setCountdown(memoryDelay-i);
+      },i*1000));
+    },2600));
+    return()=>timers.forEach(clearTimeout);
+  },[letter,mode,memoryDelay,round]);
+
+  // ── Hilfe-Knopf nach 4 s ohne Zeichnen ──
   const resetIdleTimer=useCallback(()=>{
     setShowHintBtn(false);
     clearTimeout(idleTimerRef.current);
@@ -872,153 +1108,156 @@ function TraceCanvas({letter,onComplete,difficulty="medium",memoryMode=false,act
   },[done]);
   useEffect(()=>{resetIdleTimer();return()=>clearTimeout(idleTimerRef.current);},[letter,difficulty,resetIdleTimer]);
 
-  // ── Pulse animation for start dot ──
+  // ── Startpunkt pulsieren lassen ──
   const startPulse=useCallback(()=>{
     cancelAnimationFrame(pulseRafRef.current);
-    pulsePhaseRef.current=1;
-    pulseStartRef.current=performance.now();
-    const DURATION=1200; // ms for one full pulse cycle
-    const CYCLES=3;
+    if(!guided)return;
+    const t0=performance.now(),DURATION=1200,CYCLES=3;
     const tick=(now)=>{
-      const elapsed=now-pulseStartRef.current;
+      const elapsed=now-t0;
       const t=(elapsed%(DURATION/CYCLES))/(DURATION/CYCLES);
-      // sine wave: radius oscillates between 11 and 21
-      const r=11+10*Math.sin(t*Math.PI);
-      const bg=bgRef.current;
-      if(bg&&elapsed<DURATION){
-        drawTemplate(bg.getContext("2d"),memPhase==="hide",r);
+      const bg=bgRef.current;if(!bg)return;
+      if(elapsed<DURATION){
+        drawTemplate(bg.getContext("2d"),11+10*Math.sin(t*Math.PI));
         pulseRafRef.current=requestAnimationFrame(tick);
-      } else {
-        // Reset to normal
-        pulsePhaseRef.current=0;
-        if(bgRef.current) drawTemplate(bgRef.current.getContext("2d"),memPhase==="hide",11);
-      }
+      } else drawTemplate(bg.getContext("2d"),11);
     };
     pulseRafRef.current=requestAnimationFrame(tick);
-  },[drawTemplate,memPhase]);
-
-  // Puls beim Laden eines neuen Buchstabens
+  },[drawTemplate,guided]);
   useEffect(()=>{
     const t=setTimeout(startPulse,350);
     return()=>{clearTimeout(t);cancelAnimationFrame(pulseRafRef.current);};
   },[letter,startPulse]);
 
-  const getPos=(e)=>{const c=ovRef.current;const rect=c.getBoundingClientRect();const sx=W/rect.width,sy=H/rect.height;const src=e.touches?e.touches[0]:e;return{x:(src.clientX-rect.left)*sx,y:(src.clientY-rect.top)*sy};};
-  const startDraw=(e)=>{e.preventDefault();if(done)return;isDrawing.current=true;lastPos.current=getPos(e);setHasLines(true);resetIdleTimer();setShowHintBtn(false);};
+  const getPos=(e)=>{const c=ovRef.current;const rect=c.getBoundingClientRect();const sx=W/rect.width,sy=H/rect.height;const src=e.touches?e.touches[0]:e;return[(src.clientX-rect.left)*sx,(src.clientY-rect.top)*sy];};
+
+  const startDraw=(e)=>{
+    e.preventDefault();if(!canWrite)return;
+    isDrawing.current=true;
+    drawn.current.push([getPos(e)]);segStarts.current.push(segs.current.length);
+    setHasLines(true);resetIdleTimer();setShowHintBtn(false);
+  };
 
   const draw=(e)=>{
-    e.preventDefault();if(!isDrawing.current||done)return;
-    const ov=ovRef.current;const ctx=ov.getContext("2d");const pos=getPos(e);
-    drawnPts.current.push(pos);
-    const d=distToPolyline(pos.x,pos.y,strokes);
-    const onTrack=d<diff.tolerance;const veryClose=d<diff.tolerance*0.35;
-
-    // Haptik: kurzer Impuls beim Verlassen der Linie (nur bei Zustandswechsel)
-    if(!onTrack&&!offTrackRef.current){haptic("off",hapticsEnabled);offTrackRef.current=true;}
-    else if(onTrack&&offTrackRef.current){offTrackRef.current=false;}
-
-    if(activeReward==="glitter"||veryClose){
-      ctx.save();ctx.shadowColor="#fbbf24";ctx.shadowBlur=16;
-      ctx.beginPath();ctx.moveTo(lastPos.current.x,lastPos.current.y);ctx.lineTo(pos.x,pos.y);
-      ctx.strokeStyle="#fde68a";ctx.lineWidth=10;ctx.lineCap="round";ctx.lineJoin="round";ctx.stroke();ctx.restore();
-      ctx.beginPath();ctx.moveTo(lastPos.current.x,lastPos.current.y);ctx.lineTo(pos.x,pos.y);
-      ctx.strokeStyle="#4ade80";ctx.lineWidth=6;ctx.lineCap="round";ctx.lineJoin="round";ctx.stroke();
-    } else if(activeReward==="rainbow"){
-      ctx.beginPath();ctx.moveTo(lastPos.current.x,lastPos.current.y);ctx.lineTo(pos.x,pos.y);
-      ctx.strokeStyle=RAINBOW_COLS[rainbowIdx%RAINBOW_COLS.length];rainbowIdx++;
-      ctx.lineWidth=11;ctx.lineCap="round";ctx.lineJoin="round";ctx.stroke();
-    } else {
-      ctx.beginPath();ctx.moveTo(lastPos.current.x,lastPos.current.y);ctx.lineTo(pos.x,pos.y);
-      ctx.strokeStyle=onTrack?"#4ade80":"#f87171";ctx.lineWidth=10;ctx.lineCap="round";ctx.lineJoin="round";ctx.globalAlpha=0.85;ctx.stroke();ctx.globalAlpha=1;
+    e.preventDefault();if(!isDrawing.current||!canWrite)return;
+    const stroke=drawn.current[drawn.current.length-1];
+    const a=stroke[stroke.length-1],b=getPos(e);
+    stroke.push(b);
+    let seg;
+    if(activeReward==="rainbow"){seg={a,b,kind:"rainbow",color:RAINBOW_COLS[rainbowIdx++%RAINBOW_COLS.length]};}
+    else if(!guided){seg={a,b,kind:activeReward==="glitter"?"glitter":"ink",color:"#1e3a8a"};}
+    else{
+      // Nachfahren: Grün auf der Linie, Rot daneben
+      const d=distToPolyline(b[0],b[1],strokes);
+      const onTrack=d<diff.tolerance;
+      if(!onTrack&&!offTrackRef.current){haptic("off",hapticsEnabled);offTrackRef.current=true;}
+      else if(onTrack&&offTrackRef.current){offTrackRef.current=false;}
+      seg={a,b,kind:activeReward==="glitter"||d<diff.tolerance*0.35?"glitter":"ink",color:onTrack?"#4ade80":"#f87171"};
     }
-    lastPos.current=pos;
+    segs.current.push(seg);
+    paintSeg(ovRef.current.getContext("2d"),seg);
+  };
+
+  const undoLastStroke=()=>{
+    drawn.current.pop();
+    segs.current=segs.current.slice(0,segStarts.current.pop());
+    repaintInk();
+    if(!drawn.current.length)setHasLines(false);
   };
 
   const endDraw=(e)=>{
     e?.preventDefault();if(!isDrawing.current)return;isDrawing.current=false;
     offTrackRef.current=false;
-    if(strokeIdx.current<strokes.length-1){
+    const stroke=drawn.current[drawn.current.length-1];
+    // Nur angetippt? Zählt nicht als Strich.
+    if(stroke.length<3){undoLastStroke();return;}
+    if(guided&&strokeIdx.current<strokes.length){
+      const verdict=checkFormation(stroke,strokes[strokeIdx.current],diff.tolerance);
+      if(verdict){
+        formationErrors.current++;
+        undoLastStroke();haptic("off",hapticsEnabled);
+        showCoach(COACH[verdict]);
+        setTimeout(startPulse,80);
+        return;
+      }
       strokeIdx.current++;
-      haptic("tick",hapticsEnabled); // Strich geschafft
-      drawTemplate(bgRef.current.getContext("2d"),memPhase==="hide");
+      haptic("tick",hapticsEnabled);
+      drawTemplate(bgRef.current.getContext("2d"));
       setAnimalBounce(true);setTimeout(()=>setAnimalBounce(false),400);
-      // Neuen Startpunkt pulsieren lassen
-      setTimeout(startPulse,80);
+      if(strokeIdx.current<strokes.length)setTimeout(startPulse,80);
       resetIdleTimer();
-    }
+    } else haptic("tick",hapticsEnabled);
   };
-
-  const calcScore=useCallback(()=>{
-    const pts=drawnPts.current;if(pts.length<4)return 1;
-
-    // 1. ACCURACY — what fraction of drawn points are close to the template
-    //    Uses proper segment distance, not nearest-point approximation.
-    //    Weighted: full credit ≤ TOL/2, partial credit up to TOL, zero beyond.
-    const TOL=diff.tolerance;
-    let weightedAcc=0;
-    for(const p of pts){
-      const d=distToPolyline(p.x,p.y,strokes);
-      if(d<=TOL*0.5) weightedAcc+=1;
-      else if(d<=TOL) weightedAcc+=(1-(d-TOL*0.5)/(TOL*0.5));
-      // beyond TOL: 0
-    }
-    const accuracy=pts.length>0?weightedAcc/pts.length:0;
-
-    // 2. COVERAGE — what fraction of the template arc was traced?
-    //    Sample template at fine arc-length intervals (every ~3px along path).
-    const templatePts=[];
-    for(const s of strokes){
-      for(let i=0;i<s.length;i++) templatePts.push(s[i]);
-    }
-    let covered=0;
-    for(const tp of templatePts){
-      const near=pts.reduce((b,p)=>Math.min(b,Math.hypot(p.x-tp[0],p.y-tp[1])),Infinity);
-      if(near<TOL*1.4) covered++;
-    }
-    const coverage=templatePts.length>0?covered/templatePts.length:0;
-
-    // 3. LENGTH RATIO — penalise if drawn length is far off from template length
-    //    (catches scribbling much more than necessary)
-    let drawnLen=0;
-    for(let i=1;i<pts.length;i++) drawnLen+=Math.hypot(pts[i].x-pts[i-1].x,pts[i].y-pts[i-1].y);
-    let templateLen=0;
-    for(const s of strokes) for(let i=1;i<s.length;i++) templateLen+=Math.hypot(s[i][0]-s[i-1][0],s[i][1]-s[i-1][1]);
-    const ratio=templateLen>0?drawnLen/templateLen:1;
-    // Ideal ratio ≈ 1.0; penalise if drawn is > 2× template (scribbling)
-    const lengthPenalty=ratio>2.0?Math.min(1,(ratio-2.0)/3.0):0;
-
-    // 4. Combine: accuracy 50%, coverage 40%, length 10%
-    const raw=(accuracy*0.50+coverage*0.40)*(1-lengthPenalty*0.10);
-    return Math.max(1,Math.min(5,Math.round(raw*5)));
-  },[strokes,diff]);
 
   const checkScore=()=>{
-    const s=calcScore();setStars(s);setDone(true);
+    const TOL=diff.tolerance*(guided?1:1.3);
+    let tpl=strokes,mirrored=false;
+    if(!guided){
+      // Frei geschrieben: Position darf seitlich abweichen — Vorlage zur Schrift schieben
+      const d=bbox(drawn.current.flat()),t=bbox(strokes.flat());
+      const dx=Math.max(-W*0.3,Math.min(W*0.3,(d.x0+d.x1)/2-(t.x0+t.x1)/2));
+      tpl=shiftStrokes(strokes,dx);
+    }
+    const raw=scoreDrawing(drawn.current,tpl,TOL);
+    if(!guided){
+      // Gespiegelt? Nur bei Zeichen, die gespiegelt anders aussehen
+      const m=mirrorStrokes(tpl);
+      const symmetric=m.flat().every(p=>distToPolyline(p[0],p[1],tpl)<TOL*0.6);
+      if(!symmetric){const rawM=scoreDrawing(drawn.current,m,TOL);mirrored=rawM>raw+0.12&&rawM>0.45;}
+      // Vergleich zeigen: Vorlage hinter die Schrift des Kindes legen
+      const ctx=bgRef.current.getContext("2d");
+      ctx.clearRect(0,0,W,H);drawRules(ctx);
+      drawModel(ctx,tpl,{color:"#22c55e",width:16,alpha:0.35,numbers:false,arrows:false});
+    }
+    let s=Math.max(1,Math.min(5,Math.round(raw*5)));
+    let note=null;
+    if(mirrored){s=Math.min(s,2);note="🪞 Gespiegelt! Schau, in welche Richtung er zeigt.";}
+    else if(formationErrors.current>=2)note="➡️ Tipp: Immer beim gelben Punkt anfangen.";
+    setResult({stars:s,note});setDone(true);
     clearTimeout(idleTimerRef.current);setShowHintBtn(false);
     haptic(s===5?"celebrate":s>=3?"success":"tick",hapticsEnabled);
+    if(note)setTimeout(()=>onSpeak(note),900);
     if(s===5){setConfetti(true);setAnimalBounce(true);}
-    setTimeout(()=>onComplete(s),1700);
+    setTimeout(()=>onComplete(s,{mode,mirrored}),note?2600:1700);
   };
 
-  const hint=memoryMode&&memPhase==="show"?"🧠 Merke dir den Buchstaben!":memoryMode&&memPhase==="hide"?"✏️ Schreibe ihn aus dem Gedächtnis!":`👉 Strich ${Math.min(strokeIdx.current+1,strokes.length)} von ${strokes.length} — nachfahren!`;
+  const allStrokesDone=guided&&strokeIdx.current>=strokes.length;
+  const hint=mode==="memory"&&memPhase==="show"?"🧠 Merk dir den Buchstaben!"
+    :mode==="memory"&&memPhase==="wait"?"🤫 Gleich bist du dran …"
+    :mode==="memory"?"✏️ Jetzt aus dem Kopf schreiben!"
+    :mode==="copy"?"👀 Schau auf die Vorlage und schreib ihn ab!"
+    :allStrokesDone?"✓ Super! Tippe auf Fertig."
+    :`👉 Strich ${strokeIdx.current+1} von ${strokes.length} — nachfahren!`;
+  const rewardHint=activeReward==="glitter"?"✨ Glitzerstift aktiv!":activeReward==="rainbow"?"🌈 Regenbogenstift aktiv!":activeReward==="stardust"?"🌟 Sternenregen aktiv!":null;
+  const banner=coach||rewardHint||hint;
 
   return(
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
-      <div style={{fontSize:12,color:"#475569",background:activeReward==="glitter"?"#fef9c3":activeReward==="rainbow"?"#f0fdf4":"#f0fdf4",borderRadius:12,padding:"5px 16px",border:`1px solid ${activeReward?"#fbbf24":"#bbf7d0"}`,fontWeight:600,animation:activeReward?"glowPulse 2s infinite":"none"}}>
-        {activeReward==="glitter"?"✨ Glitzerstift aktiv!":activeReward==="rainbow"?"🌈 Regenbogenstift aktiv!":activeReward==="stardust"?"🌟 Sternenregen aktiv!":hint}
+      <div style={{fontSize:12,color:coach?"#9a3412":"#475569",background:coach?"#ffedd5":rewardHint?"#fef9c3":"#f0fdf4",borderRadius:12,padding:"5px 16px",border:`1px solid ${coach?"#fb923c":rewardHint?"#fbbf24":"#bbf7d0"}`,fontWeight:coach?800:600,animation:coach?"shake 0.3s ease-in-out 2":rewardHint?"glowPulse 2s infinite":"none",textAlign:"center"}}>
+        {banner}
       </div>
+      {mode==="copy"&&<ModelCard letter={letter}/>}
       <div style={{position:"relative"}}>
         <div style={{background:"#1e1b4b",borderRadius:24,padding:10,boxShadow:"0 8px 32px #1e1b4b50"}}>
-          <div style={{position:"relative",width:W,height:H,borderRadius:16,overflow:"hidden",background:"#fafafa"}}>
-            <canvas ref={bgRef} width={W} height={H} style={{position:"absolute",inset:0}}/>
-            <canvas ref={ovRef} width={W} height={H} style={{position:"absolute",inset:0,touchAction:"none",cursor:"crosshair"}}
+          <div style={{position:"relative",width:W*scale,height:H*scale,borderRadius:16,overflow:"hidden",background:"#fafafa"}}>
+            <canvas ref={bgRef} width={W*k} height={H*k} style={{position:"absolute",inset:0,width:"100%",height:"100%"}}/>
+            <canvas ref={ovRef} width={W*k} height={H*k} style={{position:"absolute",inset:0,width:"100%",height:"100%",touchAction:"none",cursor:"crosshair"}}
               onMouseDown={startDraw} onMouseMove={draw} onMouseUp={endDraw} onMouseLeave={endDraw}
               onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={endDraw}/>
-            {done&&(
-              <div style={{position:"absolute",inset:0,background:"#ffffffd8",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:8,borderRadius:16}}>
-                <div style={{fontSize:52}}>{stars===5?"🏆":"🎉"}</div>
-                <div style={{display:"flex",gap:4}}>{[1,2,3,4,5].map(i=><span key={i} style={{fontSize:24,filter:i<=stars?"none":"grayscale(1) opacity(0.25)"}}  >⭐</span>)}</div>
-                <div style={{fontSize:15,color:"#374151",fontWeight:800}}>{PRAISE[stars]}</div>
+            {memPhase==="wait"&&(
+              <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}>
+                <div key={countdown} style={{fontSize:90*scale,fontWeight:900,color:"#a855f7",opacity:0.8,animation:"popIn 0.4s ease-out"}}>{countdown}</div>
+              </div>
+            )}
+            {done&&result&&(
+              <div style={{position:"absolute",left:0,right:0,bottom:0,background:"#ffffffe8",display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"10px 8px 12px",borderTop:"1px solid #e2e8f0",animation:"slideUp 0.3s ease-out"}}>
+                <div style={{display:"flex",gap:4,alignItems:"center"}}>
+                  <span style={{fontSize:26,marginRight:4}}>{result.stars===5?"🏆":"🎉"}</span>
+                  {[1,2,3,4,5].map(i=><span key={i} style={{fontSize:22,filter:i<=result.stars?"none":"grayscale(1) opacity(0.25)"}}>⭐</span>)}
+                </div>
+                <div style={{fontSize:15,color:"#374151",fontWeight:800}}>{PRAISE[result.stars]}</div>
+                {result.note&&<div style={{fontSize:12,color:"#9a3412",fontWeight:700,textAlign:"center"}}>{result.note}</div>}
+                {!guided&&<div style={{fontSize:10,color:"#16a34a",fontWeight:700}}>Grün = so sieht die Vorlage aus</div>}
               </div>
             )}
           </div>
@@ -1027,16 +1266,16 @@ function TraceCanvas({letter,onComplete,difficulty="medium",memoryMode=false,act
         {confetti&&<Confetti/>}
       </div>
       <div style={{display:"flex",gap:8,marginTop:6}}>
-        <button onClick={reset} style={{padding:"8px 16px",borderRadius:20,border:"2px solid #f87171",background:"white",color:"#ef4444",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"Arial,sans-serif"}}>🗑️ Neu</button>
-        {hasLines&&!done&&<button onClick={checkScore} style={{padding:"8px 16px",borderRadius:20,border:"none",background:"linear-gradient(135deg,#4ade80,#16a34a)",color:"white",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"Arial,sans-serif"}}>✓ Fertig</button>}
-        {showHintBtn&&!done&&!hasLines&&(
+        <button onClick={()=>mode==="memory"?setRound(r=>r+1):reset()} style={{padding:"8px 16px",borderRadius:20,border:"2px solid #f87171",background:"white",color:"#ef4444",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"Arial,sans-serif"}}>🗑️ Neu</button>
+        {hasLines&&!done&&<button onClick={checkScore} style={{padding:"8px 16px",borderRadius:20,border:"none",background:"linear-gradient(135deg,#4ade80,#16a34a)",color:"white",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"Arial,sans-serif",animation:allStrokesDone?"glowPulse 1.6s infinite":"none"}}>✓ Fertig</button>}
+        {showHintBtn&&!done&&!hasLines&&guided&&(
           <button onClick={()=>{setShowHintBtn(false);resetIdleTimer();startPulse();haptic("tick",hapticsEnabled);}}
             style={{padding:"8px 16px",borderRadius:20,border:"2px solid #fbbf24",background:"#fef9c3",color:"#92400e",fontWeight:800,fontSize:13,cursor:"pointer",fontFamily:"Arial,sans-serif",
               animation:"hintWiggle 0.5s ease-in-out 0s 3"}}>
             👆 Hier starten!
           </button>
         )}
-        {showHintBtn&&!done&&hasLines&&(
+        {showHintBtn&&!done&&hasLines&&!allStrokesDone&&(
           <button onClick={checkScore}
             style={{padding:"8px 16px",borderRadius:20,border:"2px solid #fbbf24",background:"#fef9c3",color:"#92400e",fontWeight:800,fontSize:13,cursor:"pointer",fontFamily:"Arial,sans-serif",
               animation:"hintWiggle 0.5s ease-in-out 0s 3"}}>
@@ -1060,10 +1299,12 @@ function TraceCanvas({letter,onComplete,difficulty="medium",memoryMode=false,act
 // ═══════════════════════════════════════════════════════════════════════════════
 // GUIDED CANVAS  — Phase 1: geführt, Phase 2: frei nachzeichnen, Phase 3: Vergleich
 // ═══════════════════════════════════════════════════════════════════════════════
-function GuidedCanvas({letter, onComplete, onSpeak=()=>{}, W=260, H=310}){
+function GuidedCanvas({letter, onComplete, onSpeak=()=>{}, scale=1, W=260, H=310}){
   const bgRef=useRef(null);
   const ovRef=useRef(null);
   const compareRef=useRef(null);
+  const [k]=useState(()=>pixelRatio(scale));
+  useCanvasScale([bgRef,ovRef,compareRef],k);
   const isDrawing=useRef(false);
   const strokeStarted=useRef(false);
   const progressRef=useRef(0);
@@ -1083,7 +1324,7 @@ function GuidedCanvas({letter, onComplete, onSpeak=()=>{}, W=260, H=310}){
   const [scoreInfo,setScoreInfo]=useState({score:0,label:"",color:"#374151"});
 
   const strokes=useStrokes(letter,W,H);
-  const animal=ANIMALS[letter]||"🐾";
+  const animal=mascotOf(letter);
 
   const drawRules=useCallback((ctx)=>{
     drawLineatur(ctx,W,H);
@@ -1163,10 +1404,10 @@ function GuidedCanvas({letter, onComplete, onSpeak=()=>{}, W=260, H=310}){
   const drawComparison=useCallback(()=>{
     const c=compareRef.current;if(!c)return;
     const ctx=c.getContext("2d");
-    const sx=c.width/W,sy=c.height/H;
-    ctx.clearRect(0,0,c.width,c.height);
-    ctx.fillStyle="#f8fafc";ctx.fillRect(0,0,c.width,c.height);
-    drawLineatur(ctx,c.width,c.height,{alpha:"25",width:1,dash:[3,3]});
+    const sx=1,sy=1; // der Bildschirm-Maßstab steckt bereits im Canvas-Kontext
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle="#f8fafc";ctx.fillRect(0,0,W,H);
+    drawLineatur(ctx,W,H,{alpha:"25",width:1,dash:[3,3]});
     strokes.forEach(pts=>{
       ctx.beginPath();ctx.moveTo(pts[0][0]*sx,pts[0][1]*sy);
       for(let j=1;j<pts.length;j++)ctx.lineTo(pts[j][0]*sx,pts[j][1]*sy);
@@ -1246,6 +1487,8 @@ function GuidedCanvas({letter, onComplete, onSpeak=()=>{}, W=260, H=310}){
   },[drawGuidedTemplate,W,H]);
 
   useEffect(()=>{reset();},[letter]);
+  // Nach „Neu" aus dem Vergleich: Vorlage für den geführten Teil neu zeichnen
+  useEffect(()=>{if(phase==="guided"&&bgRef.current)drawGuidedTemplate(bgRef.current.getContext("2d"));},[phase]);
 
   useEffect(()=>{
     if(phase!=="compare")return;
@@ -1372,11 +1615,11 @@ function GuidedCanvas({letter, onComplete, onSpeak=()=>{}, W=260, H=310}){
       </div>
       <div style={{position:"relative"}}>
         <div style={{background:"#1e1b4b",borderRadius:24,padding:10,boxShadow:"0 8px 32px #1e1b4b50"}}>
-          <div style={{position:"relative",width:W,height:H,borderRadius:16,overflow:"hidden",background:"#fafafa"}}>
-            <canvas ref={bgRef} width={W} height={H} style={{position:"absolute",inset:0}}/>
+          <div style={{position:"relative",width:W*scale,height:H*scale,borderRadius:16,overflow:"hidden",background:"#fafafa"}}>
+            <canvas ref={bgRef} width={W*k} height={H*k} style={{position:"absolute",inset:0,width:"100%",height:"100%"}}/>
             {phase!=="compare"&&(
-              <canvas ref={ovRef} width={W} height={H}
-                style={{position:"absolute",inset:0,touchAction:"none",cursor:"crosshair"}}
+              <canvas ref={ovRef} width={W*k} height={H*k}
+                style={{position:"absolute",inset:0,width:"100%",height:"100%",touchAction:"none",cursor:"crosshair"}}
                 onMouseDown={phase==="guided"?guidedStart:freeStart}
                 onMouseMove={phase==="guided"?guidedMove:freeMove}
                 onMouseUp={phase==="guided"?guidedEnd:freeEnd}
@@ -1387,7 +1630,7 @@ function GuidedCanvas({letter, onComplete, onSpeak=()=>{}, W=260, H=310}){
             )}
             {phase==="compare"&&(
               <div style={{position:"absolute",inset:0,borderRadius:16,overflow:"hidden",background:"#f8fafc"}}>
-                <canvas ref={compareRef} width={W} height={H} style={{display:"block",width:W,height:H}}/>
+                <canvas ref={compareRef} width={W*k} height={H*k} style={{display:"block",width:"100%",height:"100%"}}/>
                 <div style={{position:"absolute",top:0,left:0,right:0,display:"flex",justifyContent:"center",gap:10,padding:"5px 8px",background:"rgba(255,255,255,0.92)",borderBottom:"1px solid #e2e8f0",fontSize:10,fontWeight:700}}>
                   <span style={{display:"flex",alignItems:"center",gap:3}}><span style={{width:14,height:5,borderRadius:3,background:"rgba(180,180,200,0.7)",display:"inline-block"}}/>Vorlage</span>
                   <span style={{display:"flex",alignItems:"center",gap:3}}><span style={{width:14,height:5,borderRadius:3,background:"#22c55e",display:"inline-block"}}/>Genau</span>
@@ -1494,11 +1737,12 @@ function ParentZone({settings,onChange,onClose,journal}){
         {/* Übungs-Modi */}
         <div style={{marginBottom:14,paddingBottom:14,borderBottom:"1px solid #e2e8f0"}}>
           <h4 style={{margin:"0 0 4px",fontSize:14,fontWeight:800,color:"#1e3a8a"}}>🖐️ Erlaubte Übungs-Modi</h4>
-          <p style={{fontSize:11,color:"#94a3b8",margin:"0 0 10px"}}>Wähle welche Modi dein Kind sehen darf.</p>
+          <p style={{fontSize:11,color:"#94a3b8",margin:"0 0 10px"}}>Wähle welche Modi dein Kind sehen darf. Mit 4 oder 5 Sternen geht es pro Buchstabe eine Stufe weiter: geführt → abschreiben → aus dem Kopf.</p>
           {[
             {key:"guided", label:"🖐️ Geführt", desc:"Stift klebt auf der Linie — ideal für Anfänger", color:"#22c55e"},
-            {key:"trace",  label:"✏️ Nachfahren", desc:"Frei nachzeichnen mit Grün/Rot-Feedback", color:"#4361ee"},
-            {key:"memory", label:"🧠 Gedächtnis", desc:"Ohne Vorlage — für Fortgeschrittene", color:"#a78bfa"},
+            {key:"trace",  label:"✏️ Nachfahren", desc:"Frei nachzeichnen, Startpunkt und Richtung werden geprüft", color:"#4361ee"},
+            {key:"copy",   label:"👀 Abschreiben", desc:"Vorlage steht daneben, das Schreibfeld ist leer", color:"#f97316"},
+            {key:"memory", label:"🧠 Aus dem Kopf", desc:"Kurz ansehen, dann ohne Vorlage schreiben — der wirksamste Schritt", color:"#a855f7"},
           ].map(({key,label,desc,color})=>{
             const active=!!(settings.allowedModes||{})[key];
             return(
@@ -1557,13 +1801,15 @@ function ParentZone({settings,onChange,onClose,journal}){
             <div><b>Geübte Buchstaben:</b> {Object.values(settings.learnedMap||{}).filter(v=>v>0).length}</div>
             <div><b>Perfekte Buchstaben (5⭐):</b> {Object.values(settings.learnedMap||{}).filter(v=>v>=5).length}</div>
             <div><b>Gesamtpunkte:</b> {settings.totalScore||0}</div>
+            <div><b>Lernstufe Abschreiben:</b> {Object.values(settings.stageMap||{}).filter(v=>v===2).length} · <b>Aus dem Kopf:</b> {Object.values(settings.stageMap||{}).filter(v=>v>=3).length}</div>
+            <div><b>Sicher aus dem Kopf geschrieben:</b> {Object.values(settings.memMap||{}).filter(v=>v>0).length}</div>
           </div>
           {journal.length>0&&(
             <div style={{marginTop:10}}>
               <div style={{fontSize:12,fontWeight:700,color:"#374151",marginBottom:6}}>📖 Letzte Übungen:</div>
               {journal.slice(-5).reverse().map((e,i)=>(
                 <div key={i} style={{padding:"5px 8px",borderLeft:"3px solid #fbbf24",background:"#fff7ed",marginBottom:3,fontSize:11,borderRadius:"0 6px 6px 0"}}>
-                  <b>{e.letter}</b> — {e.stars}⭐ — {e.time}
+                  <b>{e.letter}</b> — {e.stars}⭐ — {MODES[e.mode]?.label||""} — {e.time}
                 </div>
               ))}
             </div>
@@ -1653,6 +1899,21 @@ function FlowerGarden({learnedMap,tab}){
 // ═══════════════════════════════════════════════════════════════════════════════
 // LETTER GRID
 // ═══════════════════════════════════════════════════════════════════════════════
+// Anlaut-Karte neben dem Buchstaben: „🐭 Maus" mit hervorgehobenem Buchstaben
+function AnlautChip({letter,onSay}){
+  const a=anlautOf(letter);if(!a)return null;
+  const [emoji,word]=a;
+  const i=word.toLowerCase().indexOf(letter.toLowerCase());
+  return(
+    <button onClick={onSay} style={{display:"flex",alignItems:"center",gap:6,background:"white",border:"2px solid #e2e8f0",borderRadius:14,padding:"4px 10px",cursor:"pointer",fontFamily:"Arial,sans-serif",minWidth:0}}>
+      <span style={{fontSize:24,lineHeight:1}}>{emoji}</span>
+      <span style={{fontSize:15,fontWeight:700,color:"#475569",whiteSpace:"nowrap"}}>
+        {i<0?word:<>{word.slice(0,i)}<span style={{color:"#4361ee",fontWeight:900,fontSize:18}}>{word[i]}</span>{word.slice(i+1)}</>}
+      </span>
+    </button>
+  );
+}
+
 function LetterGrid({items,learnedMap,onSelect,current}){
   return(
     <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:4}}>
@@ -1725,7 +1986,7 @@ function WordsPanel({learnedMap, onPractice}){
 // ═══════════════════════════════════════════════════════════════════════════════
 // WORD PRACTICE SCREEN — writes each letter of a word in sequence
 // ═══════════════════════════════════════════════════════════════════════════════
-function WordPractice({word, guidedMode, settings, onBack}){
+function WordPractice({word, settings, onSpeak=()=>{}, scale=1, onBack}){
   const letters=word.word.split("");
   const [idx,setIdx]=useState(0);           // current letter index
   const [doneLetters,setDoneLetters]=useState([]); // stars per letter
@@ -1833,14 +2094,15 @@ function WordPractice({word, guidedMode, settings, onBack}){
       {/* Canvas */}
       <div style={{display:"flex",justifyContent:"center"}}>
         {phase==="anim"&&
-          <AnimCanvas key={`wanim-${current}-${idx}-${replayKey}`} letter={current}
+          <AnimCanvas key={`wanim-${current}-${idx}-${replayKey}`} letter={current} scale={scale}
             onDone={()=>setPhase(settings.allowedModes?.guided?"trace_guided":"trace_free")}/>}
         {phase==="trace_guided"&&
-          <GuidedCanvas key={`wguided-${current}-${idx}-${replayKey}`} letter={current} onComplete={handleLetterDone}/>}
+          <GuidedCanvas key={`wguided-${current}-${idx}-${replayKey}`} letter={current} onComplete={handleLetterDone} onSpeak={onSpeak} scale={scale}/>}
         {phase==="trace_free"&&
           <TraceCanvas key={`wtrace-${current}-${idx}-${replayKey}`} letter={current}
-            onComplete={handleLetterDone} difficulty={settings.difficulty} memoryMode={false} activeReward={null}
-            lefthanded={!!settings.lefthanded} highContrast={!!settings.highContrast} hapticsEnabled={settings.hapticsEnabled!==false}/>}
+            onComplete={handleLetterDone} difficulty={settings.difficulty} mode="trace" activeReward={null}
+            lefthanded={!!settings.lefthanded} highContrast={!!settings.highContrast} hapticsEnabled={settings.hapticsEnabled!==false}
+            onSpeak={onSpeak} scale={scale}/>}
       </div>
     </div>
   );
@@ -1895,14 +2157,34 @@ export default function App(){
   const [learnedMap,setLearnedMap]=useState(()=>persisted.learnedMap||{});
   const [totalScore,setTotalScore]=useState(()=>persisted.totalScore||0);
   const [replayKey,setReplayKey]=useState(0);
-  const [settings,setSettings]=useState(()=>({
-    difficulty:"medium",screenTime:15,autoAdvance:true,rewardVideos:true,
-    allowedModes:{guided:true,trace:true,memory:false},speechEnabled:true,
-    lefthanded:false,highContrast:false,hapticsEnabled:true,
-    ...(persisted.settings||{})
-  }));
-  const [memMode,setMemMode]=useState(false);
-  const [guidedMode,setGuidedMode]=useState(true);
+  const [settings,setSettings]=useState(()=>{
+    const s={
+      difficulty:"medium",screenTime:15,autoAdvance:true,rewardVideos:true,
+      allowedModes:{guided:true,trace:true,copy:true,memory:true},speechEnabled:true,
+      lefthanded:false,highContrast:false,hapticsEnabled:true,settingsVersion:2,
+      ...(persisted.settings||{})
+    };
+    // Ältere Einstellungen: neue Modi „Abschreiben" und „Aus dem Kopf" einschalten
+    if((s.settingsVersion||1)<2)return{...s,settingsVersion:2,allowedModes:{...s.allowedModes,copy:true,memory:true}};
+    return s;
+  });
+  // Lernstufe pro Buchstabe (1 geführt → 2 abschreiben → 3 aus dem Kopf)
+  const [stageMap,setStageMap]=useState(()=>persisted.stageMap||{});
+  const [memMap,setMemMap]=useState(()=>persisted.memMap||{});           // Erfolge aus dem Kopf
+  const [lastPracticed,setLastPracticed]=useState(()=>persisted.lastPracticed||{});
+  const [levelUp,setLevelUp]=useState(null);
+  const allowed=(m)=>!!settings.allowedModes?.[m];
+  const stageOf=(l)=>stageMap[l]||1;
+  // Empfohlener Modus für einen Buchstaben: seine Lernstufe, sonst die nächstniedrigere erlaubte
+  const modeFor=(l)=>{
+    for(let st=stageOf(l);st>=1;st--){
+      const m=st===1&&!allowed("guided")?"trace":STAGE_MODE[st];
+      if(allowed(m))return m;
+    }
+    return Object.keys(MODES).find(allowed)||"trace";
+  };
+  const [mode,setMode]=useState(()=>modeFor("A"));
+  const fs=useMemo(()=>fieldScale(),[]);
   const [gridOpen,setGridOpen]=useState(false);
   const gridOpenedOnce=useRef(false);
   const [showParent,setShowParent]=useState(false);
@@ -1919,8 +2201,8 @@ export default function App(){
 
   // Fortschritt automatisch speichern
   useEffect(()=>{
-    savePersisted({learnedMap,totalScore,settings});
-  },[learnedMap,totalScore,settings]);
+    savePersisted({learnedMap,totalScore,settings,stageMap,memMap,lastPracticed});
+  },[learnedMap,totalScore,settings,stageMap,memMap,lastPracticed]);
 
   // Beim Start aus nativem Speicher wiederherstellen, falls localStorage leer war
   useEffect(()=>{
@@ -1930,6 +2212,9 @@ export default function App(){
       if(data.learnedMap)setLearnedMap(data.learnedMap);
       if(typeof data.totalScore==="number")setTotalScore(data.totalScore);
       if(data.settings)setSettings(s=>({...s,...data.settings}));
+      if(data.stageMap)setStageMap(data.stageMap);
+      if(data.memMap)setMemMap(data.memMap);
+      if(data.lastPracticed)setLastPracticed(data.lastPracticed);
     });
     return()=>{cancelled=true;};
   },[]);
@@ -1966,22 +2251,40 @@ export default function App(){
     return()=>clearTimeout(screenTimerRef.current);
   },[settings.screenTime,screen]);
 
-  const selectLetter=(l)=>{setLetter(l);setPhase("anim");setReplayKey(k=>k+1);sayLetter(l);};
-  const changeTab=(t)=>{setTab(t);selectLetter(t==="GROß"?"A":t==="klein"?"a":"0");};
+  // Beim Aus-dem-Kopf-Schreiben gibt es kein Vorführen — erst ansehen, dann erinnern
+  // Automatisches Weiterschalten abbrechen, sobald das Kind selbst etwas wählt
+  const advanceTimer=useRef(null);
+  useEffect(()=>{if(screen!=="practice")clearTimeout(advanceTimer.current);},[screen]);
+  useEffect(()=>()=>clearTimeout(advanceTimer.current),[]);
+  const selectLetter=(l)=>{clearTimeout(advanceTimer.current);const m=modeFor(l);setLetter(l);setMode(m);setPhase(m==="memory"?"write":"anim");setReplayKey(k=>k+1);sayLetter(l);};
+  const changeTab=(t)=>{setTab(t);selectLetter(LEARN_PATH[t][0]);};
+  const openLetter=(l)=>{setTab(tabOf(l));selectLetter(l);setScreen("practice");};
+  const chooseMode=(m)=>{clearTimeout(advanceTimer.current);setMode(m);setPhase("write");setReplayKey(k=>k+1);};
 
-  const handleDone=(s)=>{
+  const handleDone=(s,info={})=>{
     const now=new Date();
     setLearnedMap(m=>({...m,[letter]:Math.max(m[letter]||0,s)}));
     setTotalScore(sc=>sc+s*10);
-    setJournal(j=>[...j,{letter,stars:s,time:`${now.getHours()}:${String(now.getMinutes()).padStart(2,"0")}`}]);
+    setLastPracticed(m=>({...m,[letter]:now.getTime()}));
+    setJournal(j=>[...j,{letter,stars:s,mode:info.mode||mode,time:`${now.getHours()}:${String(now.getMinutes()).padStart(2,"0")}`}]);
     const praise=["","Weiter üben!","Fast!","Gut gemacht!","Sehr gut!","Perfekt!"][s]||"";
     if(praise)say(praise,0.85,1.3);
-    if(settings.autoAdvance){
-      const idx=items.indexOf(letter);
-      if(idx<items.length-1){
-        // Small delay so child sees the star result before advancing
-        setTimeout(()=>selectLetter(items[idx+1]),2200);
+    // Lernstufe: ab 4 Sternen geht es zur nächsten Stufe (weniger Hilfe)
+    const used=info.mode||mode,cur=stageOf(letter);let next=null;
+    if(s>=4){
+      if(used==="memory")setMemMap(m=>({...m,[letter]:(m[letter]||0)+1}));
+      const target=Math.min(3,MODE_STAGE[used]+1);   // wer es schon aus dem Kopf kann, bleibt dort
+      if(target>cur){
+        next=target;
+        setStageMap(m=>({...m,[letter]:next}));
+        setLevelUp({letter,stage:next});setTimeout(()=>setLevelUp(null),4000);
+        setTimeout(()=>say(STAGE_NEXT_TEXT[next],0.85,1.2),1400);
       }
+    }
+    if(settings.autoAdvance){
+      // Weiter auf dem Lernweg (ähnliche Bewegungen zusammen, b/d getrennt)
+      const path=LEARN_PATH[tabOf(letter)],idx=path.indexOf(letter);
+      if(idx>=0&&idx<path.length-1)advanceTimer.current=setTimeout(()=>selectLetter(path[idx+1]),next?4200:2200);
     }
   };
 
@@ -1993,7 +2296,13 @@ export default function App(){
     setTimeout(()=>setActiveReward(null),type==="unicorn"||type==="stardust"?5000:45000);
   };
 
-  const settingsWithData={...settings,learnedMap,totalScore};
+  const settingsWithData={...settings,learnedMap,totalScore,stageMap,memMap};
+  // Lerndaten nicht in die Einstellungen übernehmen
+  const updateSettings=({learnedMap:_l,totalScore:_t,stageMap:_s,memMap:_m,...rest})=>setSettings(rest);
+  // Verteiltes Üben: Buchstaben, die vor mehr als einem Tag geübt wurden
+  const due=Object.keys(lastPracticed)
+    .filter(l=>(learnedMap[l]||0)>0&&Date.now()-lastPracticed[l]>REVIEW_AFTER_MS)
+    .sort((a,b)=>lastPracticed[a]-lastPracticed[b]).slice(0,6);
 
   // ── MENU ──
   if(screen==="menu") return(
@@ -2019,6 +2328,18 @@ export default function App(){
       <div style={{background:"rgba(255,255,255,0.15)",borderRadius:14,padding:"8px 16px",color:"white",fontSize:13,fontWeight:700}}>
         🏆 {totalScore} &nbsp;·&nbsp; {learnedCount} gelernt &nbsp;·&nbsp; {perfectCount} 🌻
       </div>
+      {due.length>0&&(
+        <div style={{background:"rgba(255,255,255,0.95)",borderRadius:18,padding:"10px 14px",width:280,boxShadow:"0 4px 16px #0003",animation:"slideUp 0.4s ease-out"}}>
+          <div style={{fontSize:13,fontWeight:900,color:"#312e81",marginBottom:6}}>🔁 Heute wiederholen</div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {due.map(l=>(
+              <button key={l} onClick={()=>openLetter(l)} style={{background:"#eef2ff",border:"2px solid #c7d2fe",borderRadius:12,padding:"4px 6px",cursor:"pointer"}}>
+                <Glyph letter={l} height={34} weight={2.8} color="#312e81"/>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",justifyContent:"center"}}>
         <button onClick={()=>{const n=!settings.speechEnabled;setSettings(s=>({...s,speechEnabled:n}));if(n)setTimeout(()=>speak("Vorlesen ist an!"),100);}}
           style={{background:settings.speechEnabled?"#fbbf24":"rgba(255,255,255,0.1)",border:`2px solid ${settings.speechEnabled?"#f59e0b":"rgba(255,255,255,0.2)"}`,borderRadius:50,width:52,height:52,fontSize:24,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:settings.speechEnabled?"0 4px 16px #fbbf2460":"none",transition:"all 0.2s"}}>
@@ -2031,7 +2352,7 @@ export default function App(){
           📄 Impressum
         </button>
       </div>
-      {showParent&&<ParentZone settings={settingsWithData} onChange={s=>setSettings({...settings,...s})} onClose={()=>setShowParent(false)} journal={journal}/>}
+      {showParent&&<ParentZone settings={settingsWithData} onChange={updateSettings} onClose={()=>setShowParent(false)} journal={journal}/>}
     </div>
   );
 
@@ -2039,7 +2360,7 @@ export default function App(){
 
   if(screen==="words"){
     if(practiceWord) return(
-      <WordPractice word={practiceWord} guidedMode={guidedMode} settings={settings}
+      <WordPractice word={practiceWord} settings={settings} onSpeak={sayIt} scale={fs}
         onBack={()=>setPracticeWord(null)}/>
     );
     return(
@@ -2116,13 +2437,30 @@ export default function App(){
           <div style={{background:"#4361ee",color:"white",borderRadius:12,width:46,height:46,display:"flex",alignItems:"center",justifyContent:"center"}}><Glyph letter={letter} height={42} weight={3.2} color="white"/></div>
           <button onClick={()=>sayLetter(letter)} style={{background:"#fbbf24",border:"none",borderRadius:50,width:38,height:38,fontSize:18,cursor:"pointer",boxShadow:"0 2px 8px #fbbf2460"}}>🔊</button>
         </div>
-        <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-          <button onClick={()=>{setPhase("anim");setReplayKey(k=>k+1);}} style={{padding:"6px 9px",borderRadius:11,border:"2px solid #fb923c",background:phase==="anim"?"#fb923c":"white",color:phase==="anim"?"white":"#fb923c",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"Arial,sans-serif"}}>▶ Zeigen</button>
-          {settings.allowedModes.trace&&<button onClick={()=>{setMemMode(false);setPhase("trace");setGuidedMode(false);}} style={{padding:"6px 9px",borderRadius:11,border:"2px solid #4361ee",background:phase==="trace"&&!memMode&&!guidedMode?"#4361ee":"white",color:phase==="trace"&&!memMode&&!guidedMode?"white":"#4361ee",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"Arial,sans-serif"}}>✏️ Nachfahren</button>}
-          {settings.allowedModes.guided&&<button onClick={()=>{setMemMode(false);setPhase("trace");setGuidedMode(true);setReplayKey(k=>k+1);}} style={{padding:"6px 9px",borderRadius:11,border:"2px solid #22c55e",background:phase==="trace"&&guidedMode?"#22c55e":"white",color:phase==="trace"&&guidedMode?"white":"#22c55e",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"Arial,sans-serif"}}>🖐️ Geführt</button>}
-          {settings.allowedModes.memory&&<button onClick={()=>{setMemMode(true);setPhase("trace");setGuidedMode(false);setReplayKey(k=>k+1);}} style={{padding:"6px 9px",borderRadius:11,border:"2px solid #a78bfa",background:phase==="trace"&&memMode?"#a78bfa":"white",color:phase==="trace"&&memMode?"white":"#a78bfa",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"Arial,sans-serif"}}>🧠 Gedächtnis</button>}
-        </div>
+        <AnlautChip letter={letter} onSay={()=>sayLetter(letter)}/>
       </div>
+
+      {/* Lernweg: Vorführen, dann Hilfe Schritt für Schritt abbauen */}
+      <div style={{display:"flex",gap:4,flexWrap:"wrap",justifyContent:"center"}}>
+        <button onClick={()=>{clearTimeout(advanceTimer.current);setPhase("anim");setReplayKey(k=>k+1);}} style={{padding:"6px 9px",borderRadius:11,border:"2px solid #fb923c",background:phase==="anim"?"#fb923c":"white",color:phase==="anim"?"white":"#fb923c",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"Arial,sans-serif"}}>▶ Zeigen</button>
+        {Object.entries(MODES).filter(([m])=>allowed(m)).map(([m,{label,color}])=>{
+          const active=phase==="write"&&mode===m;
+          const recommended=m===modeFor(letter);
+          const passed=MODE_STAGE[m]<stageOf(letter)||(m==="memory"&&(memMap[letter]||0)>0);
+          return(
+            <button key={m} onClick={()=>chooseMode(m)} style={{position:"relative",padding:"6px 9px",borderRadius:11,border:`2px solid ${color}`,background:active?color:"white",color:active?"white":color,fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"Arial,sans-serif"}}>
+              {passed?"✓ ":""}{label}
+              {recommended&&!passed&&<span style={{position:"absolute",top:-8,right:-6,fontSize:12}}>⭐</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {levelUp&&levelUp.letter===letter&&(
+        <div style={{background:"linear-gradient(135deg,#fef3c7,#fde68a)",borderRadius:14,padding:"8px 14px",textAlign:"center",fontSize:13,fontWeight:800,color:"#78350f",border:"2px solid #fbbf24",animation:"popIn 0.4s ease-out"}}>
+          🎉 Neue Stufe! {STAGE_NEXT_TEXT[levelUp.stage]}
+        </div>
+      )}
 
       {activeReward&&(
         <div style={{background:activeReward==="glitter"?"#fef9c3":activeReward==="rainbow"?"#f0fdf4":activeReward==="stardust"?"#fdf2f8":"#f5f3ff",borderRadius:14,padding:"8px 14px",textAlign:"center",fontSize:13,fontWeight:700,animation:"glowPulse 2s infinite",border:"2px solid #fbbf24"}}>
@@ -2136,12 +2474,14 @@ export default function App(){
       <div style={{display:"flex",justifyContent:"center",flexDirection:"column",gap:8}}>
         {phase==="anim"&&<StrokePreview letter={letter}/>}
         {phase==="anim"
-          ?<AnimCanvas key={`anim-${letter}-${replayKey}`} letter={letter} onDone={()=>setPhase("trace")}/>
-          :guidedMode
-            ?<GuidedCanvas key={`guided-${letter}-${replayKey}`} letter={letter} onComplete={handleDone} onSpeak={sayIt}/>
-            :<TraceCanvas key={`trace-${letter}-${memMode}-${replayKey}`} letter={letter} onComplete={handleDone}
-               difficulty={settings.difficulty} memoryMode={memMode} activeReward={activeReward}
-               lefthanded={!!settings.lefthanded} highContrast={!!settings.highContrast} hapticsEnabled={settings.hapticsEnabled!==false}/>
+          ?<AnimCanvas key={`anim-${letter}-${replayKey}`} letter={letter} onDone={()=>setPhase("write")} scale={fs}/>
+          :mode==="guided"
+            ?<GuidedCanvas key={`guided-${letter}-${replayKey}`} letter={letter} onComplete={handleDone} onSpeak={sayIt} scale={fs}/>
+            :<TraceCanvas key={`trace-${letter}-${mode}-${replayKey}`} letter={letter} onComplete={handleDone}
+               difficulty={settings.difficulty} mode={mode} activeReward={activeReward}
+               memoryDelay={MEMORY_DELAYS[Math.min(memMap[letter]||0,MEMORY_DELAYS.length-1)]}
+               lefthanded={!!settings.lefthanded} highContrast={!!settings.highContrast} hapticsEnabled={settings.hapticsEnabled!==false}
+               onSpeak={sayIt} scale={fs}/>
         }
       </div>
 
@@ -2155,7 +2495,7 @@ export default function App(){
       {showUnicorn&&<UnicornRun onDone={()=>setShowUnicorn(false)}/>}
       {showStarRain&&<StarRain onDone={()=>setShowStarRain(false)}/>}
       {showScreenTime&&<ScreenTimeReminder limit={settings.screenTime} onDismiss={()=>setShowScreenTime(false)}/>}
-      {showParent&&<ParentZone settings={settingsWithData} onChange={s=>setSettings({...settings,...s})} onClose={()=>setShowParent(false)} journal={journal}/>}
+      {showParent&&<ParentZone settings={settingsWithData} onChange={updateSettings} onClose={()=>setShowParent(false)} journal={journal}/>}
     </div>
   );
 }
