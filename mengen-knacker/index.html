@@ -460,6 +460,22 @@ details.p-details summary { cursor: pointer; font-weight: 700; }
 ol.find { margin: 0; padding-left: 20px; display: grid; gap: 12px; max-width: 72ch; }
 ol.find li p { margin: 2px 0 0; font-size: 15px; color: var(--ink-soft); }
 .empty { color: var(--ink-soft); font-style: italic; margin: 0; }
+.pbar { flex: 1; max-width: 220px; height: 10px; border-radius: 5px; background: var(--line); overflow: hidden; }
+.pbar i { display: block; height: 100%; background: var(--sun); border-radius: 5px; transition: width .2s; }
+.toast.neutral { background: var(--blue); }
+.toast.neutral .ic { color: #fff3b0; }
+select { font: inherit; font-size: 16px; padding: 9px 10px; border-radius: 12px; border: 2px solid var(--line); background: var(--card); color: var(--ink); max-width: 100%; }
+.toggle.long { align-items: flex-start; }
+.toggle.long input { margin-top: 3px; flex: none; }
+.row-l { display: flex; gap: 8px; flex-wrap: wrap; }
+.study-code { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 16px; border-radius: 16px; background: var(--sun-wash); border: 2px solid var(--sun); }
+.study-code b { font-family: var(--font-data); font-size: 26px; letter-spacing: .04em; font-variant-numeric: tabular-nums; }
+.study-code span { color: var(--ink-soft); font-size: 14px; }
+.lock-note { padding: 10px 14px; border-radius: 12px; background: var(--blue-wash); border: 1px solid var(--blue); font-size: 15px; margin: 0; }
+.info-sec { display: grid; gap: 4px; }
+.info-sec h4 { margin: 0; font-size: 16px; }
+.info-sec p { margin: 0; font-size: 15px; color: var(--ink-soft); max-width: 72ch; }
+.ok-note { color: var(--leaf-deep); font-weight: 700; margin: 0; }
 </style>
 <style id="fonts">
 /* Andika (SIL) und Fredoka, beide unter SIL Open Font License 1.1, Latin-Teilmenge eingebettet */
@@ -583,8 +599,23 @@ ol.find li p { margin: 2px 0 0; font-size: 15px; color: var(--ink-soft); }
       <button class="tab-btn" role="tab" data-tab="numbers" aria-selected="false">Mengen-Profil</button>
       <button class="tab-btn" role="tab" data-tab="settings" aria-selected="false">Einstellungen</button>
       <button class="tab-btn" role="tab" data-tab="research" aria-selected="false">Forschung &amp; Tipps</button>
+      <button class="tab-btn" role="tab" data-tab="study" aria-selected="false">Studie</button>
     </div>
     <div id="tab-body" class="p-sec"></div>
+  </div>
+</div>
+<!-- Zustimmung des Kindes -->
+<div class="overlay" id="assent" hidden>
+  <div class="sheet center">
+    <div class="platti big" id="platti-assent" aria-hidden="true"></div>
+    <div class="intro-title">Machst du mit?</div>
+    <p class="intro-text" id="assent-text">Forscherinnen und Forscher wollen herausfinden, wie Kinder Mengen sehen. Dafür merkt sich das Spiel, wie du spielst. Deinen Namen erfährt dabei niemand. Du kannst jederzeit aufhören.</p>
+    <p class="gate-err" id="assent-err" hidden></p>
+    <div class="row">
+      <button class="ghost-btn" id="assent-say" aria-label="Vorlesen"></button>
+      <button class="ghost-btn" id="assent-no"></button>
+      <button class="go-btn" id="assent-yes"></button>
+    </div>
   </div>
 </div>
 <div class="tip" id="tip" hidden></div>
@@ -641,6 +672,8 @@ const IC = {
   dot: '<circle cx="12" cy="12" r="3.5" fill="currentColor" stroke="none"/>',
   eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
   x: '<path d="M7 7l10 10M17 7 7 17"/>',
+  up: '<path d="M7 11v9H4v-9z"/><path d="M7 11l4-7c1.5 0 2.5 1 2.2 2.6L12.6 10H18a2 2 0 0 1 2 2.3l-1.2 6A2 2 0 0 1 16.8 20H7"/>',
+  down: '<g transform="rotate(180 12 12)"><path d="M7 11v9H4v-9z"/><path d="M7 11l4-7c1.5 0 2.5 1 2.2 2.6L12.6 10H18a2 2 0 0 1 2 2.3l-1.2 6A2 2 0 0 1 16.8 20H7"/></g>',
 };
 const icon = (n, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n]}</svg>`;
 
@@ -676,6 +709,9 @@ const REP_NAME = { tenframe: 'Zehnerfeld', dice: 'Würfelbilder', fingers: 'Fing
    Speicher
    ========================================================= */
 const STORE_KEY = 'blitz-mengen-knacker.v2';
+const APP_VERSION = '2.2.0';
+const STUDY_API = 'api/study.php';
+const ONLINE_OK = /^https?:$/.test(location.protocol);
 const TASKS = ['blitz', 'match', 'compare', 'line', 'partner'];
 const REPS = ['tenframe', 'dice', 'fingers', 'ladybug', 'fruit', 'cloud'];
 const UNLOCK = { line: 20, partner: 45 };
@@ -698,6 +734,7 @@ function freshData() {
     theta: { blitz: -0.5, match: -0.5, compare: -0.5, line: -0.5, partner: -0.5 },
     nTask: { blitz: 0, match: 0, compare: 0, line: 0, partner: 0 },
     items: {}, ladder: {}, hist: [], sessions: [], seen: {},
+    study: { status: 'none' },
   };
 }
 function mergeData(base, saved) {
@@ -713,6 +750,7 @@ function mergeData(base, saved) {
   out.hist = Array.isArray(saved.hist) ? saved.hist : [];
   out.sessions = Array.isArray(saved.sessions) ? saved.sessions : [];
   out.seen = saved.seen || {};
+  out.study = { status: 'none', ...(saved.study || {}) };
   return out;
 }
 function loadData() {
@@ -744,16 +782,16 @@ const Sound = {
     o.connect(g); g.connect(c.destination); o.start(t0); o.stop(t0 + dur + 0.02);
   },
   good(fast) {
-    if (!D.settings.sound) return; this.init(); if (!this.ctx) return;
+    if (!E().sound) return; this.init(); if (!this.ctx) return;
     const t = this.ctx.currentTime; const notes = fast ? [523.25, 659.25, 783.99, 1046.5] : [523.25, 659.25, 783.99];
     notes.forEach((f, i) => this.tone(f, t + i * 0.07, 0.28));
   },
   soft() { // freundlich, nicht strafend
-    if (!D.settings.sound) return; this.init(); if (!this.ctx) return;
+    if (!E().sound) return; this.init(); if (!this.ctx) return;
     const t = this.ctx.currentTime; this.tone(392, t, 0.22, 'sine', 0.12); this.tone(440, t + 0.16, 0.3, 'sine', 0.12);
   },
   whoosh() {
-    if (!D.settings.sound) return; this.init(); if (!this.ctx) return;
+    if (!E().sound) return; this.init(); if (!this.ctx) return;
     const t = this.ctx.currentTime; this.tone(220, t, 0.12, 'sine', 0.05);
   },
 };
@@ -772,7 +810,7 @@ const Speech = {
     try { speechSynthesis.addEventListener('voiceschanged', pickVoice); } catch (e) { /* alte Browser */ }
   },
   say(text, interrupt = true) {
-    if (!this.ok || !D.settings.speech || !text) return;
+    if (!this.ok || !E().speech || !text) return;
     try {
       if (interrupt) speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
@@ -782,6 +820,193 @@ const Speech = {
   },
   stop() { if (this.ok) { try { speechSynthesis.cancel(); } catch (e) { /* egal */ } } },
 };
+
+
+/* =========================================================
+   Studienmodus (nur nach Einwilligung; sonst ohne Wirkung)
+   ========================================================= */
+const ALL_TASKS_ON = { blitz: true, match: true, compare: true, line: true, partner: true };
+const ALL_REPS_ON = { tenframe: true, dice: true, fingers: true, ladybug: true, fruit: true, cloud: true };
+// Wirksame Einstellungen: In der Studie legt das Protokoll fest, was sonst die Eltern einstellen.
+function E() {
+  const s = D.settings;
+  if (!Study.active()) return s;
+  const fixed = D.study.engine === 'static';
+  return { ...s, max: 10, len: 12, target: 0.8, stage: Study.stage(), expoMode: fixed ? 'fixed' : 'auto', expoFixed: 4.0, timer: false, tasks: ALL_TASKS_ON, reps: ALL_REPS_ON };
+}
+function isUnlocked(k) {
+  if (!Study.active()) return D.unlocked[k];
+  return k === 'line' ? (D.study.trainSessions || 0) >= 2 : true;
+}
+const adaptive = () => !Study.active() || D.study.engine !== 'static';
+function randomToken() { const a = new Uint8Array(24); crypto.getRandomValues(a); return Array.from(a, b => b.toString(16).padStart(2, '0')).join(''); }
+function uuid() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  const a = new Uint8Array(16); crypto.getRandomValues(a); a[6] = (a[6] & 15) | 64; a[8] = (a[8] & 63) | 128;
+  const h = Array.from(a, b => b.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+const Study = {
+  info: null, infoState: 'idle', busy: false, pendingForm: null,
+  active() { return !!D.study && D.study.status === 'enrolled'; },
+  day(t = now()) {
+    const sod = x => { const d = new Date(x); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); };
+    return Math.max(0, Math.round((sod(t) - sod(D.study.enrolledAt)) / DAY));
+  },
+  stage() { return D.study.stageArm === 'structured' ? 2 : (this.day() >= (D.study.stageSwitchDay ?? 28) ? 2 : 1); },
+  dueCheck() {
+    if (!this.active()) return null;
+    const sch = D.study.schedule || [], done = D.study.checks || {}, d = this.day();
+    if (sch.length && !done[sch[0].id]) return sch[0];
+    let due = null;
+    for (const c of sch) if (!done[c.id] && d >= c.day && d <= c.day + c.window) due = c;
+    return due;
+  },
+  checkState(c) {
+    const done = (D.study.checks || {})[c.id];
+    if (done) return 'done';
+    const d = this.day();
+    return d < c.day ? 'later' : d <= c.day + c.window ? 'due' : 'missed';
+  },
+  device() { if (!(navigator.maxTouchPoints > 0)) return 'desktop'; return Math.min(screen.width, screen.height) >= 600 ? 'tablet' : 'phone'; },
+  standalone() { try { return matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches || navigator.standalone === true; } catch (e) { return false; } },
+  stamp(t = now()) { const d = new Date(t); return { ts: d.toISOString().slice(0, 19) + 'Z', day: this.day(t), hour: d.getHours() }; },
+  logTrial(ev) {
+    if (!this.active()) return;
+    D.study.seq = (D.study.seq || 0) + 1;
+    D.study.queue.push({ seq: D.study.seq, ...ev });
+    if (D.study.queue.length > 6000) D.study.queue.splice(0, D.study.queue.length - 6000);
+  },
+  logSession(rec) { if (this.active()) D.study.sessQueue.push(rec); },
+  // Nach dem letzten Check endet die Studie: keine neuen Daten, normale Lern-Steuerung für alle.
+  completeIfDone() {
+    if (!this.active()) return false;
+    const sch = D.study.schedule || [], last = sch[sch.length - 1];
+    if (!last) return false;
+    if ((D.study.checks || {})[last.id] || this.day() > last.day + last.window) {
+      D.study.status = 'completed'; D.study.completedAt = now(); save(); return true;
+    }
+    return false;
+  },
+  hasPending() { return !!D.study && (D.study.queue || []).length + (D.study.sessQueue || []).length > 0; },
+  async request(action, body, method = 'POST') {
+    const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 15000);
+    try {
+      const opt = method === 'GET' ? { cache: 'no-store', credentials: 'omit', signal: ctl.signal }
+        : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), cache: 'no-store', credentials: 'omit', signal: ctl.signal };
+      const res = await fetch(`${STUDY_API}?action=${action}`, opt);
+      let data = null; try { data = await res.json(); } catch (e) { data = null; }
+      if (!res.ok) { const err = new Error((data && data.error) || `Der Server antwortet mit Fehler ${res.status}.`); err.status = res.status; throw err; }
+      return data || {};
+    } catch (e) {
+      if (e.name === 'AbortError' || e instanceof TypeError) { const err = new Error('Keine Verbindung zum Studienserver.'); err.status = 0; throw err; }
+      throw e;
+    } finally { clearTimeout(tm); }
+  },
+  async loadInfo() {
+    if (!ONLINE_OK) { this.infoState = 'none'; return null; }
+    this.infoState = 'loading';
+    try { this.info = await this.request('info', null, 'GET'); this.infoState = this.info && this.info.study ? 'ok' : 'none'; }
+    catch (e) { this.info = null; this.infoState = 'none'; }
+    return this.info;
+  },
+  async enrol(form) {
+    const secret = randomToken();
+    const r = await this.request('enrol', { secret, consent_version: form.consentVersion, consents: form.consents, demo: form.demo, device: this.device(), standalone: this.standalone(), app: APP_VERSION });
+    D.study = {
+      status: 'enrolled', pid: r.pid, secret, engine: r.engine, stageArm: r.stage_arm, enrolledAt: now(),
+      consentVersion: form.consentVersion, consents: form.consents, schedule: r.schedule, checkExpoMs: r.check_exposure_ms,
+      stageSwitchDay: r.stage_switch_day, checks: {}, seq: 0, queue: [], sessQueue: [], lastUpload: 0, lastError: '', trainSessions: 0,
+    };
+    save();
+    return r;
+  },
+  async flush() {
+    if (!(this.active() || (D.study.status === 'completed' && this.hasPending())) || this.busy || !ONLINE_OK) return;
+    const st = D.study;
+    if (!st.queue.length && !st.sessQueue.length) return;
+    this.busy = true;
+    try {
+      while ((this.active() || st.status === 'completed') && (st.queue.length || st.sessQueue.length)) {
+        const events = st.queue.slice(0, 200), sessions = st.sessQueue.slice(0, 50);
+        await this.request('upload', { pid: st.pid, secret: st.secret, app: APP_VERSION, events, sessions });
+        const seqs = new Set(events.map(e => e.seq)), sids = new Set(sessions.map(x => x.sid));
+        st.queue = st.queue.filter(e => !seqs.has(e.seq));
+        st.sessQueue = st.sessQueue.filter(x => !sids.has(x.sid));
+        st.lastUpload = now(); st.lastError = ''; save();
+      }
+    } catch (e) {
+      st.lastError = e.message || String(e);
+      if (e.status === 410) { st.status = 'withdrawn'; st.withdrawnAt = now(); st.queue = []; st.sessQueue = []; }
+      save();
+    } finally { this.busy = false; }
+  },
+  async withdraw(del) {
+    const st = D.study;
+    await this.request('withdraw', { pid: st.pid, secret: st.secret, delete: !!del });
+    st.status = 'withdrawn'; st.withdrawnAt = now(); st.deleted = !!del; st.queue = []; st.sessQueue = []; save();
+  },
+  myData() { return this.request('mydata', { pid: D.study.pid, secret: D.study.secret }); },
+};
+
+/* Mengen-Check: für alle Kinder und alle Zeitpunkte dieselben 36 Aufgaben in derselben Reihenfolge */
+function seeded(seed) {
+  let a = seed >>> 0;
+  return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+let CHECK_CACHE = null;
+function checkItems() {
+  if (CHECK_CACHE) return CHECK_CACHE;
+  const R = seeded(20261006);
+  const blitz = [];
+  for (let n = 1; n <= 10; n++) {
+    blitz.push({ part: 'A', task: 'blitz', q: n, rep: 'tenframe', key: `chk|blitz|${n}|tenframe` });
+    blitz.push({ part: 'A', task: 'blitz', q: n, rep: 'cloud', key: `chk|blitz|${n}|cloud`, layout: cloudLayout(n, 1, R) });
+  }
+  for (let i = blitz.length - 1; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [blitz[i], blitz[j]] = [blitz[j], blitz[i]]; }
+  const cmp = [[3, 4], [7, 6], [2, 5], [9, 8], [1, 3], [8, 5], [4, 6], [10, 7], [5, 6], [2, 9]].map(([a, b]) => ({ part: 'B', task: 'compare', vals: [a, b], key: `chk|compare|${a}|${b}` }));
+  const line = [7, 3, 8, 2, 6, 4].map(q => ({ part: 'C', task: 'line', q, key: `chk|line|${q}` }));
+  CHECK_CACHE = [...blitz, ...cmp, ...line];
+  return CHECK_CACHE;
+}
+const CHECK_PART = {
+  A: { name: 'Mengen-Check: Blitzblick', text: 'Heute zeigst du, was du schon kannst. Schau genau hin und tippe, wie viele es sind. Diesmal gibt es keine Hilfe. Gib einfach dein Bestes!', icon: 'blitz' },
+  B: { name: 'Mengen-Check: Zahlen', text: 'Tippe auf die größere Zahl.', icon: 'compare' },
+  C: { name: 'Mengen-Check: Zahlenstrahl', text: 'Wo wohnt die Zahl? Tippe auf die richtige Stelle.', icon: 'line' },
+};
+function makeCheckTrial(spec) {
+  const t = { id: ++trialSeq, task: spec.task, item: { key: spec.key, task: spec.task, prior: 0 }, M: 10, stage: 1, state: 'show', check: true };
+  if (spec.task === 'blitz') { t.q = spec.q; t.rep = spec.rep; t.layout = spec.layout; t.ans = t.q; t.expo = (D.study.checkExpoMs || 2000) / 1000; }
+  else if (spec.task === 'compare') { t.f = 'digits'; t.vals = spec.vals; t.kinds = ['digit', 'digit']; t.dots = [null, null]; t.ans = spec.vals[0] > spec.vals[1] ? 0 : 1; }
+  else { t.q = spec.q; t.ans = t.q; }
+  return t;
+}
+const r3 = x => (x === null || x === undefined ? null : Math.round(x * 1000) / 1000);
+function trialEvent(t, o) {
+  const st = Study.stamp();
+  let answer = o.help ? null : o.given;
+  if (!o.help && t.task === 'match') answer = t.options[o.given];
+  if (!o.help && t.task === 'compare') answer = t.vals[o.given];
+  return {
+    sid: S.sid, kind: S.kind === 'check' ? 'check' : 'train', check: S.kind === 'check' ? S.checkId : null,
+    idx: S.trialNo, block: S.kind === 'check' ? null : S.blockNo, ts: st.ts, day: st.day, hour: st.hour,
+    task: t.task, item: t.item.key, q: t.q ?? null, rep: t.rep || null, fmt: t.task === 'compare' ? t.f : null,
+    vl: t.vals ? t.vals[0] : null, vr: t.vals ? t.vals[1] : null, opts: t.options ? t.options.join(',') : null,
+    stage: t.stage, maxn: t.M, expo_ms: t.expo ? Math.round(t.expo * 1000) : null, answer: answer ?? null,
+    correct: o.ok ? 1 : 0, rt_ms: Math.round(o.rt * 1000), cls: o.cls, visible: t.expo ? (o.rt < t.expo ? 1 : 0) : null,
+    theta: o.model ? r3(o.model.theta) : null, beta: o.model ? r3(o.model.beta) : null, p: o.model ? r3(o.model.p) : null,
+    lv: o.model ? o.model.lv : null, retry: t.retry ? 1 : 0, intr: t.interrupted ? 1 : 0, base_ms: Math.round(baseline() * 1000),
+  };
+}
+function sessionRecord(completed) {
+  const st = Study.stamp(S.t0);
+  return {
+    sid: S.sid, kind: S.kind === 'check' ? 'check' : 'train', check: S.kind === 'check' ? S.checkId : null,
+    started: st.ts, day: st.day, hour: st.hour, dur_s: Math.round(Math.min(now() - S.t0, (S.results.length + 1) * 60000) / 1000),
+    n: S.results.length, ok: S.results.filter(r => r.ok).length, fast: S.results.filter(r => r.cls === 'fast').length,
+    completed: completed ? 1 : 0, only: S.only || null, standalone: Study.standalone() ? 1 : 0, device: Study.device(),
+  };
+}
 
 /* =========================================================
    Aufgaben-Bank mit Startschwierigkeiten (Logit-Skala)
@@ -804,9 +1029,9 @@ function repAdj(rep, n, stage) {
   return 0;
 }
 function bank(task) {
-  const M = D.settings.max, stage = D.settings.stage, out = [];
+  const M = E().max, stage = E().stage, out = [];
   if (task === 'blitz') {
-    let reps = REPS.filter(r => D.settings.reps[r]);
+    let reps = REPS.filter(r => E().reps[r]);
     if (!reps.length) reps = ['tenframe'];
     for (let n = 1; n <= M; n++) for (const rep of reps) {
       if (!repAvailable(rep, n, stage)) continue;
@@ -896,11 +1121,11 @@ function ladderGet(key) {
 }
 function exposureFor(task, t) {
   const f = task === 'partner' ? 1.2 : 1;
-  if (D.settings.expoMode === 'fixed') return D.settings.expoFixed * f;
+  if (E().expoMode === 'fixed') return E().expoFixed * f;
   return EXPO[ladderGet(ladderKey(task, t)).lv] * f;
 }
 function updateLadder(task, t, cls) {
-  if (D.settings.expoMode === 'fixed' || !t.expo) return 0;
+  if (E().expoMode === 'fixed' || !t.expo) return 0;
   const key = ladderKey(task, t); if (!key) return 0;
   const L = ladderGet(key), before = L.lv;
   if (cls === 'fast') L.st += 1;
@@ -919,7 +1144,7 @@ let T = null;   // aktuelle Aufgabe
 let trialSeq = 0;
 
 function availableTasks() {
-  const list = TASKS.filter(k => D.settings.tasks[k] && D.unlocked[k] && (k !== 'partner' || D.settings.stage === 2));
+  const list = TASKS.filter(k => E().tasks[k] && isUnlocked(k) && (k !== 'partner' || E().stage === 2));
   return list.length ? list : ['blitz'];
 }
 function recentCredit(task, n) {
@@ -932,6 +1157,7 @@ function pickBlockTask() {
   if (S.only) return S.only;
   const avail = availableTasks();
   if (S.blockNo === 0 && avail.includes('blitz')) return 'blitz';
+  if (!adaptive()) return weightedPick(avail, avail.map(k => (k === S.blockTask && avail.length > 1 ? 0.08 : 1)));
   const w = avail.map(k => {
     let x = BASE_W[k];
     const rc = recentCredit(k, 15);
@@ -945,6 +1171,12 @@ function pickBlockTask() {
 }
 function chooseItem(task) {
   const items = bank(task);
+  if (!adaptive()) {
+    // Kontrollbedingung: zufällig, nur ohne direkte Wiederholung
+    const recent = S.recentKeys.slice(-4);
+    const w = items.map(it => (recent.includes(it.key) ? 0.05 : 1) * (it.q !== undefined && it.q === S.lastQ ? 0.35 : 1));
+    return { item: weightedPick(items, w), retry: false };
+  }
   const ri = S.retries.findIndex(r => r.task === task && r.due <= S.trialNo);
   if (ri >= 0) {
     const r = S.retries.splice(ri, 1)[0];
@@ -952,7 +1184,7 @@ function chooseItem(task) {
     if (task === 'blitz') { const structured = c.filter(it => it.rep !== 'cloud'); if (structured.length) c = structured; }
     if (c.length) return { item: pick(c), retry: true };
   }
-  let target = D.settings.target;
+  let target = E().target;
   if (S.ease > 0) target = 0.95;
   if (S.trialNo === S.total - 1) target = Math.max(target, 0.92); // jede Runde endet mit einem Erfolg
   const recent = S.recentKeys.slice(-4);
@@ -1076,13 +1308,13 @@ function svgFruit(n) {
   return { svg: s, groups, items };
 }
 const SPLITS = { 5: [[3, 2]], 6: [[3, 3], [4, 2]], 7: [[4, 3], [5, 2]], 8: [[4, 4], [5, 3]], 9: [[5, 4]], 10: [[5, 5]] };
-function cloudLayout(n, stage) {
+function cloudLayout(n, stage, R = Math.random) {
   const clusters = (n <= 4 || stage === 1) ? [n] : shuffle([...pick(SPLITS[n])]);
   const place = (count, cx, cy, rad, dmin) => {
     const mine = []; let tries = 0;
     while (mine.length < count && tries < 4000) {
       tries++;
-      const a = Math.random() * Math.PI * 2, rr = Math.sqrt(Math.random()) * rad;
+      const a = R() * Math.PI * 2, rr = Math.sqrt(R()) * rad;
       const x = cx + Math.cos(a) * rr, y = cy + Math.sin(a) * rr * 0.9;
       const dm = tries > 2500 ? dmin * 0.8 : dmin;
       if (x > 24 && x < 376 && y > 24 && y < 256 && mine.every(p => Math.hypot(p[0] - x, p[1] - y) >= dm)) mine.push([x, y, 14]);
@@ -1103,13 +1335,13 @@ function svgCloud(layout) {
   return { svg: layout.pts.map(([x, y]) => `<circle class="cdot" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="14"/>`).join(''), groups: layout.groups, items };
 }
 function renderRep(rep, n, t) {
-  const two = D.settings.stage === 2;
+  const two = (t.stage ?? E().stage) === 2;
   switch (rep) {
     case 'dice': return svgDice(n, t.dicePair);
     case 'fingers': return svgFingers(n);
     case 'ladybug': return svgLadybug(n);
     case 'fruit': return svgFruit(n);
-    case 'cloud': return svgCloud(t.layout || cloudLayout(n, D.settings.stage));
+    case 'cloud': return svgCloud(t.layout || cloudLayout(n, t.stage ?? E().stage));
     default: return svgTenframe(n, t.M, two);
   }
 }
@@ -1146,7 +1378,7 @@ function panelDots(n) {
   return pts;
 }
 function makeTrial(task, item) {
-  const M = D.settings.max, stage = D.settings.stage;
+  const M = E().max, stage = E().stage;
   const t = { id: ++trialSeq, task, item, M, stage, state: 'show' };
   if (task === 'blitz') {
     t.q = item.q; t.rep = item.rep; t.ans = t.q;
@@ -1157,7 +1389,7 @@ function makeTrial(task, item) {
     t.k = item.k; t.q = item.q; t.ans = t.q; t.expo = exposureFor('partner', t);
   } else if (task === 'match') {
     t.q = item.q;
-    const reps = ['tenframe', 'dice', 'fingers'].filter(r => D.settings.reps[r] && (r !== 'dice' || stage === 2 || M <= 6));
+    const reps = ['tenframe', 'dice', 'fingers'].filter(r => E().reps[r] && (r !== 'dice' || stage === 2 || M <= 6));
     t.rep = reps.length ? pick(reps) : 'tenframe';
     t.options = matchOptions(t.q, item.v, M); t.ans = t.options.indexOf(t.q);
   } else if (task === 'compare') {
@@ -1195,6 +1427,10 @@ $('#parent-close').innerHTML = icon('close');
 el.platti.innerHTML = plattiSVG();
 $('#platti-home').innerHTML = plattiSVG();
 $('#platti-end').innerHTML = plattiSVG();
+$('#platti-assent').innerHTML = plattiSVG();
+$('#assent-say').innerHTML = icon('speaker');
+$('#assent-no').innerHTML = icon('down') + ' Nein';
+$('#assent-yes').innerHTML = icon('up') + ' Ja, ich mache mit';
 
 function setStars() { el.stars.innerHTML = icon('star') + `<span>${D.stars}</span>`; }
 function plattiDo(cls, ms = 950) {
@@ -1204,7 +1440,7 @@ function plattiDo(cls, ms = 950) {
 }
 function setBubble(html) { el.bubble.innerHTML = `<span>${html}</span>`; }
 function buildKeypad() {
-  const M = D.settings.max;
+  const M = E().max;
   el.keypad.innerHTML = '';
   for (let n = 1; n <= M; n++) {
     const b = document.createElement('button');
@@ -1216,6 +1452,7 @@ function buildKeypad() {
 }
 function updatePips() {
   if (!S) { el.pips.innerHTML = ''; return; }
+  if (S.total > 15) { el.pips.innerHTML = `<span class="pbar" role="progressbar" aria-valuemin="0" aria-valuemax="${S.total}" aria-valuenow="${S.trialNo}"><i style="width:${Math.round(S.trialNo / S.total * 100)}%"></i></span>`; return; }
   let h = '';
   for (let i = 0; i < S.total; i++) {
     const r = S.results[i];
@@ -1233,18 +1470,48 @@ function hide(id) { $(id).hidden = true; }
 function startSession(only = null) {
   Sound.init();
   S = {
-    only, total: D.settings.len, trialNo: 0, blockNo: 0, blockTask: null, blockLeft: 0, prevTask: null,
+    only, total: E().len, trialNo: 0, blockNo: 0, blockTask: null, blockLeft: 0, prevTask: null,
     results: [], retries: [], recentKeys: [], lastQ: null, ease: 0, wrongRun: 0, calm: 0,
     stars: 0, t0: now(), newUnlocks: [], idx: (D.sessions.length ? (D.sessions[D.sessions.length - 1].i || D.sessions.length) : 0) + 1,
-    lastFmt: null, paused: false,
+    lastFmt: null, paused: false, kind: 'train', sid: uuid(),
   };
   buildKeypad(); hide('#home'); hide('#end'); updatePips(); setStars();
   nextStep();
 }
+function startPlay(only = null) {
+  const c = Study.dueCheck();
+  if (c) return startCheck(c);
+  startSession(only);
+}
+function startCheck(c) {
+  Sound.init();
+  const items = checkItems();
+  S = {
+    kind: 'check', checkId: c.id, items, total: items.length, trialNo: 0, part: null, sid: uuid(), t0: now(),
+    results: [], stars: 0, newUnlocks: [], recentKeys: [], retries: [], lastQ: null, ease: 0, wrongRun: 0, calm: 0,
+    lastFmt: null, only: null, blockNo: 0, blockLeft: 0, blockTask: null,
+  };
+  buildKeypad(); hide('#home'); hide('#end'); updatePips(); setStars();
+  nextStep();
+}
+function showCheckIntro(part) {
+  const P = CHECK_PART[part];
+  $('#intro-icon').innerHTML = GAME_ICON[P.icon];
+  $('#intro-title').textContent = P.name;
+  $('#intro-text').textContent = P.text;
+  show('#intro');
+  Speech.say(P.text);
+  setTimeout(() => $('#intro-go').focus(), 50);
+}
 function nextStep() {
   if (!S) return;
   clearTimeout(S.nextTimer);
-  if (S.trialNo >= S.total) return endSession();
+  if (S.trialNo >= S.total) return S.kind === 'check' ? endCheck() : endSession();
+  if (S.kind === 'check') {
+    const part = S.items[S.trialNo].part;
+    if (part !== S.part) { S.part = part; return showCheckIntro(part); }
+    return runTrial();
+  }
   if (S.blockLeft <= 0) {
     S.prevTask = S.blockTask;
     S.blockTask = pickBlockTask();
@@ -1255,7 +1522,7 @@ function nextStep() {
   runTrial();
 }
 function introText(task) {
-  if (task === 'partner') return `Wie viele Plätze sind noch frei bis zur ${NAME[D.settings.max]}?`;
+  if (task === 'partner') return `Wie viele Plätze sind noch frei bis zur ${NAME[E().max]}?`;
   return GAME[task].intro;
 }
 function showIntro(task) {
@@ -1268,13 +1535,13 @@ function showIntro(task) {
   setTimeout(() => $('#intro-go').focus(), 50);
 }
 $('#intro-go').addEventListener('click', () => { hide('#intro'); Sound.init(); runTrial(); });
-$('#intro-say').addEventListener('click', () => Speech.say(introText(S ? S.blockTask : 'blitz')));
+$('#intro-say').addEventListener('click', () => Speech.say(S && S.kind === 'check' ? CHECK_PART[S.part].text : introText(S ? S.blockTask : 'blitz')));
 
 function runTrial() {
   if (!S) return;
   el.explain.hidden = true;
-  const { item, retry } = chooseItem(S.blockTask);
-  T = makeTrial(S.blockTask, item);
+  const { item, retry } = S.kind === 'check' ? { item: S.items[S.trialNo], retry: false } : chooseItem(S.blockTask);
+  T = S.kind === 'check' ? makeCheckTrial(item) : makeTrial(item.task, item);
   T.retry = retry;
   renderTrial(T);
   updatePips();
@@ -1284,7 +1551,7 @@ function runTrial() {
     T.t0 = performance.now();
     if (T.expo) {
       T.curtainTimer = setTimeout(() => closeCurtain(id), T.expo * 1000);
-      if (D.settings.timer) runExpoBar(T.expo);
+      if (E().timer) runExpoBar(T.expo);
     }
     enableInputs(S.calm > 0 ? 900 : 0);
   }));
@@ -1337,7 +1604,7 @@ function renderTrial(t) {
     el.stage.innerHTML = `<svg class="pic" viewBox="0 0 400 280" role="img" aria-label="Zehnerfeld">${pic.svg}<g class="marks"></g></svg>${CURTAIN}`;
     setBubble(`Wie viele fehlen bis zur <span class="big-digit">${t.M}</span>?`);
   } else if (t.task === 'match') {
-    t.optPics = t.options.map(v => renderRep(t.rep, v, { M: t.M }));
+    t.optPics = t.options.map(v => renderRep(t.rep, v, { M: t.M, stage: t.stage }));
     el.stage.innerHTML = `<div class="match"><div class="opts">${t.optPics.map((p, i) => `<button type="button" class="opt" data-i="${i}" aria-label="Bild ${i + 1}"><svg viewBox="${optViewBox(t.rep, t.M, t.options[i])}" aria-hidden="true">${p.svg}<g class="marks"></g></svg></button>`).join('')}</div></div>`;
     el.stage.querySelectorAll('.opt').forEach(b => b.addEventListener('click', () => answer(Number(b.dataset.i))));
     setBubble(`Finde die <span class="big-digit">${t.q}</span>`);
@@ -1411,22 +1678,29 @@ function helpMe() {
 $('#btn-help').addEventListener('click', helpMe);
 
 function finishTrial(ok, rt, help, given) {
+  if (T.check) return finishCheckTrial(ok, rt, help, given);
   T.state = 'feedback'; T.inputOn = false;
   el.expoBar.hidden = true;
   const cls = T.interrupted ? (help ? 'help' : ok ? 'ok' : 'wrong') : classify(T.task, T, ok, rt, help);
+  // Modellwerte vor der Aktualisierung (für die Studie)
+  const itB = D.items[T.item.key], lkB = ladderKey(T.task, T);
+  const model = { theta: D.theta[T.task], beta: itB ? itB.b : T.item.prior, lv: lkB && D.ladder[lkB] && T.expo ? D.ladder[lkB].lv : null };
+  model.p = logistic(model.theta - model.beta);
   let lvChange = 0;
   if (!T.interrupted) { updateModel(T.item, cls); lvChange = updateLadder(T.task, T, cls); }
   S.results.push({ task: T.task, cls, ok });
   S.recentKeys.push(T.item.key);
   S.lastQ = T.q ?? null;
-  if (ok) S.wrongRun = 0; else S.wrongRun++;
-  if (S.ease > 0) S.ease--;
   T.encourage = false;
-  if (S.wrongRun >= 2) { S.ease = 2; S.wrongRun = 0; T.encourage = true; }
-  if (S.calm > 0) S.calm--;
-  if (cls === 'guess' && S.results.slice(-5).filter(r => r.cls === 'guess').length >= 2) S.calm = 3;
-  if (!ok && !S.retries.some(r => r.task === T.task && (T.q !== undefined ? r.q === T.q : r.key === T.item.key))) {
-    S.retries.push({ task: T.task, q: T.q, key: T.item.key, due: S.trialNo + 2 });
+  if (adaptive()) {
+    if (ok) S.wrongRun = 0; else S.wrongRun++;
+    if (S.ease > 0) S.ease--;
+    if (S.wrongRun >= 2) { S.ease = 2; S.wrongRun = 0; T.encourage = true; }
+    if (S.calm > 0) S.calm--;
+    if (cls === 'guess' && S.results.slice(-5).filter(r => r.cls === 'guess').length >= 2) S.calm = 3;
+    if (!ok && !S.retries.some(r => r.task === T.task && (T.q !== undefined ? r.q === T.q : r.key === T.item.key))) {
+      S.retries.push({ task: T.task, q: T.q, key: T.item.key, due: S.trialNo + 2 });
+    }
   }
   const stars = ok ? (cls === 'fast' ? 2 : 1) : 0;
   S.stars += stars; D.stars += stars;
@@ -1435,11 +1709,50 @@ function finishTrial(ok, rt, help, given) {
     rt: Math.round(rt * 100) / 100, c: cls, ex: T.expo ? Math.round(T.expo * 100) / 100 : 0,
     r: T.rep || T.f || null, st: T.stage, x: T.interrupted ? 1 : 0,
   });
-  for (const k of Object.keys(UNLOCK)) if (!D.unlocked[k] && D.stars >= UNLOCK[k]) { D.unlocked[k] = true; S.newUnlocks.push(k); }
+  Study.logTrial(trialEvent(T, { ok, rt, cls, given, help, model }));
+  if (!Study.active()) for (const k of Object.keys(UNLOCK)) if (!D.unlocked[k] && D.stars >= UNLOCK[k]) { D.unlocked[k] = true; S.newUnlocks.push(k); }
   save();
   S.trialNo++; S.blockLeft--;
   updatePips(); setStars();
   showFeedback(T, ok, cls, stars, given, lvChange);
+}
+
+
+/* ---------- Mengen-Check: neutrale Rückmeldung, kein Lernen aus dem Check ---------- */
+function finishCheckTrial(ok, rt, help, given) {
+  T.state = 'feedback'; T.inputOn = false;
+  el.expoBar.hidden = true;
+  const cls = T.interrupted ? (help ? 'help' : ok ? 'ok' : 'wrong') : classify(T.task, T, ok, rt, help);
+  S.results.push({ task: T.task, cls, ok, q: T.q, part: S.items[S.trialNo].part });
+  Study.logTrial(trialEvent(T, { ok, rt, cls, given, help, model: null }));
+  S.stars += 1; D.stars += 1;
+  save();
+  S.trialNo++;
+  updatePips(); setStars();
+  disableInputsVisual();
+  if (T.task === 'line' && given !== null && given !== undefined) el.stage.querySelector('.marks').innerHTML = frogSVG(30 + given * 340 / T.M, 112);
+  const old = el.stage.querySelector('.toast'); if (old) old.remove();
+  el.stage.insertAdjacentHTML('beforeend', `<div class="toast neutral" role="status">${icon('star')}<span>Danke!</span></div>`);
+  Sound.whoosh();
+  S.nextTimer = setTimeout(nextStep, 700);
+}
+function endCheck() {
+  const res = S.results, A = res.filter(r => r.part === 'A');
+  const score = { blitz: A.filter(r => r.ok).length, blitz410: A.filter(r => r.ok && r.q >= 4).length, cmp: res.filter(r => r.part === 'B' && r.ok).length, line: res.filter(r => r.part === 'C' && r.ok).length };
+  D.study.checks[S.checkId] = { at: now(), day: Study.day(), score };
+  Study.logSession(sessionRecord(true));
+  save();
+  const finished = Study.completeIfDone();
+  Study.flush();
+  $('#end-stars').innerHTML = `+${S.stars}${icon('star')}`;
+  $('#end-badges').innerHTML = `<span class="badge">${icon('check')} Mengen-Check geschafft</span>`;
+  $('#end-unlock').innerHTML = '';
+  $('#end-note').textContent = finished ? 'Das war der letzte Check. Die Studie ist geschafft – danke fürs Mitmachen!' : 'Danke fürs Mitmachen!';
+  Speech.say(`Super${D.name ? ', ' + D.name : ''}! Der Mengen-Check ist geschafft. Danke fürs Mitmachen!`);
+  S = null; T = null;
+  show('#end');
+  const p = $('#platti-end'); p.classList.remove('flip'); void p.offsetWidth; p.classList.add('flip');
+  $('#end-again').onclick = () => { hide('#end'); startPlay(null); };
 }
 
 /* ---------- Rückmeldung ---------- */
@@ -1598,12 +1911,18 @@ function endSession() {
   const n = S.results.length, ok = S.results.filter(r => r.ok).length, fast = S.results.filter(r => r.cls === 'fast').length;
   const dur = Math.min(now() - S.t0, n * 60000);
   D.sessions.push({ t: now(), i: S.idx, dur, n, ok, fast, stars: S.stars, only: S.only });
+  if (Study.active()) {
+    D.study.trainSessions = (D.study.trainSessions || 0) + 1;
+    if (D.study.trainSessions === 2) S.newUnlocks.push('line');
+    Study.logSession(sessionRecord(true));
+  }
   save();
+  Study.flush();
   const today = D.sessions.filter(s => dayKey(s.t) === dayKey(now()));
   const mins = today.reduce((a, s) => a + s.dur, 0) / 60000;
   $('#end-stars').innerHTML = `+${S.stars}${icon('star')}`;
   $('#end-badges').innerHTML = `<span class="badge">${icon('check')} ${ok} von ${n} richtig</span>` + (fast ? `<span class="badge">${icon('bolt')} ${fast}× blitzschnell</span>` : '');
-  $('#end-unlock').innerHTML = S.newUnlocks.map(k => `<div class="unlock">${GAME_ICON[k]}<div><b>Neues Spiel!</b><br>${GAME[k].name}${k === 'partner' && D.settings.stage !== 2 ? ' (ab Lernstufe 2)' : ''}</div></div>`).join('');
+  $('#end-unlock').innerHTML = S.newUnlocks.map(k => `<div class="unlock">${GAME_ICON[k]}<div><b>Neues Spiel!</b><br>${GAME[k].name}${k === 'partner' && E().stage !== 2 ? ' (ab Lernstufe 2)' : ''}</div></div>`).join('');
   $('#end-note').textContent = mins >= 15 ? 'Toll geübt! Für heute reicht es – morgen geht es weiter.' : '';
   const unlockSay = S.newUnlocks.length ? ` Du hast ein neues Spiel freigeschaltet: ${GAME[S.newUnlocks[0]].name}!` : '';
   const starSay = S.stars === 1 ? 'einen Stern' : `${S.stars} Sterne`;
@@ -1612,7 +1931,7 @@ function endSession() {
   S = null; T = null;
   show('#end');
   const p = $('#platti-end'); p.classList.remove('flip'); void p.offsetWidth; p.classList.add('flip');
-  $('#end-again').onclick = () => { hide('#end'); startSession(lastOnly); };
+  $('#end-again').onclick = () => { hide('#end'); startPlay(lastOnly); };
 }
 $('#end-home').addEventListener('click', () => { hide('#end'); showHome(); });
 
@@ -1625,27 +1944,33 @@ function showHome() {
   el.answer.hidden = false; el.explain.hidden = true;
   $('#hello').textContent = D.name ? `Hallo, ${D.name}!` : 'Hallo! Schön, dass du da bist.';
   const tiles = TASKS.map(k => {
-    const stageLock = k === 'partner' && D.settings.stage !== 2;
-    const locked = !D.unlocked[k] || stageLock || !D.settings.tasks[k];
-    const why = !D.settings.tasks[k] ? 'aus' : !D.unlocked[k] ? `${UNLOCK[k]}` : stageLock ? 'Stufe 2' : '';
+    const stageLock = k === 'partner' && E().stage !== 2;
+    const locked = !isUnlocked(k) || stageLock || !E().tasks[k];
+    const why = !E().tasks[k] ? 'aus' : !isUnlocked(k) ? (Study.active() ? '2 Runden' : `${UNLOCK[k]}`) : stageLock ? 'Stufe 2' : '';
     const lock = locked ? `<span class="lock">${icon(why && /^\d/.test(why) ? 'star' : 'lock')}${why}</span>` : '';
     return `<button type="button" class="tile ${locked ? 'locked' : ''}" data-task="${k}" ${locked ? 'aria-disabled="true"' : ''}>${lock}${GAME_ICON[k]}<span>${GAME[k].name}</span></button>`;
   }).join('') + `<button type="button" class="tile" id="tile-parent">${'<svg class="gi" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="28" class="gi-card"/><g transform="translate(14 14) scale(1.5)" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">' + IC.parents + '</g></svg>'}<span>Für Eltern</span></button>`;
   $('#tiles').innerHTML = tiles;
   $('#tiles').querySelectorAll('.tile[data-task]').forEach(b => b.addEventListener('click', () => {
-    if (b.classList.contains('locked')) { Speech.say(D.unlocked[b.dataset.task] ? 'Dieses Spiel kommt später.' : `Dieses Spiel bekommst du bei ${UNLOCK[b.dataset.task]} Sternen.`); return; }
-    startSession(b.dataset.task);
+    if (b.classList.contains('locked')) { Speech.say(isUnlocked(b.dataset.task) || Study.active() ? 'Dieses Spiel kommt später.' : `Dieses Spiel bekommst du bei ${UNLOCK[b.dataset.task]} Sternen.`); return; }
+    startPlay(b.dataset.task);
   }));
   $('#tile-parent').addEventListener('click', openGate);
   const today = D.sessions.filter(s => dayKey(s.t) === dayKey(now())).length;
-  $('#home-meta').innerHTML = `<span>${icon('star')} ${D.stars} Sterne</span><span>${icon('check')} Heute ${today} ${today === 1 ? 'Runde' : 'Runden'}</span>`;
+  const due = Study.dueCheck();
+  $('#btn-play').innerHTML = icon('play') + (due ? ' Mengen-Check' : ' Los geht’s!');
+  $('#home-meta').innerHTML = (due ? `<span>${icon('bolt')} Heute ist Mengen-Check dran (ca. 5 Minuten)</span>` : '') + `<span>${icon('star')} ${D.stars} Sterne</span><span>${icon('check')} Heute ${today} ${today === 1 ? 'Runde' : 'Runden'}</span>`;
   updatePips(); setStars();
   show('#home');
 }
-$('#btn-play').addEventListener('click', () => { Speech.say(''); startSession(null); });
+$('#btn-play').addEventListener('click', () => startPlay(null));
 $('#btn-home').addEventListener('click', () => { if (S) { show('#quit'); } else showHome(); });
 $('#quit-no').addEventListener('click', () => hide('#quit'));
-$('#quit-yes').addEventListener('click', () => { hide('#quit'); showHome(); });
+$('#quit-yes').addEventListener('click', () => {
+  hide('#quit');
+  if (S && S.results.length && Study.active()) { Study.logSession(sessionRecord(false)); save(); Study.flush(); }
+  showHome();
+});
 $('#btn-say').addEventListener('click', () => {
   if (!T) return;
   const t = T;
@@ -1679,7 +2004,7 @@ window.addEventListener('keydown', e => {
   if (T.task === 'blitz' || T.task === 'partner') {
     let v = null;
     if (e.key >= '1' && e.key <= '9') v = Number(e.key); else if (e.key === '0') v = 10;
-    if (v !== null && v <= D.settings.max) answer(v);
+    if (v !== null && v <= E().max) answer(v);
   } else if (T.task === 'compare') {
     if (e.key === 'ArrowLeft') answer(0); else if (e.key === 'ArrowRight') answer(1);
   } else if (T.task === 'match' && e.key >= '1' && e.key <= '3') answer(Number(e.key) - 1);
@@ -1719,8 +2044,9 @@ $('#tabs').addEventListener('click', e => {
 function renderTab(tab) {
   document.querySelectorAll('.tab-btn').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
   const body = $('#tab-body');
-  body.innerHTML = tab === 'overview' ? tabOverview() : tab === 'numbers' ? tabNumbers() : tab === 'settings' ? tabSettings() : tabResearch();
+  body.innerHTML = tab === 'overview' ? tabOverview() : tab === 'numbers' ? tabNumbers() : tab === 'settings' ? tabSettings() : tab === 'study' ? tabStudy() : tabResearch();
   if (tab === 'settings') bindSettings();
+  if (tab === 'study') bindStudy();
 }
 
 const STATUS = {
@@ -1733,7 +2059,7 @@ const STATUS = {
 const stChip = s => `<span class="chip-st"><i style="background:${STATUS[s].color}">${icon(STATUS[s].ic)}</i>${STATUS[s].short}</span>`;
 
 function profileNumbers() {
-  const M = D.settings.max, out = [];
+  const M = E().max, out = [];
   for (let n = 1; n <= M; n++) {
     const hs = D.hist.filter(h => h.k === 'blitz' && h.q === n && !h.x).slice(-12);
     const tries = hs.length, ok = hs.filter(h => h.ok).length, fast = hs.filter(h => h.c === 'fast').length, guess = hs.filter(h => h.c === 'guess').length;
@@ -1748,7 +2074,7 @@ function profileNumbers() {
       else if (acc >= 0.7) status = 'count';
       else status = 'learn';
     }
-    out.push({ n, tries, ok, fast, guess, med, lv, expo: D.settings.expoMode === 'fixed' ? D.settings.expoFixed : EXPO[lv], status, thr: thresholds('blitz', { q: n }).fast });
+    out.push({ n, tries, ok, fast, guess, med, lv, expo: E().expoMode === 'fixed' ? E().expoFixed : EXPO[lv], status, thr: thresholds('blitz', { q: n }).fast });
   }
   return out;
 }
@@ -1769,7 +2095,7 @@ function taskSummary(k) {
   return { n: hs.length, acc: acc(last), fast: last.length ? last.filter(h => h.c === 'fast').length / last.length : null, trend: prev.length >= 10 && last.length >= 10 ? acc(last) - acc(prev) : null, sure };
 }
 function sureUpTo() {
-  const M = D.settings.max; let best = 0;
+  const M = E().max; let best = 0;
   for (let n = 1; n <= M; n++) {
     const its = bank('blitz').filter(it => it.q === n && it.rep !== 'cloud');
     if (its.length && mean(its.map(pCorrect)) >= 0.8) best = n; else break;
@@ -1798,7 +2124,7 @@ function tabOverview() {
   h += `<div><h3>Spiele</h3><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Spiel</th><th>Aufgaben</th><th>Richtig (letzte 20)</th><th>Blitzschnell</th><th>Trend</th><th>Sicher gekonnt</th></tr></thead><tbody>${TASKS.map(k => {
     const s = taskSummary(k);
     const tr = s.trend === null ? '–' : s.trend > 0.05 ? '▲ besser' : s.trend < -0.05 ? '▼ schwächer' : '● stabil';
-    return `<tr><td>${GAME[k].name}${!D.unlocked[k] ? ' <span class="p-note">(gesperrt)</span>' : ''}</td><td>${s.n}</td><td>${s.acc === null ? '–' : pct(s.acc)}</td><td>${s.fast === null ? '–' : pct(s.fast)}</td><td>${tr}</td><td><span class="meter"><i style="width:${Math.round(s.sure * 100)}%"></i></span>${pct(s.sure)}</td></tr>`;
+    return `<tr><td>${GAME[k].name}${!isUnlocked(k) ? ' <span class="p-note">(gesperrt)</span>' : ''}</td><td>${s.n}</td><td>${s.acc === null ? '–' : pct(s.acc)}</td><td>${s.fast === null ? '–' : pct(s.fast)}</td><td>${tr}</td><td><span class="meter"><i style="width:${Math.round(s.sure * 100)}%"></i></span>${pct(s.sure)}</td></tr>`;
   }).join('')}</tbody></table></div><p class="p-note">„Sicher gekonnt“ ist der Anteil der Aufgaben eines Spiels, die Ihr Kind laut Lern-Steuerung mit mindestens 80 % Wahrscheinlichkeit löst.</p></div>`;
   h += `<div><h3>Empfehlungen für die nächsten Tage</h3><div class="reco">${recommendations().map(r => `<div class="reco-item" style="box-shadow: inset 4px 0 0 ${r.color}"><b>${r.title}</b><p>${r.text}</p></div>`).join('')}</div></div>`;
   return h;
@@ -1866,7 +2192,7 @@ function tabNumbers() {
   h += `<div><h3>Reaktionszeit pro Menge</h3><p class="p-note">Balken: typische Zeit (Median) bis zur richtigen Antwort, gemessen ab dem Erscheinen des Bildes. Linie: bis hierhin gilt eine Antwort als „blitzschnell“. Sie ist an das Grundtempo Ihres Kindes angepasst (${haveBase ? fmtS(b) + ' für 1–3 Dinge' : 'noch Standardwert 1,6 s'}).</p>${chartRT(prof)}</div>`;
   h += `<div><h3>Was die Zeiten zeigen</h3><p class="p-text">${interp}</p></div>`;
   h += `<div><h3>Häufige Verwechslungen</h3>${confs.length ? `<ul class="p-text" style="margin:0;padding-left:20px">${confs.map(c => `<li>${c.q} als ${c.a} getippt (${c.c}×)${Math.abs(c.q - c.a) === 1 ? ' – um eins daneben, typisch für einen Zählfehler' : ' – weit daneben, eher geraten oder Menge noch nicht sicher'}</li>`).join('')}</ul>` : '<p class="empty">Noch keine Fehler im Blitzblick.</p>'}</div>`;
-  h += `<div><h3>Darstellungen</h3><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Darstellung</th><th>Versuche</th><th>Richtig</th></tr></thead><tbody>${reps.map(r => `<tr><td>${REP_NAME[r.r]}${D.settings.reps[r.r] ? '' : ' (aus)'}</td><td>${r.n}</td><td>${r.acc === null ? '–' : `<span class="meter"><i style="width:${Math.round(r.acc * 100)}%"></i></span>${pct(r.acc)}`}</td></tr>`).join('')}</tbody></table></div></div>`;
+  h += `<div><h3>Darstellungen</h3><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Darstellung</th><th>Versuche</th><th>Richtig</th></tr></thead><tbody>${reps.map(r => `<tr><td>${REP_NAME[r.r]}${E().reps[r.r] ? '' : ' (aus)'}</td><td>${r.n}</td><td>${r.acc === null ? '–' : `<span class="meter"><i style="width:${Math.round(r.acc * 100)}%"></i></span>${pct(r.acc)}`}</td></tr>`).join('')}</tbody></table></div></div>`;
   return h;
 }
 function recommendations() {
@@ -1881,7 +2207,7 @@ function recommendations() {
   if (prof.filter(p => p.status === 'guess').length >= 2) out.push({ color: 'var(--st-crit)', title: 'Ruhig hinschauen statt raten', text: 'Ihr Kind tippt manchmal sehr schnell und daneben. Loben Sie genaues Hinschauen („Du hast genau geguckt!“) statt Schnelligkeit. Das Spiel sperrt die Tasten nach schnellem Raten kurz, damit erst geschaut wird.' });
   const cmp = taskSummary('compare'); if (cmp.acc !== null && cmp.acc < 0.75) out.push({ color: 'var(--st-warn)', title: 'Vergleichen üben', text: 'Mit Zahlenkarten 1–10 „Wer hat mehr?“ spielen (jeder deckt eine Karte auf, die größere gewinnt). Beim Tischdecken fragen: „Wo liegen mehr Gabeln?“' });
   const ln = taskSummary('line'); if (ln.acc !== null && ln.acc < 0.75) out.push({ color: 'var(--st-warn)', title: 'Zahlenweg spielen', text: 'Ein einfaches Brettspiel mit einem geraden Weg von 1 bis 10, bei dem man beim Ziehen laut mitzählt („sechs, sieben“). In Studien von Siegler und Ramani reichten vier Spielrunden von 15–20 Minuten für messbare Fortschritte beim Zahlenverständnis.' });
-  if (D.settings.stage === 1 && autoShare >= 0.6) out.push({ color: 'var(--st-good)', title: 'Bereit für Lernstufe 2', text: 'Die meisten Mengen werden schon blitzschnell erkannt. In den Einstellungen können Sie Lernstufe 2 einschalten: Dann kommen zwei Farben im Zehnerfeld, Würfelpaare und das Zerlegen („Wie viele fehlen bis 10?“) dazu.' });
+  if (!Study.active() && E().stage === 1 && autoShare >= 0.6) out.push({ color: 'var(--st-good)', title: 'Bereit für Lernstufe 2', text: 'Die meisten Mengen werden schon blitzschnell erkannt. In den Einstellungen können Sie Lernstufe 2 einschalten: Dann kommen zwei Farben im Zehnerfeld, Würfelpaare und das Zerlegen („Wie viele fehlen bis 10?“) dazu.' });
   out.push({ color: 'var(--s2)', title: 'Anstrengung loben, nicht Begabung', text: 'Sätze wie „Du hast genau hingeschaut“ oder „Du hast die volle Reihe gesehen“ wirken langfristig besser als „Du bist schlau“. Und bitte keinen Zeitdruck aufbauen: Schon in Klasse 1 kann Mathe-Angst entstehen, und sie blockiert das Arbeitsgedächtnis.' });
   return out;
 }
@@ -1914,7 +2240,8 @@ function tabResearch() {
 function tabSettings() {
   const s = D.settings;
   const seg = (name, opts, cur) => `<div class="seg" data-seg="${name}">${opts.map(([v, l]) => `<button type="button" data-v="${v}" aria-pressed="${String(String(cur) === String(v))}">${l}</button>`).join('')}</div>`;
-  return `<form class="form" id="set-form">
+  const lock = Study.active() ? '<p class="lock-note">Ihr Kind nimmt an der Studie teil. Lernstufe, Zahlenraum, Rundenlänge, Schwierigkeit, Zeigezeit, Spiele und Darstellungen legt deshalb der Studienplan fest. Name, Töne und Sprachausgabe können Sie weiter ändern.</p>' : '';
+  return `${lock}<form class="form" id="set-form">
     <div class="field"><label for="set-name">Name des Kindes (wird manchmal vorgelesen)</label><input type="text" id="set-name" maxlength="20" value="${esc(D.name)}" autocomplete="off"></div>
     <div class="field"><span class="lbl">Lernstufe</span>${seg('stage', [[1, '1 · Mengen erfassen'], [2, '2 · Strukturen &amp; Zerlegen']], s.stage)}<small>Stufe 1: eine Farbe, eine Sorte, keine Zerlegungen. Stufe 2: Kraft der 5 in zwei Farben, Würfelpaare, „Wie viele fehlen?“.</small></div>
     <div class="field"><span class="lbl">Zahlenraum</span>${seg('max', [[5, 'bis 5'], [10, 'bis 10']], s.max)}</div>
@@ -1939,6 +2266,10 @@ function tabSettings() {
 function bindSettings() {
   const f = $('#set-form'), s = D.settings;
   f.addEventListener('submit', e => e.preventDefault());
+  if (Study.active()) {
+    f.querySelectorAll('.seg button, [data-task], [data-rep], #set-expo, #set-timer, #set-unlock, #set-reset').forEach(x => { x.disabled = true; });
+    const rs = $('#set-reset'); if (rs) rs.title = 'Bitte zuerst im Reiter „Studie“ die Teilnahme beenden.';
+  }
   f.querySelectorAll('.seg').forEach(g => g.addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
     const name = g.dataset.seg, v = b.dataset.v;
@@ -1962,11 +2293,191 @@ function bindSettings() {
   $('#set-unlock').addEventListener('click', () => { TASKS.forEach(k => { D.unlocked[k] = true; }); save(); renderTab('settings'); });
   const r = $('#set-reset');
   r.addEventListener('click', () => {
-    if (r.dataset.armed) { try { localStorage.removeItem(STORE_KEY); } catch (e) { /* egal */ } D = freshData(); save(); S = null; T = null; renderTab('settings'); return; }
+    if (r.dataset.armed) { const keep = D.study; try { localStorage.removeItem(STORE_KEY); } catch (e) { /* egal */ } D = freshData(); if (keep && keep.status !== 'none') D.study = keep; save(); S = null; T = null; renderTab('settings'); return; }
     r.dataset.armed = '1'; r.textContent = 'Wirklich alles löschen? Nochmal tippen';
     setTimeout(() => { if (r.isConnected) { delete r.dataset.armed; r.textContent = 'Alle Daten löschen'; } }, 4000);
   });
 }
+
+
+/* ---------- Reiter „Studie“ ---------- */
+function infoSections(s) {
+  const L = [
+    ['Worum geht es?', `${esc(s.summary || '')} Dafür vergleichen wir verschiedene Varianten der Lern-Steuerung in diesem Spiel. Welche Variante Ihr Kind bekommt, entscheidet der Zufall. Alle Varianten sind vollwertige Lernspiele.`],
+    ['Was passiert?', 'Ihr Kind spielt 8 Wochen lang wie gewohnt, empfohlen sind etwa 10 Minuten an 4–5 Tagen pro Woche. An Tag 0, 14, 28, 56 und 84 kommt statt einer Runde ein kurzer Mengen-Check (etwa 5 Minuten, ohne Hilfen). Danach endet die Studie. Das Spiel können Sie weiter nutzen.'],
+    ['Welche Daten werden erhoben?', 'Bei jeder Aufgabe: Spiel, gezeigte Menge, gegebene Antwort, richtig oder falsch, Reaktionszeit in Millisekunden, Zeigezeit, Datum und Uhrzeit, Studientag und die Schätzwerte der Lern-Steuerung. Pro Runde: Dauer, Anzahl der Aufgaben, Geräteart (Handy, Tablet, Computer) und ob die App installiert ist. Bei der Anmeldung: Alter in Monaten und Klassenstufe, freiwillig Geschlecht und Familiensprache, und nur mit gesonderter Einwilligung eine festgestellte oder vermutete Rechenschwäche.'],
+    ['Was wird nicht erhoben?', 'Kein Name (auch nicht der im Spiel eingetragene), keine E-Mail-Adresse, kein Geburtsdatum, keine IP-Adresse, kein Standort und keine Geräte-Kennung. Statt eines Namens bekommt Ihr Kind einen zufälligen Teilnahme-Code. Nur Sie können den Code Ihrem Kind zuordnen.'],
+    ['Wohin gehen die Daten?', `Verschlüsselt (HTTPS) an den Studienserver von ${esc(s.institution || '')} in der EU, in eine MySQL-Datenbank. Zugriff hat nur das Studienteam. Bis zur Übertragung liegen die Daten auch auf diesem Gerät.`],
+    ['Wie lange?', `${esc(s.retention || '')} Veröffentlicht werden nur Ergebnisse ohne Personenbezug. Ein anonymisierter Datensatz wird nur veröffentlicht, wenn Sie dem gesondert zustimmen.`],
+    ['Freiwilligkeit und Widerruf', `Die Teilnahme ist freiwillig. Das Spiel funktioniert auch ohne Studie vollständig. Sie können Ihre Einwilligung jederzeit ohne Angabe von Gründen widerrufen: hier im Reiter „Studie“ oder per E-Mail an ${esc(s.contact_email || '')} mit dem Teilnahme-Code. Dann werden die Daten Ihres Kindes gelöscht, soweit sie noch nicht anonymisiert sind. Der Widerruf gilt für die Zukunft.`],
+    ['Ihre Rechte', `Sie haben das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung und Datenübertragbarkeit (Art. 15–20 DSGVO) sowie auf Beschwerde bei der Aufsichtsbehörde: ${esc(s.authority || '')}. Die gespeicherten Daten können Sie hier jederzeit herunterladen.`],
+    ['Rechtsgrundlage', 'Ihre Einwilligung nach Art. 6 Abs. 1 lit. a DSGVO, für die Angabe zu einer Rechenschwäche nach Art. 9 Abs. 2 lit. a DSGVO. Für Ihr Kind willigen Sie als sorgeberechtigte Person ein.'],
+    ['Nutzen und Risiken', 'Ihr Kind übt das Erkennen von Mengen. Einen persönlichen Nutzen über das Spiel hinaus können wir nicht versprechen. Besondere Risiken sind nicht bekannt; achten Sie wie sonst auf eine angemessene Bildschirmzeit.'],
+    ['Verantwortlich', `${esc(s.institution || '')}. Studienleitung: ${esc(s.lead || '')}, ${esc(s.contact_email || '')}. Datenschutzbeauftragte Stelle: ${esc(s.dpo || '')}. ${esc(s.ethics || '')}`],
+  ];
+  return L.map(([h, t]) => `<div class="info-sec"><h4>${h}</h4><p>${t}</p></div>`).join('') + (s.privacy_url ? `<p class="p-text"><a href="${esc(s.privacy_url)}" target="_blank" rel="noopener">Vollständige Datenschutzerklärung</a></p>` : '');
+}
+function birthOptions() {
+  const y = new Date().getFullYear();
+  const months = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+  return `<select id="d-m" aria-label="Geburtsmonat"><option value="">Monat</option>${months.map((m, i) => `<option value="${i + 1}">${m}</option>`).join('')}</select>
+    <select id="d-y" aria-label="Geburtsjahr"><option value="">Jahr</option>${[y - 8, y - 7, y - 6, y - 5, y - 4].map(v => `<option value="${v}">${v}</option>`).join('')}</select>`;
+}
+function tabStudy() {
+  const st = D.study;
+  if (st.status === 'enrolled') return studyEnrolledHTML();
+  if (st.status === 'completed') return `<p class="p-text"><b>Die Studie ist abgeschlossen.</b> Vielen Dank! Seit dem ${new Date(st.completedAt).toLocaleDateString('de-DE')} werden keine Daten mehr erhoben, und das Spiel läuft wieder mit allen Einstellungen.${Study.hasPending() ? ' Einige Einträge werden noch übertragen.' : ''}</p>
+    <div class="study-code"><span>Teilnahme-Code</span><b id="pid-code">${esc(st.pid)}</b></div>
+    <div class="row" style="justify-content:flex-start"><button type="button" class="ghost-btn" id="st-mydata">Meine Daten herunterladen</button><button type="button" class="ghost-btn danger" id="st-delete">Alle Daten löschen lassen</button></div>
+    <p class="ok-note" id="study-msg" hidden></p>`;
+  if (st.status === 'withdrawn') return `<p class="p-text">Die Teilnahme wurde am ${new Date(st.withdrawnAt).toLocaleDateString('de-DE')} beendet. ${st.deleted ? 'Die Daten auf dem Studienserver wurden gelöscht.' : 'Bereits übertragene Daten bleiben für die Auswertung erhalten. Es werden keine neuen Daten mehr gesendet.'}</p><div class="study-code"><span>Teilnahme-Code</span><b>${esc(st.pid || '')}</b></div><p class="p-note">Für Fragen oder eine spätere Löschung wenden Sie sich mit diesem Code an die Studienleitung.</p>`;
+  if (!ONLINE_OK) return '<p class="p-text">Die Studie läuft nur, wenn die App über einen Webserver (https://…) geöffnet wird. Per Doppelklick geöffnet gibt es keine Verbindung zum Studienserver.</p>';
+  if (Study.infoState === 'idle' || Study.infoState === 'loading') return '<p class="p-note">Verbindung zum Studienserver wird geprüft …</p>';
+  if (Study.infoState !== 'ok') return '<p class="p-text">Für diese Installation ist keine Studie eingerichtet, oder der Studienserver ist gerade nicht erreichbar.</p>';
+  const s = Study.info.study;
+  if (!s.enrol_open) return `<h3>${esc(s.title || 'Studie')}</h3><p class="p-text">Die Anmeldung ist derzeit geschlossen.</p>`;
+  return `<div><h3>${esc(s.title || 'Studie')}</h3><p class="p-text">${esc(s.institution || '')}</p></div>
+  <details class="p-details" open><summary>Teilnahmeinformation (bitte lesen)</summary><div style="display:grid;gap:12px;margin-top:12px">${infoSections(s)}</div></details>
+  <form class="form" id="study-form" autocomplete="off">
+    <h3>Einwilligung</h3>
+    <label class="toggle long"><input type="checkbox" id="c-read"> <span>Ich habe die Teilnahmeinformation gelesen. Fragen konnte ich an ${esc(s.contact_email || 'die Studienleitung')} stellen.</span></label>
+    <label class="toggle long"><input type="checkbox" id="c-guard"> <span>Ich bin sorgeberechtigt für das teilnehmende Kind. Falls es weitere Sorgeberechtigte gibt, sind sie einverstanden.</span></label>
+    <label class="toggle long"><input type="checkbox" id="c-part"> <span>Ich willige ein, dass die Spieldaten meines Kindes wie beschrieben pseudonymisiert erhoben, an den Studienserver übertragen und wissenschaftlich ausgewertet werden.</span></label>
+    <label class="toggle long"><input type="checkbox" id="c-health"> <span><b>Freiwillig:</b> Ich willige ein, dass meine Angabe zu einer Rechenschwäche meines Kindes (Gesundheitsdaten) verarbeitet wird.</span></label>
+    <label class="toggle long"><input type="checkbox" id="c-open"> <span><b>Freiwillig:</b> Nach Studienende darf ein anonymisierter Datensatz für andere Forschende veröffentlicht werden.</span></label>
+    <h3>Angaben zum Kind</h3>
+    <div class="field"><span class="lbl">Geburtsmonat und -jahr</span><div class="row-l">${birthOptions()}</div><small>Übertragen wird nur das Alter in Monaten, kein Datum.</small></div>
+    <div class="field"><label for="d-grade">Klassenstufe</label><select id="d-grade"><option value="">bitte wählen</option><option value="kita">Kita / Vorschuljahr</option><option value="1">1. Klasse</option><option value="2">2. Klasse</option><option value="other">andere</option></select></div>
+    <div class="field"><label for="d-gender">Geschlecht (freiwillig)</label><select id="d-gender"><option value="na">keine Angabe</option><option value="f">Mädchen</option><option value="m">Junge</option><option value="d">divers</option></select></div>
+    <div class="field"><label for="d-lang">Familiensprache (freiwillig)</label><select id="d-lang"><option value="na">keine Angabe</option><option value="de">Deutsch</option><option value="partly">Deutsch und eine weitere Sprache</option><option value="other">eine andere Sprache</option></select></div>
+    <div class="field" id="f-math" hidden><label for="d-math">Rechenschwäche (freiwillig)</label><select id="d-math"><option value="unknown">weiß nicht / keine Angabe</option><option value="no">nein</option><option value="suspected">vermutet (z. B. von der Lehrkraft)</option><option value="diagnosed">festgestellt (Diagnose)</option></select></div>
+    <p class="gate-err" id="study-err" hidden></p>
+    <div><button type="submit" class="go-btn" style="font-size:20px;padding:12px 22px">Weiter: Ihr Kind fragen</button></div>
+  </form>`;
+}
+function studyEnrolledHTML() {
+  const st = D.study, sch = st.schedule || [];
+  const fmtD = t => new Date(t).toLocaleDateString('de-DE', { day: 'numeric', month: 'numeric', year: 'numeric' });
+  const planned = c => { const d = new Date(st.enrolledAt); d.setDate(d.getDate() + c.day); return fmtD(d.getTime()); };
+  const label = { done: 'erledigt', due: 'jetzt dran', later: 'kommt noch', missed: 'verpasst' };
+  const rows = sch.map(c => { const s = Study.checkState(c), done = (st.checks || {})[c.id]; return `<tr><td>${esc(c.id)}</td><td>ab ${planned(c)}<br><span class="p-note">Tag ${c.day}</span></td><td>${label[s]}${done ? '<br><span class="p-note">am ' + fmtD(done.at) + '</span>' : ''}</td></tr>`; }).join('');
+  const pending = st.queue.length + st.sessQueue.length;
+  return `<div class="study-code"><span>Teilnahme-Code</span><b id="pid-code">${esc(st.pid)}</b><button type="button" class="ghost-btn" id="pid-copy">Kopieren</button><span>Bitte notieren: Damit können Sie Auskunft oder Löschung auch ohne dieses Gerät verlangen.</span></div>
+  <div class="stat-row">
+    <div class="stat"><b>Tag ${Study.day()}</b><span>seit der Anmeldung am ${fmtD(st.enrolledAt)}</span></div>
+    <div class="stat"><b>${st.trainSessions || 0}</b><span>Übungsrunden</span></div>
+    <div class="stat"><b>${pending}</b><span>Einträge warten auf Übertragung</span></div>
+    <div class="stat"><b>${st.lastUpload ? new Date(st.lastUpload).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '–'}</b><span>letzte Übertragung${st.lastUpload ? ' (' + fmtD(st.lastUpload) + ')' : ''}</span></div>
+  </div>
+  ${st.lastError ? `<p class="gate-err">Letzte Übertragung fehlgeschlagen: ${esc(st.lastError)} Die Daten bleiben auf dem Gerät und werden später gesendet.</p>` : ''}
+  <div><h3>Mengen-Checks</h3><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Check</th><th>Geplant</th><th>Stand</th></tr></thead><tbody>${rows}</tbody></table></div><p class="p-note">Ein Check startet automatisch, wenn Ihr Kind am Startbildschirm auf „Mengen-Check“ tippt. Er dauert etwa 5 Minuten. Bitte helfen Sie dabei nicht mit.</p></div>
+  <div class="row" style="justify-content:flex-start"><button type="button" class="ghost-btn" id="st-upload">Jetzt übertragen</button><button type="button" class="ghost-btn" id="st-mydata">Meine Daten herunterladen</button></div>
+  <p class="ok-note" id="study-msg" hidden></p>
+  <details class="p-details"><summary>Teilnahmeinformation</summary><div style="display:grid;gap:12px;margin-top:12px" id="st-info">${Study.info && Study.info.study ? infoSections(Study.info.study) : '<p class="p-note">Wird geladen …</p>'}</div></details>
+  <div><h3>Teilnahme beenden</h3><p class="p-text">Sie können jederzeit ohne Angabe von Gründen aufhören. Das Spiel bleibt danach normal nutzbar.</p>
+  <div class="row" style="justify-content:flex-start;margin-top:8px"><button type="button" class="ghost-btn" id="st-stop">Beenden, Daten behalten</button><button type="button" class="ghost-btn danger" id="st-delete">Beenden und alle Daten löschen</button></div></div>`;
+}
+function bindMyData(st) {
+  $('#st-mydata').addEventListener('click', async () => {
+    studyMsg('Daten werden geladen …');
+    try {
+      const data = await Study.myData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `mengen-knacker-${st.pid}.json`;
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      studyMsg(`Heruntergeladen: ${data.trials ? data.trials.length : 0} Antworten, ${data.sessions ? data.sessions.length : 0} Runden.`);
+    } catch (e) { studyMsg(e.message, true); }
+  });
+}
+function studyMsg(text, isErr) {
+  const m = $('#study-msg'); if (!m) return;
+  m.hidden = false; m.textContent = text; m.className = isErr ? 'gate-err' : 'ok-note';
+}
+function bindStudy() {
+  const st = D.study;
+  if (st.status === 'none' && Study.infoState === 'idle') {
+    Study.loadInfo().then(() => { if (parentTab === 'study' && !$('#parent').hidden) renderTab('study'); });
+    return;
+  }
+  if (st.status === 'completed') {
+    bindMyData(st);
+    const del = $('#st-delete');
+    del.addEventListener('click', async () => {
+      if (!del.dataset.armed) { del.dataset.armed = '1'; del.textContent = 'Wirklich löschen? Nochmal tippen'; return; }
+      try { await Study.flush(); await Study.withdraw(true); renderTab('study'); } catch (e) { studyMsg(e.message, true); }
+    });
+    return;
+  }
+  if (st.status === 'enrolled') {
+    if (!Study.info && ONLINE_OK && Study.infoState === 'idle') Study.loadInfo().then(() => { const box = $('#st-info'); if (box && Study.info && Study.info.study) box.innerHTML = infoSections(Study.info.study); });
+    $('#pid-copy').addEventListener('click', () => {
+      const txt = st.pid;
+      if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => studyMsg('Code kopiert.'), () => studyMsg('Bitte den Code abschreiben: ' + txt));
+      else studyMsg('Bitte den Code abschreiben: ' + txt);
+    });
+    $('#st-upload').addEventListener('click', async () => {
+      studyMsg('Wird übertragen …');
+      await Study.flush();
+      renderTab('study');
+      if (D.study.lastError) studyMsg(D.study.lastError, true); else studyMsg('Alles übertragen.');
+    });
+    bindMyData(st);
+    const twoStep = (btn, label, run) => btn.addEventListener('click', async () => {
+      if (!btn.dataset.armed) { btn.dataset.armed = '1'; btn.textContent = label; setTimeout(() => { if (btn.isConnected) { delete btn.dataset.armed; renderTab('study'); } }, 5000); return; }
+      try { await run(); renderTab('study'); }
+      catch (e) { studyMsg(e.message, true); }
+    });
+    twoStep($('#st-stop'), 'Wirklich beenden? Nochmal tippen', async () => {
+      await Study.flush();
+      try { await Study.withdraw(false); }
+      catch (e) { if (e.status !== 0) throw e; D.study.status = 'withdrawn'; D.study.withdrawnAt = now(); D.study.queue = []; D.study.sessQueue = []; save(); }
+    });
+    twoStep($('#st-delete'), 'Alles löschen? Nochmal tippen', () => Study.withdraw(true));
+    return;
+  }
+  const f = $('#study-form'); if (!f) return;
+  $('#c-health').addEventListener('change', e => { $('#f-math').hidden = !e.target.checked; });
+  f.addEventListener('submit', e => {
+    e.preventDefault();
+    const err = $('#study-err'), fail = m => { err.hidden = false; err.textContent = m; };
+    if (!$('#c-read').checked || !$('#c-guard').checked || !$('#c-part').checked) return fail('Bitte bestätigen Sie die ersten drei Punkte. Ohne sie ist keine Teilnahme möglich.');
+    const m = Number($('#d-m').value), y = Number($('#d-y').value);
+    if (!m || !y) return fail('Bitte Geburtsmonat und -jahr wählen.');
+    const d = new Date(), age = (d.getFullYear() - y) * 12 + (d.getMonth() + 1 - m);
+    if (age < 60 || age > 95) return fail('Die Studie richtet sich an Kinder von 5 bis 7 Jahren.');
+    if (!$('#d-grade').value) return fail('Bitte die Klassenstufe wählen.');
+    const health = $('#c-health').checked;
+    Study.pendingForm = {
+      consentVersion: Study.info.study.consent_version,
+      consents: { read: true, guardian: true, participate: true, health, open_data: $('#c-open').checked, child_assent: false },
+      demo: { age_months: age, grade: $('#d-grade').value, gender: $('#d-gender').value, home_language: $('#d-lang').value, math_difficulty: health ? $('#d-math').value : null },
+    };
+    err.hidden = true;
+    $('#assent-err').hidden = true;
+    show('#assent');
+    Speech.say($('#assent-text').textContent);
+  });
+}
+$('#assent-say').addEventListener('click', () => Speech.say($('#assent-text').textContent));
+$('#assent-no').addEventListener('click', () => {
+  hide('#assent'); Study.pendingForm = null; Speech.say('Das ist in Ordnung.');
+  renderTab('study');
+  const err = $('#study-err'); if (err) { err.hidden = false; err.textContent = 'Ihr Kind möchte gerade nicht mitmachen. Das ist in Ordnung. Sie können es später noch einmal fragen.'; }
+});
+$('#assent-yes').addEventListener('click', async () => {
+  const form = Study.pendingForm; if (!form) return;
+  const btn = $('#assent-yes'); btn.disabled = true;
+  form.consents.child_assent = true;
+  try {
+    await Study.enrol(form);
+    hide('#assent'); Study.pendingForm = null;
+    Speech.say('Toll, danke! Los geht es mit dem Mengen-Check.');
+    renderTab('study');
+    studyMsg('Angemeldet. Als Nächstes kommt der erste Mengen-Check (etwa 5 Minuten).');
+  } catch (e) {
+    const err = $('#assent-err'); err.hidden = false; err.textContent = 'Die Anmeldung hat nicht geklappt: ' + e.message;
+  } finally { btn.disabled = false; }
+});
 
 /* Tooltip für Diagramme und Tagesleiste */
 const tip = $('#tip');
@@ -1983,9 +2494,12 @@ Speech.init();
 buildKeypad();
 setStars();
 setBubble('Hallo!');
-el.stage.innerHTML = `<svg class="pic" viewBox="0 0 400 280" role="img" aria-label="Zehnerfeld">${svgTenframe(0, D.settings.max, false).svg}</svg>`;
+el.stage.innerHTML = `<svg class="pic" viewBox="0 0 400 280" role="img" aria-label="Zehnerfeld">${svgTenframe(0, E().max, false).svg}</svg>`;
 showHome();
 document.addEventListener('pointerdown', () => Sound.init(), { once: true });
+Study.completeIfDone();
+if (Study.active() || Study.hasPending()) setTimeout(() => Study.flush(), 2500);
+window.addEventListener('online', () => Study.flush());
 // Offline-Modus und Installation: braucht HTTPS (oder localhost)
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
   window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => { /* ohne Offline-Modus weiter */ }); });

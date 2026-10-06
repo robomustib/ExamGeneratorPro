@@ -40,3 +40,6 @@ node_modules/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Studien-Konfiguration mit Zugangsdaten
+mengen-knacker/api/config.php

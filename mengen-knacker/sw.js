@@ -1,6 +1,6 @@
 /* Blitz-Mengen-Knacker – Service Worker für Offline-Betrieb.
    Nach einer Änderung an den Dateien die Versionsnummer erhöhen, damit Geräte neu laden. */
-const CACHE = 'mengen-knacker-v2.1';
+const CACHE = 'mengen-knacker-v2.2';
 const FILES = [
   './',
   './index.html',
@@ -25,7 +25,9 @@ self.addEventListener('activate', event => {
 
 self.addEventListener('fetch', event => {
   const req = event.request;
-  if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
+  const url = new URL(req.url);
+  // Studien-Schnittstelle nie aus dem Speicher bedienen
+  if (req.method !== 'GET' || url.origin !== self.location.origin || url.pathname.includes('/api/')) return;
 
   // Seite selbst: erst aus dem Netz (damit Updates ankommen), ohne Netz aus dem Speicher.
   if (req.mode === 'navigate') {

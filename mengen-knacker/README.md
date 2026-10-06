@@ -54,6 +54,19 @@ Im **Eltern-Bereich** (Startbildschirm → „Für Eltern“, kleine Rechenaufga
 
 Das Spiel ersetzt keine Diagnose. Wenn nach 6–8 Wochen regelmäßigen Übens kaum Fortschritte sichtbar sind, lohnt ein Gespräch mit der Lehrkraft.
 
+## Studienmodus (optional)
+
+Für eine wissenschaftliche Studie kann die App Antworten und Reaktionszeiten pseudonym in eine MySQL-Datenbank hochladen. Ohne Server-Einrichtung und ohne Einwilligung bleibt alles wie bisher auf dem Gerät.
+
+- `api/study.php`: Schnittstelle (info, enrol, upload, mydata, withdraw), PHP 8.0+ mit pdo_mysql
+- `api/schema.sql`: Tabellen und Auswertungssichten (MySQL 8 / MariaDB 10.5+)
+- `api/config.sample.php`: Vorlage für `api/config.php` (Zugangsdaten, Studientexte, Zeitplan, Faktor B an/aus)
+- `api/.htaccess`: sperrt Konfiguration und Schema (Apache)
+
+Ablauf in der App: Eltern-Bereich → Reiter „Studie“ → Teilnahmeinformation, Einwilligung, Angaben zum Kind → Zustimmung des Kindes → Teilnahme-Code. Danach Mengen-Checks an Tag 0, 14, 28, 56 und 84, dazwischen normales Üben. Die Gruppe (adaptive oder statische Lern-Steuerung, Lernstufe basal zuerst oder Struktur von Anfang an) teilt der Server zufällig zu. Widerruf mit oder ohne Löschung und der Download der eigenen Daten sind im selben Reiter möglich. Nach dem letzten Check endet die Studie automatisch.
+
+Erfasst werden keine Namen, E-Mail-Adressen, Geburtsdaten, IP-Adressen oder Geräte-Kennungen. Vor dem Start sind Ethikvotum, Datenschutz-Folgenabschätzung und Auftragsverarbeitungsvertrag nötig. Forschungsdesign und Datenschutzkonzept stehen im Begleitdokument.
+
 ## Für Entwickler
 
 In der Browser-Konsole ist `window.BlitzMengen` verfügbar (Daten, Aufgabenbank, Klassifikation, Profil), z. B. `BlitzMengen.profileNumbers()`.
