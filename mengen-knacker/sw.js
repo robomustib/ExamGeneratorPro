@@ -1,6 +1,6 @@
 /* Blitz-Mengen-Knacker – Service Worker für Offline-Betrieb.
    Nach einer Änderung an den Dateien die Versionsnummer erhöhen, damit Geräte neu laden. */
-const CACHE = 'mengen-knacker-v2.2';
+const CACHE = 'mengen-knacker-v2.3';
 const FILES = [
   './',
   './index.html',

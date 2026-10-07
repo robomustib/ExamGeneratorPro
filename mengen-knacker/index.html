@@ -709,7 +709,7 @@ const REP_NAME = { tenframe: 'Zehnerfeld', dice: 'Würfelbilder', fingers: 'Fing
    Speicher
    ========================================================= */
 const STORE_KEY = 'blitz-mengen-knacker.v2';
-const APP_VERSION = '2.2.0';
+const APP_VERSION = '2.2.1';
 const STUDY_API = 'api/study.php';
 const ONLINE_OK = /^https?:$/.test(location.protocol);
 const TASKS = ['blitz', 'match', 'compare', 'line', 'partner'];
@@ -995,7 +995,7 @@ function trialEvent(t, o) {
     stage: t.stage, maxn: t.M, expo_ms: t.expo ? Math.round(t.expo * 1000) : null, answer: answer ?? null,
     correct: o.ok ? 1 : 0, rt_ms: Math.round(o.rt * 1000), cls: o.cls, visible: t.expo ? (o.rt < t.expo ? 1 : 0) : null,
     theta: o.model ? r3(o.model.theta) : null, beta: o.model ? r3(o.model.beta) : null, p: o.model ? r3(o.model.p) : null,
-    lv: o.model ? o.model.lv : null, retry: t.retry ? 1 : 0, intr: t.interrupted ? 1 : 0, base_ms: Math.round(baseline() * 1000),
+    lv: o.model ? o.model.lv : null, retry: t.retry ? 1 : 0, intr: t.interrupted ? 1 : 0, base_ms: Math.round((t.check ? CHECK_BASE : baseline()) * 1000),
   };
 }
 function sessionRecord(completed) {
@@ -1073,8 +1073,8 @@ function baseline() {
   }
   return xs.length < 4 ? 1.6 : clamp(median(xs), 0.7, 3.5);
 }
-function thresholds(task, t) {
-  const b = baseline(); let fast, slow;
+function thresholds(task, t, fixedBase) {
+  const b = fixedBase ?? baseline(); let fast, slow;
   if (task === 'blitz') { const n = t.q; fast = b + 0.12 * (n - 1) + 0.25; slow = b + 0.32 * (n - 1) + 1.0; }
   else if (task === 'partner') { const a = t.q; fast = b + 0.15 * (a - 1) + 0.6; slow = b + 0.35 * (a - 1) + 1.8; }
   else if (task === 'match') { fast = b + 0.9 + 0.06 * t.q; slow = b + 2.8 + 0.25 * t.q; }
@@ -1084,9 +1084,9 @@ function thresholds(task, t) {
 }
 // „Blitzschnell“ heißt immer: innerhalb des persönlichen Erkennungstempos, auch wenn das Bild noch länger stehen würde.
 // Wer erst nach dem Schließen der Tafel antwortet, bekommt „richtig“, solange er dann nicht lange überlegt.
-function classify(task, t, ok, rt, help) {
+function classify(task, t, ok, rt, help, fixedBase) {
   if (help) return 'help';
-  const th = thresholds(task, t);
+  const th = thresholds(task, t, fixedBase);
   if (ok) {
     if (rt <= th.fast) return 'fast';
     if (rt <= th.slow) return 'ok';
@@ -1719,10 +1719,11 @@ function finishTrial(ok, rt, help, given) {
 
 
 /* ---------- Mengen-Check: neutrale Rückmeldung, kein Lernen aus dem Check ---------- */
+const CHECK_BASE = 1.6; // festes Grundtempo im Check, damit die Einordnung über T0–T4 vergleichbar bleibt
 function finishCheckTrial(ok, rt, help, given) {
   T.state = 'feedback'; T.inputOn = false;
   el.expoBar.hidden = true;
-  const cls = T.interrupted ? (help ? 'help' : ok ? 'ok' : 'wrong') : classify(T.task, T, ok, rt, help);
+  const cls = T.interrupted ? (help ? 'help' : ok ? 'ok' : 'wrong') : classify(T.task, T, ok, rt, help, CHECK_BASE);
   S.results.push({ task: T.task, cls, ok, q: T.q, part: S.items[S.trialNo].part });
   Study.logTrial(trialEvent(T, { ok, rt, cls, given, help, model: null }));
   S.stars += 1; D.stars += 1;
