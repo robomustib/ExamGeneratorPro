@@ -3,11 +3,13 @@
 -- MySQL 8 / MariaDB 10.5 oder neuer, Zeichensatz utf8mb4
 -- Einmalig in phpMyAdmin (Reiter „SQL") oder per Kommandozeile ausführen.
 -- Gespeichert werden nur pseudonyme Daten: kein Name, keine E-Mail, keine IP.
+-- Alle Tabellen beginnen mit „sl_", damit sie neben anderen Tabellen in derselben
+-- Datenbank liegen können. Einfacher geht es mit forschung/setup.php im Browser.
 -- ═══════════════════════════════════════════════════════════════════════════
 
 -- Auslosung der Gruppen. Enthält keine personenbezogenen Daten und wird nie
 -- gelöscht, damit die Blockrandomisierung auch nach Widerrufen stimmt.
-CREATE TABLE IF NOT EXISTS allocations (
+CREATE TABLE IF NOT EXISTS sl_allocations (
   id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   study_id    VARCHAR(32) NOT NULL,
   stratum     VARCHAR(8)  NOT NULL,          -- Altersgruppe: u6 = unter 6 Jahre, 6plus
@@ -17,7 +19,7 @@ CREATE TABLE IF NOT EXISTS allocations (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Teilnehmende: ein Kind = ein zufälliger Code
-CREATE TABLE IF NOT EXISTS participants (
+CREATE TABLE IF NOT EXISTS sl_participants (
   pid               CHAR(6)     NOT NULL PRIMARY KEY,    -- Teilnahmecode, z. B. K7F3QX
   token_hash        CHAR(64)    NOT NULL,                -- SHA-256 des geheimen Schlüssels auf dem Gerät
   study_id          VARCHAR(32) NOT NULL,
@@ -34,7 +36,7 @@ CREATE TABLE IF NOT EXISTS participants (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Sitzungen: ein Öffnen der App
-CREATE TABLE IF NOT EXISTS sessions (
+CREATE TABLE IF NOT EXISTS sl_sessions (
   sid           CHAR(12)    NOT NULL PRIMARY KEY,
   pid           CHAR(6)     NOT NULL,
   started_on    DATE        NOT NULL,
@@ -47,11 +49,11 @@ CREATE TABLE IF NOT EXISTS sessions (
   screen_h      SMALLINT UNSIGNED NULL,
   dpr           DECIMAL(3,1) NULL,
   field_scale   DECIMAL(4,2) NULL,
-  CONSTRAINT fk_sess_part FOREIGN KEY (pid) REFERENCES participants(pid) ON DELETE CASCADE
+  CONSTRAINT sl_fk_sess_part FOREIGN KEY (pid) REFERENCES sl_participants(pid) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Schreibversuche: eine Übung oder eine Aufgabe im Schreibtest
-CREATE TABLE IF NOT EXISTS trials (
+CREATE TABLE IF NOT EXISTS sl_trials (
   tid             CHAR(16)    NOT NULL PRIMARY KEY,      -- auf dem Gerät erzeugt (doppelte Uploads werden ignoriert)
   pid             CHAR(6)     NOT NULL,
   sid             CHAR(12)    NOT NULL,
@@ -84,12 +86,12 @@ CREATE TABLE IF NOT EXISTS trials (
   stars           TINYINT UNSIGNED NULL,
   mirrored        TINYINT(1)  NULL,
   KEY idx_trials_pid (pid, kind, wave),
-  CONSTRAINT fk_trial_part FOREIGN KEY (pid) REFERENCES participants(pid) ON DELETE CASCADE,
-  CONSTRAINT fk_trial_sess FOREIGN KEY (sid) REFERENCES sessions(sid) ON DELETE CASCADE
+  CONSTRAINT sl_fk_trial_part FOREIGN KEY (pid) REFERENCES sl_participants(pid) ON DELETE CASCADE,
+  CONSTRAINT sl_fk_trial_sess FOREIGN KEY (sid) REFERENCES sl_sessions(sid) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Einzelne Striche eines Versuchs (auch zurückgenommene)
-CREATE TABLE IF NOT EXISTS strokes (
+CREATE TABLE IF NOT EXISTS sl_strokes (
   tid           CHAR(16)    NOT NULL,
   idx           SMALLINT UNSIGNED NOT NULL,
   expected_idx  SMALLINT UNSIGNED NULL,                  -- welcher Strich der Vorlage erwartet war
@@ -100,34 +102,34 @@ CREATE TABLE IF NOT EXISTS strokes (
   len           FLOAT NULL,
   niv           SMALLINT UNSIGNED NULL,
   PRIMARY KEY (tid, idx),
-  CONSTRAINT fk_stroke_trial FOREIGN KEY (tid) REFERENCES trials(tid) ON DELETE CASCADE
+  CONSTRAINT sl_fk_stroke_trial FOREIGN KEY (tid) REFERENCES sl_trials(tid) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Schreibspuren — nur bei gesonderter Einwilligung (participants.consent_traces = 1)
-CREATE TABLE IF NOT EXISTS traces (
+CREATE TABLE IF NOT EXISTS sl_traces (
   tid   CHAR(16) NOT NULL,
   idx   SMALLINT UNSIGNED NOT NULL,
   pts   MEDIUMTEXT NOT NULL,                             -- JSON [[x, y, ms], …]
   PRIMARY KEY (tid, idx),
-  CONSTRAINT fk_trace_trial FOREIGN KEY (tid) REFERENCES trials(tid) ON DELETE CASCADE
+  CONSTRAINT sl_fk_trace_trial FOREIGN KEY (tid) REFERENCES sl_trials(tid) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Auswertungssicht: Schreibtest mit Gruppe, Alter und Gerät in einer Zeile
-CREATE OR REPLACE VIEW v_probe AS
+CREATE OR REPLACE VIEW sl_v_probe AS
 SELECT t.pid, p.grp, p.stratum, p.age_months, p.grade, p.handedness, p.home_lang, p.gender,
        t.wave, t.day_index, t.seq, t.ch, t.completed, t.skipped,
        t.latency_ms, t.movement_ms, t.pendown_ms, t.inair_ms, t.n_strokes, t.path_len, t.mean_speed,
        t.niv_per_stroke, t.accuracy, t.coverage, t.score_raw, t.mirrored,
        s.device, s.input, s.field_scale
-FROM trials t
-JOIN participants p ON p.pid = t.pid
-JOIN sessions s ON s.sid = t.sid
+FROM sl_trials t
+JOIN sl_participants p ON p.pid = t.pid
+JOIN sl_sessions s ON s.sid = t.sid
 WHERE t.kind = 'probe';
 
 -- Übungsmenge pro Kind und Tag
-CREATE OR REPLACE VIEW v_practice_per_day AS
+CREATE OR REPLACE VIEW sl_v_practice_per_day AS
 SELECT t.pid, p.grp, t.day_index, COUNT(*) AS trials, SUM(t.completed) AS completed,
        ROUND(SUM(COALESCE(t.movement_ms, 0)) / 60000, 1) AS writing_minutes
-FROM trials t JOIN participants p ON p.pid = t.pid
+FROM sl_trials t JOIN sl_participants p ON p.pid = t.pid
 WHERE t.kind IN ('practice','word')
 GROUP BY t.pid, p.grp, t.day_index;

@@ -2,14 +2,18 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // Vorlage für die Server-Konfiguration des Forschungsmodus.
 // Kopieren nach config.php und ausfüllen. config.php nie öffentlich teilen.
-// Besser: config.php außerhalb des Webverzeichnisses ablegen und den Pfad
-// in api.php / export.php anpassen.
+// Danach im Browser forschung/setup.php öffnen: prüft alles und legt die Tabellen an.
 // ═══════════════════════════════════════════════════════════════════════════
 return [
     // Datenbank (beim Hoster angelegt)
     'db_dsn'  => 'mysql:host=localhost;dbname=schreiblern_studie;charset=utf8mb4',
-    'db_user' => 'studie_app',          // nur SELECT, INSERT, DELETE auf die Studientabellen
+    'db_user' => 'studie_app',          // im Betrieb reichen SELECT, INSERT, DELETE
     'db_pass' => 'HIER-PASSWORT',
+
+    // Präfix für alle Tabellen (sl_participants, sl_trials …). So kommen sich die
+    // Studientabellen nicht mit anderen Tabellen in derselben Datenbank in die Quere.
+    // Nur Buchstaben, Ziffern und _. Bei Änderung: setup.php legt die Tabellen passend an.
+    'table_prefix' => 'sl_',
 
     // Muss zu "studyId" in config.json passen
     'study_id' => 'slk-2026',

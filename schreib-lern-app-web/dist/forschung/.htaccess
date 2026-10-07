@@ -1,5 +1,5 @@
 # Forschungsmodus: Zugangsdaten und Datenbank-Skript nie ausliefern
-<FilesMatch "^(config\.php|config\.sample\.php|schema\.sql|README\.md)$">
+<FilesMatch "^(config\.php|config\.sample\.php|lib\.php|schema\.sql|README\.md)$">
   Require all denied
 </FilesMatch>
 

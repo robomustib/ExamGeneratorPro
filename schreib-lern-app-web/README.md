@@ -88,7 +88,11 @@ randomisierte Wartekontrollgruppe.
 
 - App-Seite: `src/research.js`, Einwilligung im Elternbereich unter „🔬 Forschung“
 - Server-Seite: `public/forschung/` (wird nach `dist/forschung/` kopiert):
-  `api.php`, `export.php`, `schema.sql`, `config.sample.php`, `config.json`, `elterninfo.html`
+  `api.php`, `lib.php`, `setup.php`, `export.php`, `schema.sql`, `config.sample.php`,
+  `config.json`, `elterninfo.html` — Anleitung zum Hochladen in `forschung/README.md`
+- Alle Tabellen tragen das Präfix `sl_` (einstellbar in `config.php`), damit sie neben
+  anderen Tabellen in derselben Datenbank liegen können. `setup.php` prüft die
+  Einrichtung im Browser und legt die Tabellen per Knopf an.
 - Einschalten: `forschung/config.json` → `"enabled": true` (erst nach Ethikvotum und
   Datenschutzprüfung). Ohne Server oder bei `false` sendet die App nichts.
 

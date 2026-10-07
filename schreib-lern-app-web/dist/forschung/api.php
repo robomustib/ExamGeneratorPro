@@ -14,7 +14,8 @@ header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: no-referrer');
 
-$CONFIG = require __DIR__ . '/config.php';
+require __DIR__ . '/lib.php';
+$CONFIG = study_config();
 
 function fail(int $status, string $code): never {
     http_response_code($status);
@@ -43,11 +44,7 @@ $in = json_decode($raw, true);
 if (!is_array($in)) fail(400, 'json');
 
 try {
-    $db = new PDO($CONFIG['db_dsn'], $CONFIG['db_user'], $CONFIG['db_pass'], [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_EMULATE_PREPARES => false,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    ]);
+    $db = study_db();        // ersetzt {p} in allen Anweisungen durch das Tabellen-Präfix (sl_)
 } catch (Throwable $e) {
     fail(503, 'db_unavailable');
 }
@@ -79,7 +76,7 @@ function auth(PDO $db, array $in): array {
     $pid = $in['pid'] ?? '';
     $token = $in['token'] ?? '';
     if (!is_string($pid) || !preg_match(PID_RE, $pid) || !is_string($token) || !preg_match('/^[0-9a-f]{64}$/', $token)) fail(400, 'auth_format');
-    $st = $db->prepare('SELECT pid, token_hash, consent_traces FROM participants WHERE pid = ?');
+    $st = $db->prepare('SELECT pid, token_hash, consent_traces FROM {p}participants WHERE pid = ?');
     $st->execute([$pid]);
     $p = $st->fetch();
     if (!$p) fail(404, 'unknown_participant');
@@ -92,7 +89,7 @@ function auth(PDO $db, array $in): array {
 function allocate(PDO $db, array $cfg, string $stratum): string {
     $groups = $cfg['groups'];
     if (count($groups) < 2) return $groups[0];
-    $st = $db->prepare('SELECT COUNT(*) FROM allocations WHERE study_id = ? AND stratum = ?');
+    $st = $db->prepare('SELECT COUNT(*) FROM {p}allocations WHERE study_id = ? AND stratum = ?');
     $st->execute([$cfg['study_id'], $stratum]);
     $n = (int)$st->fetchColumn();
     $size = 2 * count($groups);
@@ -123,14 +120,14 @@ if ($action === 'enroll') {
 
     $db->query("SELECT GET_LOCK('slk_enroll', 10)");
     try {
-        $st = $db->prepare('SELECT 1 FROM participants WHERE pid = ?');
+        $st = $db->prepare('SELECT 1 FROM {p}participants WHERE pid = ?');
         $st->execute([$pid]);
         if ($st->fetch()) fail(409, 'pid_taken');
         $grp = allocate($db, $CONFIG, $stratum);
         $db->beginTransaction();
-        $db->prepare('INSERT INTO allocations (study_id, stratum, grp, created_on) VALUES (?, ?, ?, CURDATE())')
+        $db->prepare('INSERT INTO {p}allocations (study_id, stratum, grp, created_on) VALUES (?, ?, ?, CURDATE())')
            ->execute([$CONFIG['study_id'], $stratum, $grp]);
-        $db->prepare('INSERT INTO participants (pid, token_hash, study_id, grp, stratum, enrolled_on, consent_version,
+        $db->prepare('INSERT INTO {p}participants (pid, token_hash, study_id, grp, stratum, enrolled_on, consent_version,
                       consent_traces, age_months, grade, handedness, home_lang, gender)
                       VALUES (?, ?, ?, ?, ?, CURDATE(), ?, ?, ?, ?, ?, ?, ?)')
            ->execute([
@@ -156,20 +153,20 @@ if ($action === 'upload') {
     $trials = is_array($in['trials'] ?? null) ? $in['trials'] : [];
     if (count($sessions) > 50 || count($trials) > 50) fail(413, 'batch_too_large');
 
-    $st = $db->prepare('SELECT COUNT(*) FROM trials WHERE pid = ? AND received_on = CURDATE()');
+    $st = $db->prepare('SELECT COUNT(*) FROM {p}trials WHERE pid = ? AND received_on = CURDATE()');
     $st->execute([$p['pid']]);
     if ((int)$st->fetchColumn() + count($trials) > (int)($CONFIG['max_trials_per_day'] ?? 3000)) fail(429, 'daily_limit');
 
-    $insSess = $db->prepare('INSERT IGNORE INTO sessions (sid, pid, started_on, started_hour, day_index, app_version, device,
+    $insSess = $db->prepare('INSERT IGNORE INTO {p}sessions (sid, pid, started_on, started_hour, day_index, app_version, device,
         input, screen_w, screen_h, dpr, field_scale) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-    $insTrial = $db->prepare('INSERT IGNORE INTO trials (tid, pid, sid, received_on, seq, day_index, kind, wave, ch, mode, stage,
+    $insTrial = $db->prepare('INSERT IGNORE INTO {p}trials (tid, pid, sid, received_on, seq, day_index, kind, wave, ch, mode, stage,
         difficulty, memory_delay_s, restricted, t_onset_ms, completed, skipped, latency_ms, movement_ms, pendown_ms, inair_ms,
         n_strokes, n_rejected, path_len, mean_speed, niv_per_stroke, accuracy, coverage, score_raw, stars, mirrored)
         VALUES (?, ?, ?, CURDATE(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-    $insStroke = $db->prepare('INSERT IGNORE INTO strokes (tid, idx, expected_idx, accepted, verdict, start_ms, dur_ms, len, niv)
+    $insStroke = $db->prepare('INSERT IGNORE INTO {p}strokes (tid, idx, expected_idx, accepted, verdict, start_ms, dur_ms, len, niv)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
-    $insTrace = $db->prepare('INSERT IGNORE INTO traces (tid, idx, pts) VALUES (?, ?, ?)');
-    $ownSession = $db->prepare('SELECT 1 FROM sessions WHERE sid = ? AND pid = ?');
+    $insTrace = $db->prepare('INSERT IGNORE INTO {p}traces (tid, idx, pts) VALUES (?, ?, ?)');
+    $ownSession = $db->prepare('SELECT 1 FROM {p}sessions WHERE sid = ? AND pid = ?');
 
     $accepted = [];
     $db->beginTransaction();
@@ -249,14 +246,14 @@ if ($action === 'export') {
     $pid = $p['pid'];
     $one = function (string $sql) use ($db, $pid) { $st = $db->prepare($sql); $st->execute([$pid]); return $st->fetchAll(); };
     $participant = $one('SELECT pid, study_id, grp, enrolled_on, consent_version, consent_traces, age_months, grade,
-                         handedness, home_lang, gender FROM participants WHERE pid = ?');
+                         handedness, home_lang, gender FROM {p}participants WHERE pid = ?');
     echo json_encode([
         'hinweis' => 'Alle Studiendaten zu diesem Teilnahmecode (Art. 15 und 20 DSGVO).',
         'teilnahme' => $participant[0] ?? null,
-        'sitzungen' => $one('SELECT * FROM sessions WHERE pid = ? ORDER BY started_on, sid'),
-        'versuche' => $one('SELECT * FROM trials WHERE pid = ? ORDER BY day_index, seq'),
-        'striche' => $one('SELECT s.* FROM strokes s JOIN trials t ON t.tid = s.tid WHERE t.pid = ? ORDER BY s.tid, s.idx'),
-        'schreibspuren' => $one('SELECT r.* FROM traces r JOIN trials t ON t.tid = r.tid WHERE t.pid = ? ORDER BY r.tid, r.idx'),
+        'sitzungen' => $one('SELECT * FROM {p}sessions WHERE pid = ? ORDER BY started_on, sid'),
+        'versuche' => $one('SELECT * FROM {p}trials WHERE pid = ? ORDER BY day_index, seq'),
+        'striche' => $one('SELECT s.* FROM {p}strokes s JOIN {p}trials t ON t.tid = s.tid WHERE t.pid = ? ORDER BY s.tid, s.idx'),
+        'schreibspuren' => $one('SELECT r.* FROM {p}traces r JOIN {p}trials t ON t.tid = r.tid WHERE t.pid = ? ORDER BY r.tid, r.idx'),
     ], JSON_UNESCAPED_UNICODE);
     exit;
 }
@@ -265,7 +262,7 @@ if ($action === 'export') {
 if ($action === 'withdraw') {
     $p = auth($db, $in);
     // Fremdschlüssel mit ON DELETE CASCADE löschen Sitzungen, Versuche, Striche und Spuren mit
-    $db->prepare('DELETE FROM participants WHERE pid = ?')->execute([$p['pid']]);
+    $db->prepare('DELETE FROM {p}participants WHERE pid = ?')->execute([$p['pid']]);
     echo json_encode(['ok' => true, 'deleted' => true]);
     exit;
 }
