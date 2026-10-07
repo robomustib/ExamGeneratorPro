@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS sl_participants (
   stratum           VARCHAR(8)  NOT NULL,
   enrolled_on       DATE        NOT NULL,
   consent_version   VARCHAR(16) NOT NULL,
-  consent_traces    TINYINT(1)  NOT NULL DEFAULT 0,      -- Einwilligung Schreibspuren
+  consent_traces    TINYINT  NOT NULL DEFAULT 0,      -- Einwilligung Schreibspuren
   age_months        SMALLINT UNSIGNED NULL,
   grade             ENUM('kita','k1','k2','andere') NULL,
   handedness        ENUM('rechts','links','beide','unklar') NULL,
@@ -67,10 +67,10 @@ CREATE TABLE IF NOT EXISTS sl_trials (
   stage           TINYINT UNSIGNED NULL,                 -- Lernstufe des Buchstabens
   difficulty      ENUM('easy','medium','hard') NULL,
   memory_delay_s  TINYINT UNSIGNED NULL,
-  restricted      TINYINT(1)  NULL,                      -- Wartekontrolle aktiv
+  restricted      TINYINT  NULL,                      -- Wartekontrolle aktiv
   t_onset_ms      INT UNSIGNED NULL,                     -- Aufgabenbeginn, ms seit Sitzungsbeginn
-  completed       TINYINT(1)  NOT NULL,
-  skipped         TINYINT(1)  NOT NULL DEFAULT 0,        -- „Weiß ich nicht"
+  completed       TINYINT  NOT NULL,
+  skipped         TINYINT  NOT NULL DEFAULT 0,        -- „Weiß ich nicht"
   latency_ms      INT NULL,                              -- Aufgabe sichtbar → erste Berührung
   movement_ms     INT NULL,                              -- erste Berührung → letztes Abheben
   pendown_ms      INT NULL,
@@ -84,7 +84,7 @@ CREATE TABLE IF NOT EXISTS sl_trials (
   coverage        FLOAT NULL,
   score_raw       FLOAT NULL,                            -- 0 bis 0,9
   stars           TINYINT UNSIGNED NULL,
-  mirrored        TINYINT(1)  NULL,
+  mirrored        TINYINT  NULL,
   KEY idx_trials_pid (pid, kind, wave),
   CONSTRAINT sl_fk_trial_part FOREIGN KEY (pid) REFERENCES sl_participants(pid) ON DELETE CASCADE,
   CONSTRAINT sl_fk_trial_sess FOREIGN KEY (sid) REFERENCES sl_sessions(sid) ON DELETE CASCADE
@@ -95,7 +95,7 @@ CREATE TABLE IF NOT EXISTS sl_strokes (
   tid           CHAR(16)    NOT NULL,
   idx           SMALLINT UNSIGNED NOT NULL,
   expected_idx  SMALLINT UNSIGNED NULL,                  -- welcher Strich der Vorlage erwartet war
-  accepted      TINYINT(1)  NOT NULL,
+  accepted      TINYINT  NOT NULL,
   verdict       ENUM('ok','start','direction') NOT NULL,
   start_ms      INT NULL,                                -- ms seit Aufgabenbeginn
   dur_ms        INT NULL,
