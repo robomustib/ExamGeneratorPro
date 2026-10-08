@@ -1,40 +1,33 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#4361ee"/>
-      <stop offset="100%" stop-color="#312e81"/>
-    </linearGradient>
-    <linearGradient id="pencil" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#fbbf24"/>
-      <stop offset="100%" stop-color="#f59e0b"/>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#8fd8ff"/>
+      <stop offset="100%" stop-color="#fff3cf"/>
     </linearGradient>
   </defs>
-
-  <!-- Hintergrund -->
-  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
-
-  <!-- Papier -->
-  <rect x="96" y="112" width="320" height="288" rx="28" fill="#fafafa"/>
-
-  <!-- Linienblatt: Oberlinie, Mittellinie, Grundlinie -->
-  <line x1="132" y1="176" x2="380" y2="176" stroke="#93c5fd" stroke-width="5" stroke-dasharray="12 9" stroke-linecap="round"/>
-  <line x1="132" y1="256" x2="380" y2="256" stroke="#93c5fd" stroke-width="5" stroke-dasharray="12 9" stroke-linecap="round"/>
-  <line x1="132" y1="336" x2="380" y2="336" stroke="#fca5a5" stroke-width="6" stroke-linecap="round"/>
-
-  <!-- Großes A auf der Linie -->
-  <path d="M 192 336 L 244 176 L 296 336" fill="none" stroke="#4361ee" stroke-width="26"
-        stroke-linecap="round" stroke-linejoin="round"/>
-  <line x1="212" y1="276" x2="276" y2="276" stroke="#4361ee" stroke-width="26" stroke-linecap="round"/>
-
-  <!-- Startpunkt -->
-  <circle cx="244" cy="176" r="21" fill="url(#pencil)"/>
-  <circle cx="244" cy="176" r="9" fill="#fff"/>
-
-  <!-- Stift -->
-  <g transform="rotate(38 352 300)">
-    <rect x="336" y="228" width="34" height="132" rx="9" fill="url(#pencil)"/>
-    <rect x="336" y="228" width="34" height="26" rx="9" fill="#f472b6"/>
-    <path d="M 336 360 L 353 400 L 370 360 Z" fill="#fde68a"/>
-    <path d="M 347 384 L 353 400 L 359 384 Z" fill="#374151"/>
+  <!-- Himmel und Hügel -->
+  <rect width="512" height="512" rx="112" fill="url(#sky)"/>
+  <clipPath id="r"><rect width="512" height="512" rx="112"/></clipPath><g clip-path="url(#r)"><path d="M0 410 Q130 350 260 390 T512 380 V512 H0Z" fill="#86d97f"/></g>
+  <!-- Klecks, der Begleiter aus der App -->
+  <g transform="translate(91.0 108.0) scale(2.75)">
+    <ellipse cx="60" cy="125" rx="34" ry="5" fill="#0f172a" opacity="0.15"/>
+    <g fill="#9b6bff" stroke="#6f42d9" stroke-width="3" stroke-linejoin="round">
+      <ellipse cx="46" cy="117" rx="9" ry="6"/>
+      <ellipse cx="74" cy="117" rx="9" ry="6"/>
+      <ellipse cx="17" cy="60" rx="7" ry="12" transform="rotate(-28 17 60)"/>
+      <ellipse cx="103" cy="60" rx="7" ry="12" transform="rotate(28 103 60)"/>
+      <path d="M60 8 C70 27 104 45 104 78 C104 103 85 118 60 118 C35 118 16 103 16 78 C16 45 50 27 60 8 Z"/>
+    </g>
+    <ellipse cx="38" cy="57" rx="6.5" ry="12" transform="rotate(28 38 57)" fill="#fff" opacity="0.38"/>
+    <ellipse cx="33" cy="92" rx="7" ry="4.5" fill="#ff7aa2" opacity="0.75"/>
+    <ellipse cx="87" cy="92" rx="7" ry="4.5" fill="#ff7aa2" opacity="0.75"/>
+    <ellipse cx="46" cy="76" rx="10" ry="12" fill="#fff"/>
+    <ellipse cx="74" cy="76" rx="10" ry="12" fill="#fff"/>
+    <circle cx="48" cy="78" r="5.6" fill="#2b2d42"/>
+    <circle cx="76" cy="78" r="5.6" fill="#2b2d42"/>
+    <circle cx="49.8" cy="75.8" r="2" fill="#fff"/>
+    <circle cx="77.8" cy="75.8" r="2" fill="#fff"/>
+    <path d="M47 93 Q60 113 73 93 Z" fill="#7a2e3a" stroke="#2b2d42" stroke-width="3" stroke-linejoin="round"/>
+    <ellipse cx="60" cy="102" rx="6" ry="3.5" fill="#ff8fab"/>
   </g>
 </svg>

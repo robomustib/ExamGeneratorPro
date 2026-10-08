@@ -1,22 +1,59 @@
-import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, useContext, createContext } from "react";
 import { useResearch, enroll, withdraw, exportMyData, logTrial, markWaveDone, trialMetrics, setFieldScale } from "./research.js";
+import { Klecks, KlecksBubble, CompanionCtx, KLECKS_COLORS, klecksColor } from "./klecks.jsx";
+import { sfx, setSoundOn } from "./sound.js";
+// Schrift „Nunito" (SIL Open Font License) — wird in die App eingebettet, kein Google-Server
+import nunito700 from "@fontsource/nunito/files/nunito-latin-700-normal.woff2";
+import nunito800 from "@fontsource/nunito/files/nunito-latin-800-normal.woff2";
+import nunito900 from "@fontsource/nunito/files/nunito-latin-900-normal.woff2";
 
-// ─── CSS animations injected once ────────────────────────────────────────────
+// ─── Gestaltung: Schrift, Farben, Knöpfe, Animationen (einmal eingefügt) ─────────
 const STYLE = `
+@font-face{font-family:"Nunito";font-style:normal;font-weight:700;font-display:swap;src:url(${nunito700}) format("woff2")}
+@font-face{font-family:"Nunito";font-style:normal;font-weight:800;font-display:swap;src:url(${nunito800}) format("woff2")}
+@font-face{font-family:"Nunito";font-style:normal;font-weight:900;font-display:swap;src:url(${nunito900}) format("woff2")}
+:root{--ink:#2b2d42;--ink2:#5c6378;--muted:#8a91a6;--paper:#fffdf7;--line:#e3e8f2;
+  --coral:#ff7a59;--coralD:#e0553a;--sun:#ffc93c;--sunD:#dea000;--mint:#2ecc8f;--mintD:#17a06c;
+  --sky:#38bdf8;--skyD:#0b8fcf;--grape:#9b6bff;--grapeD:#6f42d9;--pink:#ff7eb6;--pinkD:#e0538f}
+body{font-family:"Nunito",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:var(--ink);font-weight:700}
+button,input,select,textarea{font-family:inherit}
+.k-press{border:none;cursor:pointer;box-shadow:0 5px 0 var(--sh,#00000026);transition:transform .08s ease,box-shadow .08s ease;-webkit-tap-highlight-color:transparent}
+.k-press:active{transform:translateY(4px);box-shadow:0 1px 0 var(--sh,#00000026)}
+.k-press:focus-visible{outline:3px solid #2b2d42;outline-offset:3px}
+.k-press:disabled{opacity:.5;cursor:default}
+.k-card{background:#fff;border-radius:24px;box-shadow:0 5px 0 #0f172a12,0 10px 26px #0f172a12}
+.k-bubble{position:relative}
+.k-bubble::before{content:"";position:absolute;left:-11px;top:50%;margin-top:-8px;border:8px solid transparent;border-right:11px solid var(--bb);border-left:0}
+.k-bubble::after{content:"";position:absolute;left:-6px;top:50%;margin-top:-5px;border:5px solid transparent;border-right:7px solid var(--bg);border-left:0}
+.k-scroll{overflow-y:auto;-webkit-overflow-scrolling:touch}
+@keyframes kBob      { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+@keyframes kBlink    { 0%,93%,100%{transform:scaleY(1)} 96%{transform:scaleY(0.1)} }
+@keyframes kJump     { 0%,100%{transform:translateY(0) scale(1)} 35%{transform:translateY(-16px) scale(1.04,.96)} 70%{transform:translateY(0) scale(1.08,.92)} }
+@keyframes kCloud    { from{transform:translateX(-40vw)} to{transform:translateX(140vw)} }
+@keyframes kPulse    { 0%,100%{transform:scale(1)} 50%{transform:scale(1.07)} }
+@keyframes kRing     { 0%{box-shadow:0 0 0 0 var(--ring,#ffc93caa)} 100%{box-shadow:0 0 0 16px #ffc93c00} }
+@keyframes kStarPop  { 0%{transform:scale(0) rotate(-40deg);opacity:0} 70%{transform:scale(1.3) rotate(8deg);opacity:1} 100%{transform:scale(1) rotate(0)} }
 @keyframes unicornRun  { 0%{transform:scaleX(-1) translateY(0)} 50%{transform:scaleX(-1) translateY(-18px)} 100%{transform:scaleX(-1) translateY(0)} }
-@keyframes sparkle     { 0%,100%{opacity:0;transform:scale(0) rotate(0deg)} 50%{opacity:1;transform:scale(1) rotate(180deg)} }
 @keyframes fallStar    { from{transform:translateY(0) rotate(0deg);opacity:1} to{transform:translateY(100vh) rotate(720deg);opacity:0} }
-@keyframes popIn       { 0%{transform:scale(0.5);opacity:0} 70%{transform:scale(1.15)} 100%{transform:scale(1);opacity:1} }
-@keyframes wiggle      { 0%,100%{transform:rotate(0deg)} 25%{transform:rotate(-8deg)} 75%{transform:rotate(8deg)} }
-@keyframes floatUp     { 0%{transform:translateY(0);opacity:1} 100%{transform:translateY(-60px);opacity:0} }
-@keyframes rainbowShift{ 0%{filter:hue-rotate(0deg)} 100%{filter:hue-rotate(360deg)} }
-@keyframes glowPulse   { 0%,100%{box-shadow:0 0 12px #fbbf24aa} 50%{box-shadow:0 0 28px #fbbf24ff} }
+@keyframes popIn       { 0%{transform:scale(0.5);opacity:0} 70%{transform:scale(1.08)} 100%{transform:scale(1);opacity:1} }
+@keyframes glowPulse   { 0%,100%{box-shadow:0 0 10px #ffc93caa} 50%{box-shadow:0 0 26px #ffc93cff} }
 @keyframes slideUp     { from{transform:translateY(40px);opacity:0} to{transform:translateY(0);opacity:1} }
 @keyframes shake       { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+@keyframes hintWiggle  { 0%,100%{transform:rotate(0) scale(1)} 25%{transform:rotate(-6deg) scale(1.08)} 75%{transform:rotate(6deg) scale(1.08)} }
+/* Wer in den Systemeinstellungen „Bewegung reduzieren" gewählt hat, bekommt keine Animationen */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+}
 `;
 if (typeof document !== "undefined" && !document.getElementById("slk-style")) {
   const s = document.createElement("style"); s.id = "slk-style"; s.textContent = STYLE;
   document.head.appendChild(s);
+}
+const reducedMotion=()=>typeof window!=="undefined"&&!!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+// Knopf mit „Knautsch"-Effekt: fühlt sich beim Drücken wie ein echter Knopf an
+function Btn({bg="var(--coral)",sh="var(--coralD)",color="white",style,className="",children,...rest}){
+  return <button className={"k-press "+className} style={{background:bg,color,"--sh":sh,borderRadius:18,padding:"10px 16px",fontWeight:900,fontSize:15,lineHeight:1.15,...style}} {...rest}>{children}</button>;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -186,14 +223,28 @@ function drawLineatur(ctx,W,H,{alpha="30",width=1.5,dash=[4,4]}={}){
 
 // Buchstabe als kleines Bild aus denselben Strichdaten (Auswahlraster, Anzeige),
 // damit dort dieselbe Schulschrift erscheint wie beim Schreiben (z. B. „a" statt Arial-„a").
-function Glyph({letter,height=24,color="currentColor",weight=2.2,crop=true}){
+function Glyph({letter,height=24,color="currentColor",weight=2.2,crop=true,fit=false,tight=false,yr=null}){
   const strokes=STROKES[letter]||[];
   // Gleicher Ausschnitt für alle Zeichen (Umlaut-Punkte bis Unterlinie), damit Groß- und
-  // Kleinbuchstaben in der richtigen Größe zueinander stehen
-  const top=crop?3:0, bottom=crop?LINES.bottom+5:130;
-  const w=height*(100/(bottom-top))/AX;
+  // Kleinbuchstaben in der richtigen Größe zueinander stehen. fit: nur der Buchstabe selbst
+  // (für eine einzelne, große Anzeige)
+  let x0=0,x1=100,top=crop?3:0,bottom=crop?LINES.bottom+5:130;
+  if(fit&&strokes.length){
+    const pts=strokes.flat(),ys=pts.map(p=>p[1]),xs=pts.map(p=>p[0]);
+    const pad=8;top=Math.min(...ys)-pad;bottom=Math.max(...ys)+pad;
+    const h=bottom-top,wNeed=h*AX;               // mindestens quadratisch wirken lassen
+    const cx=(Math.min(...xs)+Math.max(...xs))/2,half=Math.max((Math.max(...xs)-Math.min(...xs))/2+pad,wNeed*0.35);
+    x0=cx-half;x1=cx+half;
+  }
+  if(yr){top=yr[0];bottom=yr[1];}
+  if(tight&&strokes.length){
+    // Für Wörter: Buchstaben dicht nebeneinander, Höhe bleibt für alle gleich
+    const xs=strokes.flat().map(p=>p[0]),pad=7;
+    x0=Math.min(...xs)-pad;x1=Math.max(...xs)+pad;
+  }
+  const w=height*((x1-x0)/(bottom-top))/AX;
   return(
-    <svg width={w} height={height} viewBox={`0 ${top} 100 ${bottom-top}`} preserveAspectRatio="none" style={{display:"block",overflow:"visible"}}>
+    <svg width={w} height={height} viewBox={`${x0} ${top} ${x1-x0} ${bottom-top}`} preserveAspectRatio="none" style={{display:"block",overflow:"visible"}}>
       {strokes.map((s,i)=>(
         <polyline key={i} points={s.map(p=>p.join(",")).join(" ")} fill="none" stroke={color}
           strokeWidth={weight} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke"/>
@@ -327,16 +378,67 @@ function applyContrast(diff,high){
   };
 }
 
-const PRAISE=["","Weiter üben! 💪","Fast! 👏","Gut! 🌟","Sehr gut! ⭐","Perfekt! 🏆"];
+// Sterne zeigen, wie genau geschrieben wurde (Information, kein Urteil über das Kind)
+const PRAISE=["","Weiter so! 💪","Schon fast! 👏","Gut geschrieben! 🌟","Sehr schön! ⭐","Super genau! 🏆"];
 
-const KID_TIPS=[
-  "🌟 Übe jeden Tag ein bisschen!",
-  "💪 Fehler sind Helfer!",
-  "🎯 Folge den Zahlen der Reihe nach.",
-  "🌈 Atme tief durch, wenn es schwer wird.",
-  "🐾 Dein Tier freut sich, wenn du übst!",
-  "✨ Je öfter du übst, desto besser wirst du!",
+// Lob für den Weg, nicht für die Person: Startpunkt, Richtung, Dranbleiben, Strategie.
+// Kinder, die für Anstrengung und Vorgehen gelobt werden, bleiben bei Fehlern eher dran
+// (Mueller & Dweck 1998; Gunderson u. a. 2013).
+function processPraise({stars,mode,formationErrors=0,tries=0}){
+  if(stars<=2)return "Gut, dass du es versuchst! Schau nochmal genau hin. 💪";
+  if(mode==="memory"&&stars>=4)return "Aus dem Kopf geschrieben! Du hast ihn dir gemerkt. 🧠";
+  if(mode==="copy"&&stars>=4)return "Genau hingeschaut und abgeschrieben! 👀";
+  if(tries>0)return "Du hast nicht aufgegeben – so lernt man! 💪";
+  if(mode==="trace"&&formationErrors===0&&stars>=4)return "Jeden Strich am richtigen Punkt angefangen! 🎯";
+  if(formationErrors>0)return "Du hast die Richtung verbessert! ↩️";
+  if(stars>=4)return "Du hast genau auf die Linien geachtet! ✨";
+  return "Gut geschrieben! Nächstes Mal noch näher an der Linie. 👍";
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SPIELWELT — Welten, Tagesziel, Überraschungen, Stifte
+// ═══════════════════════════════════════════════════════════════════════════════
+// Jede Buchstabengruppe ist eine kleine Welt mit eigenem Lernweg (Karte).
+// Nichts ist gesperrt: Kinder dürfen frei wählen (Autonomie).
+const WORLDS={
+  "GROß":{key:"GROß",short:"ABC",name:"Buchstaben-Berg",emoji:"⛰️",acc:"#8b5cf6",dark:"#6d28d9",soft:"#ede9fe",
+    bg:"linear-gradient(180deg,#e9e3ff 0%,#f6f3ff 45%,#ffffff 100%)",deco:["🏔️","🌲","☁️","🐐","⛺","🌷","🦅","🌲"]},
+  klein:{key:"klein",short:"abc",name:"Buchstaben-Wald",emoji:"🌳",acc:"#22c55e",dark:"#15803d",soft:"#dcfce7",
+    bg:"linear-gradient(180deg,#d9f7e4 0%,#f0fdf4 45%,#ffffff 100%)",deco:["🌳","🍄","🦔","🌲","🐿️","🌼","🦉","🍄"]},
+  Zahlen:{key:"Zahlen",short:"123",name:"Zahlen-Insel",emoji:"🏝️",acc:"#0ea5e9",dark:"#0369a1",soft:"#e0f2fe",
+    bg:"linear-gradient(180deg,#d7f0ff 0%,#eff9ff 45%,#ffffff 100%)",deco:["🌴","🐚","🦀","🐠","⛵","🌊","🐳","🐚"]},
+};
+const ThemeCtx=createContext(WORLDS["GROß"]);
+
+// Tagesziel: drei verschiedene Zeichen — danach sagt die App ausdrücklich,
+// dass jetzt Pause sein darf (natürlicher Endpunkt statt Endlos-Schleife).
+const DAILY_GOAL=3;
+const todayKey=()=>{const d=new Date();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;};
+
+// Überraschungen: werden beim Üben gefunden, aber vorher nicht angekündigt.
+// Angekündigte Belohnungen („Wenn du …, bekommst du …") können die Freude an der
+// Sache selbst verdrängen, unerwartete nicht (Deci, Koestner & Ryan 1999).
+// Zähler: Zeichen, die mindestens einmal mit 4 oder 5 Sternen geschrieben wurden.
+// Glücksspiel-Mechaniken (Zufallskisten) gibt es bewusst nicht.
+const SURPRISES=[
+  {id:"glitter",at:2, kind:"pen",name:"Glitzerstift",   emoji:"✨",text:"Du hast einen Glitzerstift gefunden!"},
+  {id:"bow",    at:4, kind:"acc",name:"Schleife",       emoji:"🎀",text:"Klecks hat eine Schleife gefunden!"},
+  {id:"hat",    at:7, kind:"acc",name:"Partyhut",       emoji:"🥳",text:"Klecks hat einen Partyhut gefunden!"},
+  {id:"rainbow",at:10,kind:"pen",name:"Regenbogenstift",emoji:"🌈",text:"Du hast einen Regenbogenstift gefunden!"},
+  {id:"flower", at:14,kind:"acc",name:"Blume",          emoji:"🌼",text:"Klecks hat eine Blume gefunden!"},
+  {id:"glasses",at:20,kind:"acc",name:"Brille",         emoji:"👓",text:"Klecks hat eine Brille gefunden!"},
+  {id:"crown",  at:28,kind:"acc",name:"Krone",          emoji:"👑",text:"Klecks hat eine Krone gefunden!"},
 ];
+// Stiftfarben zum Aussuchen. Rot fehlt absichtlich: Rot bedeutet beim Nachfahren „neben der Linie".
+const PENS={
+  classic:{name:"Klassik",color:null,     swatch:"conic-gradient(#2ecc8f 0 50%,#1e3a8a 0)"},
+  blue:   {name:"Blau",   color:"#2563eb",swatch:"#2563eb"},
+  purple: {name:"Lila",   color:"#9333ea",swatch:"#9333ea"},
+  teal:   {name:"Türkis", color:"#0d9488",swatch:"#0d9488"},
+  glitter:{name:"Glitzer",color:null,     swatch:"radial-gradient(circle at 35% 35%,#fff7c2,#fbbf24 60%,#d97706)",special:true},
+  rainbow:{name:"Regenbogen",color:null,  swatch:"conic-gradient(#fb923c,#fbbf24,#4ade80,#60a5fa,#a78bfa,#f472b6,#fb923c)",special:true},
+};
+const penAvailable=(id,unlocks)=>!!PENS[id]&&(!PENS[id].special||unlocks.includes(id));
 
 const EDU_TIPS=[
   {icon:"🌟",title:"Richtig motivieren",text:"Loben Sie den Prozess, nicht das Ergebnis. 'Du hast dir wirklich Mühe gegeben!' statt 'Toll gemalt!'"},
@@ -346,6 +448,7 @@ const EDU_TIPS=[
   {icon:"👀",title:"Bereitschaft erkennen",text:"Wenn Ihr Kind unruhig oder frustriert wirkt, ist es Zeit für eine Pause oder einen anderen Tag."},
   {icon:"🧠",title:"Aus dem Kopf schreiben",text:"Nachfahren ist nur der Anfang. Am meisten lernen Kinder, wenn sie einen Buchstaben ansehen, abdecken und dann aus dem Gedächtnis schreiben. Die App führt Schritt für Schritt dorthin."},
   {icon:"➡️",title:"Richtung zählt",text:"Achten Sie auf Startpunkt und Schreibrichtung, nicht nur auf das Aussehen. Wer Buchstaben immer gleich schreibt, schreibt später flüssiger."},
+  {icon:"🎁",title:"Spielen ohne Druck",text:"Die App belohnt Fortschritt mit kleinen Überraschungen, die vorher nicht angekündigt werden, statt mit Punkten zum Sammeln. Es gibt keine Serien, die abreißen, und kein „Komm zurück!“. Nach dem Tagesziel schlägt Klecks eine Pause vor."},
   {icon:"🔁",title:"Wiederholen lohnt sich",text:"Ein Buchstabe sitzt besser, wenn er nach einem Tag noch einmal geübt wird. Die App schlägt dafür im Menü passende Buchstaben vor."},
 ];
 
@@ -437,117 +540,6 @@ function haptic(kind="tick",enabled=true){
   try{ if(navigator?.vibrate) navigator.vibrate(pattern); }catch{}
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// BELOHNUNGS-ILLUSTRATIONEN  (Emoji-Style, PNG-ready für spätere Erweiterung)
-// ═══════════════════════════════════════════════════════════════════════════════
-const IlluUnicorn  = () => <div style={{fontSize:72,textAlign:"center",lineHeight:1}}>🦄</div>;
-const IlluGlitter  = () => <div style={{fontSize:72,textAlign:"center",lineHeight:1}}>✨</div>;
-const IlluRainbow  = () => <div style={{fontSize:72,textAlign:"center",lineHeight:1}}>🌈</div>;
-const IlluStars    = () => <div style={{fontSize:72,textAlign:"center",lineHeight:1}}>🌟</div>;
-const HeroKid      = () => <div style={{fontSize:80,textAlign:"center",lineHeight:1}}>✏️</div>;
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// REWARD SYSTEM
-// ═══════════════════════════════════════════════════════════════════════════════
-const REWARDS = {
-  glitter:  {name:"Glitzerstift ✨", desc:"Dein Stift zaubert goldene Glitzer-Spuren!", color:"#fbbf24", Illu:IlluGlitter},
-  unicorn:  {name:"Einhorn 🦄",      desc:"Ein Einhorn springt über den Bildschirm!", color:"#c084fc", Illu:IlluUnicorn},
-  rainbow:  {name:"Regenbogen 🌈",   desc:"Deine Linien werden bunt wie ein Regenbogen!", color:"#60a5fa", Illu:IlluRainbow},
-  stardust: {name:"Sternenregen 🌟", desc:"Sterne tanzen um deine Buchstaben!", color:"#f87171", Illu:IlluStars},
-};
-
-
-function RewardModal({onEarn, onClose, hapticsEnabled=true}){
-  const [phase,setPhase]=useState("offer"); // offer|opening|earned
-  const [frame,setFrame]=useState(0);
-  const [reward,setReward]=useState(null);
-  const timerRef=useRef(null);
-
-  // Schatzkiste öffnen — kurze Animation, keine Wartezeit-Mechanik
-  const openChest=()=>{
-    haptic("tick",hapticsEnabled);
-    setPhase("opening");
-    let f=0;
-    timerRef.current=setInterval(()=>{
-      f++;setFrame(f);
-      if(f>=6){
-        clearInterval(timerRef.current);
-        const keys=Object.keys(REWARDS);
-        const chosen=keys[Math.floor(Math.random()*keys.length)];
-        setReward(chosen);
-        haptic("celebrate",hapticsEnabled);
-        setPhase("earned");
-      }
-    },160);
-  };
-
-  useEffect(()=>()=>clearInterval(timerRef.current),[]);
-
-  const overlay={position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000,backdropFilter:"blur(6px)",padding:16};
-  const box={background:"white",borderRadius:28,padding:24,maxWidth:360,width:"100%",textAlign:"center",position:"relative",animation:"popIn 0.4s ease",boxShadow:"0 30px 80px #0004"};
-
-  if(phase==="offer") return(
-    <div style={overlay}>
-      <div style={box}>
-        <button onClick={onClose} style={{position:"absolute",top:14,right:14,background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#94a3b8"}}>✕</button>
-        <div style={{fontSize:48,marginBottom:8}}>🎁</div>
-        <h3 style={{margin:"0 0 6px",fontSize:20,fontWeight:900,color:"#4361ee",fontFamily:"Arial,sans-serif"}}>Möchtest du eine Überraschung?</h3>
-        <p style={{fontSize:13,color:"#64748b",margin:"0 0 16px",lineHeight:1.5}}>In der Schatzkiste wartet eine magische Belohnung für deine nächste Übung!</p>
-        <div style={{display:"flex",justifyContent:"center",gap:16,marginBottom:18}}>
-          {Object.entries(REWARDS).map(([k,r])=>(
-            <div key={k} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
-              <span style={{fontSize:26}}>{k==="glitter"?"✨":k==="unicorn"?"🦄":k==="rainbow"?"🌈":"🌟"}</span>
-              <span style={{fontSize:10,color:"#6b7280",fontWeight:600}}>{r.name.split(" ")[0]}</span>
-            </div>
-          ))}
-        </div>
-        <button onClick={openChest} style={{width:"100%",padding:14,background:"linear-gradient(135deg,#fb923c,#f97316)",color:"white",border:"none",borderRadius:18,fontWeight:900,fontSize:15,cursor:"pointer",fontFamily:"Arial,sans-serif",marginBottom:8}}>
-          🎁 Schatzkiste öffnen!
-        </button>
-        <button onClick={onClose} style={{width:"100%",padding:14,background:"white",border:"2px solid #e2e8f0",borderRadius:18,fontWeight:900,fontSize:15,cursor:"pointer",fontFamily:"Arial,sans-serif",color:"#64748b"}}>
-          Nein danke
-        </button>
-      </div>
-    </div>
-  );
-
-  if(phase==="opening") return(
-    <div style={overlay}>
-      <div style={{...box,background:"#1e1b4b",color:"white"}}>
-        <div style={{fontSize:80,marginBottom:8,lineHeight:1,
-          transform:`scale(${1+frame*0.06}) rotate(${frame%2?-6:6}deg)`,transition:"transform 0.15s"}}>
-          {frame<5?"🎁":"📦"}
-        </div>
-        <h3 style={{margin:"8px 0 0",fontSize:18,fontWeight:800,color:"white",fontFamily:"Arial,sans-serif"}}>
-          {"✨".repeat(Math.min(frame,5))}
-        </h3>
-      </div>
-    </div>
-  );
-
-  if(phase==="earned"&&reward){
-    const r=REWARDS[reward];
-    const Illu=r.Illu;
-    return(
-      <div style={overlay}>
-        <div style={box}>
-          <div style={{display:"flex",justifyContent:"center",marginBottom:8}}><Illu size={100}/></div>
-          <h3 style={{margin:"0 0 6px",fontSize:20,fontWeight:900,color:"#4361ee",fontFamily:"Arial,sans-serif"}}>Herzlichen Glückwunsch! 🎉</h3>
-          <div style={{background:`${r.color}22`,border:`2px solid ${r.color}`,borderRadius:18,padding:14,marginBottom:16}}>
-            <div style={{fontWeight:900,fontSize:17,color:"#374151"}}>{r.name}</div>
-            <div style={{fontSize:13,color:"#6b7280",marginTop:4}}>{r.desc}</div>
-          </div>
-          <button onClick={()=>{onEarn(reward);onClose();}}
-            style={{width:"100%",padding:14,background:`linear-gradient(135deg,${r.color},${r.color}cc)`,color:"white",border:"none",borderRadius:18,fontWeight:900,fontSize:15,cursor:"pointer",fontFamily:"Arial,sans-serif"}}>
-            ✨ Jetzt verwenden!
-          </button>
-        </div>
-      </div>
-    );
-  }
-  return null;
-}
-
 // ── Unicorn running across screen ─────────────────────────────────────────────
 function UnicornRun({onDone}){
   const [x,setX]=useState(-140);
@@ -561,7 +553,7 @@ function UnicornRun({onDone}){
   },[]);
   return(
     <div style={{position:"fixed",bottom:80,left:x,zIndex:3000,pointerEvents:"none",animation:"unicornRun 0.5s infinite"}}>
-      <IlluUnicorn size={110}/>
+      <div style={{fontSize:96,lineHeight:1}}>🦄</div>
     </div>
   );
 }
@@ -582,7 +574,7 @@ function StarRain({onDone}){
 }
 
 // ── Rainbow overlay for canvas drawing ────────────────────────────────────────
-const RAINBOW_COLS=["#f87171","#fb923c","#fbbf24","#4ade80","#60a5fa","#a78bfa","#f472b6"];
+const RAINBOW_COLS=["#fb923c","#fbbf24","#4ade80","#60a5fa","#a78bfa","#f472b6"];
 let rainbowIdx=0;
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -746,6 +738,16 @@ function ModelCard({letter,W=110,H=131}){
   );
 }
 
+// Rahmen ums Schreibfeld in der Farbe der Welt — wie ein Heftblatt auf einem Brett
+function FieldFrame({W,H,scale,children}){
+  const th=useContext(ThemeCtx);
+  return(
+    <div style={{background:"white",borderRadius:28,padding:7,border:`4px solid ${th.acc}`,boxShadow:`0 6px 0 ${th.dark}, 0 14px 30px ${th.dark}30`}}>
+      <div style={{position:"relative",width:W*scale,height:H*scale,borderRadius:18,overflow:"hidden",background:"var(--paper)"}}>{children}</div>
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // CONFETTI
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -853,6 +855,7 @@ function StrokePreview({letter, W=80, H=96}){
 // ═══════════════════════════════════════════════════════════════════════════════
 function AnimCanvas({letter, onDone, scale=1, W=260, H=310}){
   const ref=useRef(null);const rafRef=useRef(null);const tmrRef=useRef(null);
+  const th=useContext(ThemeCtx);
   const [k]=useState(()=>pixelRatio(scale));
   useCanvasScale([ref],k);
   const strokes=useStrokes(letter,W,H);
@@ -890,7 +893,7 @@ function AnimCanvas({letter, onDone, scale=1, W=260, H=310}){
         const completed=idx<si;
         ctx.beginPath();ctx.moveTo(pts[0][0],pts[0][1]);
         for(let j=1;j<pts.length;j++)ctx.lineTo(pts[j][0],pts[j][1]);
-        ctx.strokeStyle=active?"rgba(99,102,241,0.15)":completed?"#4361ee":"rgba(180,180,210,0.28)";
+        ctx.strokeStyle=active?"rgba(99,102,241,0.15)":completed?th.acc:"rgba(180,180,210,0.28)";
         ctx.lineWidth=active?26:completed?9:18;
         ctx.lineCap="round";ctx.lineJoin="round";
         ctx.globalAlpha=completed?0.85:1;ctx.stroke();ctx.globalAlpha=1;
@@ -930,7 +933,7 @@ function AnimCanvas({letter, onDone, scale=1, W=260, H=310}){
         pi=0;si++;
         if(si>=strokes.length){
           ctx.clearRect(0,0,W,H);drawRules(ctx);
-          strokes.forEach(pts=>{ctx.beginPath();ctx.moveTo(pts[0][0],pts[0][1]);for(let j=1;j<pts.length;j++)ctx.lineTo(pts[j][0],pts[j][1]);ctx.strokeStyle="#4361ee";ctx.lineWidth=10;ctx.lineCap="round";ctx.lineJoin="round";ctx.stroke();});
+          strokes.forEach(pts=>{ctx.beginPath();ctx.moveTo(pts[0][0],pts[0][1]);for(let j=1;j<pts.length;j++)ctx.lineTo(pts[j][0],pts[j][1]);ctx.strokeStyle=th.acc;ctx.lineWidth=10;ctx.lineCap="round";ctx.lineJoin="round";ctx.stroke();});
           tmrRef.current=setTimeout(onDone,700);return;
         }
         tmrRef.current=setTimeout(()=>{rafRef.current=requestAnimationFrame(frame);},200);return;
@@ -939,13 +942,13 @@ function AnimCanvas({letter, onDone, scale=1, W=260, H=310}){
     }
     tmrRef.current=setTimeout(()=>{rafRef.current=requestAnimationFrame(frame);},300);
     return()=>{cancelAnimationFrame(rafRef.current);clearTimeout(tmrRef.current);};
-  },[letter,strokes,drawRules,onDone,W,H]);
+  },[letter,strokes,drawRules,onDone,W,H,th.acc]);
   return(
-    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
-      <div style={{background:"#1e1b4b",borderRadius:24,padding:10,boxShadow:"0 8px 32px #1e1b4b50"}}>
-        <canvas ref={ref} width={W*k} height={H*k} style={{display:"block",width:W*scale,height:H*scale,borderRadius:16,background:"#fafafa"}}/>
-      </div>
-      <div style={{fontSize:13,color:"#6b7280",background:"#fff7ed",borderRadius:12,padding:"5px 14px",border:"1px solid #fed7aa"}}>👀 Schau zu — dann bist du dran!</div>
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:10}}>
+      <KlecksBubble text="👀 Schau zu – dann bist du dran!" mood="think" tone="think" maxWidth={W*scale+22}/>
+      <FieldFrame W={W} H={H} scale={scale}>
+        <canvas ref={ref} width={W*k} height={H*k} style={{display:"block",width:"100%",height:"100%"}}/>
+      </FieldFrame>
     </div>
   );
 }
@@ -966,7 +969,7 @@ const COACH={
   start:"👆 Fang beim gelben Punkt an!",
   direction:"↩️ Andersherum! Fang beim gelben Punkt an.",
 };
-function TraceCanvas({letter,onComplete,difficulty="medium",mode="trace",memoryDelay=1,activeReward,
+function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="medium",mode="trace",memoryDelay=1,pen="classic",
                      lefthanded=false,highContrast=false,hapticsEnabled=true,onSpeak=()=>{},onTrial=null,scale=1,W=260,H=310}){
   const bgRef=useRef(null);const ovRef=useRef(null);
   const [k]=useState(()=>pixelRatio(scale));
@@ -977,6 +980,7 @@ function TraceCanvas({letter,onComplete,difficulty="medium",mode="trace",memoryD
   const segStarts=useRef([]);
   const strokeIdx=useRef(0);
   const formationErrors=useRef(0);
+  const tries=useRef(0);        // neue Versuche am selben Buchstaben (für das Lob „nicht aufgegeben")
   // Messung: Aufgabenbeginn und alle Strichversuche mit Zeitstempeln
   const onsetRef=useRef(null);
   const attempts=useRef([]);
@@ -985,7 +989,7 @@ function TraceCanvas({letter,onComplete,difficulty="medium",mode="trace",memoryD
   const markOnset=()=>requestAnimationFrame(ts=>{onsetRef.current=ts;});
   const [done,setDone]=useState(false);const [result,setResult]=useState(null);
   const [hasLines,setHasLines]=useState(false);const [confetti,setConfetti]=useState(false);
-  const [animalBounce,setAnimalBounce]=useState(false);
+  const [kick,setKick]=useState(0);   // Klecks hüpft bei jedem geschafften Strich
   const [memPhase,setMemPhase]=useState(mode==="memory"?"show":"write"); // show | wait | write
   const [countdown,setCountdown]=useState(0);
   const [round,setRound]=useState(0);
@@ -998,7 +1002,6 @@ function TraceCanvas({letter,onComplete,difficulty="medium",mode="trace",memoryD
   const diff=useMemo(()=>applyContrast(DIFFICULTY[difficulty],highContrast),[difficulty,highContrast]);
   const pal=highContrast?PALETTE.high:PALETTE.normal;
   const strokes=useStrokes(letter,W,H);
-  const animal=mascotOf(letter);
   const guided=mode==="trace";                         // Vorlage im Feld?
   const probe=mode==="probe";                          // Schreibtest: keine Rückmeldung
   const canWrite=memPhase==="write"&&!done;
@@ -1064,7 +1067,10 @@ function TraceCanvas({letter,onComplete,difficulty="medium",mode="trace",memoryD
   const paintSeg=(ctx,{a,b,kind,color})=>{
     const line=(c,w)=>{ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.strokeStyle=c;ctx.lineWidth=w;ctx.stroke();};
     ctx.save();ctx.lineCap="round";ctx.lineJoin="round";
-    if(kind==="glitter"){ctx.shadowColor="#fbbf24";ctx.shadowBlur=16;line("#fde68a",10);ctx.shadowBlur=0;line("#4ade80",6);}
+    if(kind==="glitter"){
+      ctx.save();ctx.globalCompositeOperation="destination-over";ctx.shadowColor="#fbbf24";ctx.shadowBlur=14;line("#fde68acc",12);ctx.restore();
+      line(color,7);
+    }
     else if(kind==="rainbow")line(color,11);
     else{ctx.globalAlpha=0.85;line(color,10);}
     ctx.restore();
@@ -1092,6 +1098,7 @@ function TraceCanvas({letter,onComplete,difficulty="medium",mode="trace",memoryD
 
   const reset=useCallback(()=>{
     report(false);
+    if(drawn.current.length)tries.current++;
     attempts.current=[];reported.current=false;markOnset();
     drawn.current=[];segs.current=[];segStarts.current=[];strokeIdx.current=0;formationErrors.current=0;
     isDrawing.current=false;
@@ -1166,16 +1173,20 @@ function TraceCanvas({letter,onComplete,difficulty="medium",mode="trace",memoryD
     const stroke=drawn.current[drawn.current.length-1];
     const a=stroke[stroke.length-1],b=getPos(e);
     stroke.push(b);
+    // Stiftfarbe: vom Kind gewählt; Regenbogen wechselt die Farbe, Glitzer leuchtet
+    const penColor=()=>pen==="rainbow"?RAINBOW_COLS[rainbowIdx++%RAINBOW_COLS.length]:PENS[pen]?.color||null;
     let seg;
-    if(activeReward==="rainbow"&&!probe){seg={a,b,kind:"rainbow",color:RAINBOW_COLS[rainbowIdx++%RAINBOW_COLS.length]};}
-    else if(!guided){seg={a,b,kind:activeReward==="glitter"&&!probe?"glitter":"ink",color:"#1e3a8a"};}
+    if(probe){seg={a,b,kind:"ink",color:"#1e3a8a"};}           // Schreibtest: immer gleich, ohne Effekte
+    else if(!guided){seg={a,b,kind:pen==="glitter"?"glitter":"ink",color:penColor()||"#1e3a8a"};}
     else{
-      // Nachfahren: Grün auf der Linie, Rot daneben
+      // Nachfahren: Stiftfarbe (Klassik: Grün) auf der Linie, Rot daneben
       const d=distToPolyline(b[0],b[1],strokes);
       const onTrack=d<diff.tolerance;
       if(!onTrack&&!offTrackRef.current){haptic("off",hapticsEnabled);offTrackRef.current=true;}
       else if(onTrack&&offTrackRef.current){offTrackRef.current=false;}
-      seg={a,b,kind:activeReward==="glitter"||d<diff.tolerance*0.35?"glitter":"ink",color:onTrack?"#4ade80":"#f87171"};
+      seg=onTrack
+        ?{a,b,kind:pen==="glitter"||d<diff.tolerance*0.35?"glitter":"ink",color:penColor()||"#22c55e"}
+        :{a,b,kind:"ink",color:"#f87171"};
     }
     segs.current.push(seg);
     paintSeg(ovRef.current.getContext("2d"),seg);
@@ -1199,15 +1210,15 @@ function TraceCanvas({letter,onComplete,difficulty="medium",mode="trace",memoryD
       attempts.current.push({pts:stroke.slice(),accepted:!verdict,verdict:verdict||"ok",expected:strokeIdx.current});
       if(verdict){
         formationErrors.current++;
-        undoLastStroke();haptic("off",hapticsEnabled);
+        undoLastStroke();haptic("off",hapticsEnabled);sfx("oops");
         showCoach(COACH[verdict]);
         setTimeout(startPulse,80);
         return;
       }
       strokeIdx.current++;
-      haptic("tick",hapticsEnabled);
+      haptic("tick",hapticsEnabled);sfx("stroke");
       drawTemplate(bgRef.current.getContext("2d"));
-      setAnimalBounce(true);setTimeout(()=>setAnimalBounce(false),400);
+      setKick(n=>n+1);
       if(strokeIdx.current<strokes.length)setTimeout(startPulse,80);
       resetIdleTimer();
     } else {attempts.current.push({pts:stroke.slice(),accepted:true,verdict:"ok",expected:null});haptic("tick",hapticsEnabled);}
@@ -1248,12 +1259,15 @@ function TraceCanvas({letter,onComplete,difficulty="medium",mode="trace",memoryD
     let note=null;
     if(mirrored)note="🪞 Gespiegelt! Schau, in welche Richtung er zeigt.";
     else if(formationErrors.current>=2)note="➡️ Tipp: Immer beim gelben Punkt anfangen.";
-    setResult({stars:s,note});setDone(true);
+    const praise=processPraise({stars:s,mode,formationErrors:formationErrors.current,tries:tries.current});
+    clearTimeout(coachTimer.current);setCoach(null);
+    setResult({stars:s,note,praise});setDone(true);
     clearTimeout(idleTimerRef.current);setShowHintBtn(false);
     haptic(s===5?"celebrate":s>=3?"success":"tick",hapticsEnabled);
-    if(note)setTimeout(()=>onSpeak(note),900);
-    if(s===5){setConfetti(true);setAnimalBounce(true);}
-    setTimeout(()=>onComplete(s,{mode,mirrored}),note?2600:1700);
+    sfx(s>=4?"fanfare":s>=3?"done":"soft");
+    setTimeout(()=>onSpeak(note||praise),500);
+    if(s===5)setConfetti(true);
+    onComplete(s,{mode,mirrored});
   };
 
   const allStrokesDone=guided&&strokeIdx.current>=strokes.length;
@@ -1264,18 +1278,25 @@ function TraceCanvas({letter,onComplete,difficulty="medium",mode="trace",memoryD
     :probe?"✏️ Schreib ihn aus dem Kopf!"
     :allStrokesDone?"✓ Super! Tippe auf Fertig."
     :`👉 Strich ${strokeIdx.current+1} von ${strokes.length} — nachfahren!`;
-  const rewardHint=probe?null:activeReward==="glitter"?"✨ Glitzerstift aktiv!":activeReward==="rainbow"?"🌈 Regenbogenstift aktiv!":activeReward==="stardust"?"🌟 Sternenregen aktiv!":null;
-  const banner=coach||rewardHint||hint;
+  // Klecks: Mimik und Farbe der Sprechblase passen zur Situation
+  const bubble=done&&result?{text:result.note||result.praise,mood:result.note?"think":result.stars>=3?"cheer":"happy",tone:result.note?"coach":result.stars>=3?"praise":"info"}
+    :coach?{text:coach,mood:"oops",tone:"coach"}
+    :mode==="memory"&&memPhase!=="write"?{text:hint,mood:"think",tone:"think"}
+    :allStrokesDone?{text:hint,mood:"cheer",tone:"praise"}
+    :{text:hint,mood:"happy",tone:"info"};
 
   return(
-    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
-      <div style={{fontSize:12,color:coach?"#9a3412":"#475569",background:coach?"#ffedd5":rewardHint?"#fef9c3":"#f0fdf4",borderRadius:12,padding:"5px 16px",border:`1px solid ${coach?"#fb923c":rewardHint?"#fbbf24":"#bbf7d0"}`,fontWeight:coach?800:600,animation:coach?"shake 0.3s ease-in-out 2":rewardHint?"glowPulse 2s infinite":"none",textAlign:"center"}}>
-        {banner}
-      </div>
-      {mode==="copy"&&<ModelCard letter={letter}/>}
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:10}}>
+      {probe
+        ?<div style={{fontSize:15,color:"#334155",background:"white",borderRadius:16,padding:"8px 18px",border:"3px solid #ccfbf1",fontWeight:800,textAlign:"center"}}>{hint}</div>
+        :mode==="copy"
+          ?<div style={{display:"flex",alignItems:"center",gap:8,width:"100%",maxWidth:W*scale+22}}>
+             <div style={{flex:1,minWidth:0}}><KlecksBubble {...bubble} kick={kick}/></div>
+             <ModelCard letter={letter} W={96} H={114}/>
+           </div>
+          :<KlecksBubble {...bubble} kick={kick} maxWidth={W*scale+22}/>}
       <div style={{position:"relative"}}>
-        <div style={{background:"#1e1b4b",borderRadius:24,padding:10,boxShadow:"0 8px 32px #1e1b4b50"}}>
-          <div style={{position:"relative",width:W*scale,height:H*scale,borderRadius:16,overflow:"hidden",background:"#fafafa"}}>
+        <FieldFrame W={W} H={H} scale={scale}>
             <canvas ref={bgRef} width={W*k} height={H*k} style={{position:"absolute",inset:0,width:"100%",height:"100%"}}/>
             <canvas ref={ovRef} width={W*k} height={H*k} style={{position:"absolute",inset:0,width:"100%",height:"100%",touchAction:"none",cursor:"crosshair"}}
               onMouseDown={startDraw} onMouseMove={draw} onMouseUp={endDraw} onMouseLeave={endDraw}
@@ -1286,50 +1307,41 @@ function TraceCanvas({letter,onComplete,difficulty="medium",mode="trace",memoryD
               </div>
             )}
             {done&&probe&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:80,animation:"popIn 0.3s ease-out",pointerEvents:"none"}}>👍</div>}
-            {done&&result&&!probe&&(
-              <div style={{position:"absolute",left:0,right:0,bottom:0,background:"#ffffffe8",display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"10px 8px 12px",borderTop:"1px solid #e2e8f0",animation:"slideUp 0.3s ease-out"}}>
-                <div style={{display:"flex",gap:4,alignItems:"center"}}>
-                  <span style={{fontSize:26,marginRight:4}}>{result.stars===5?"🏆":"🎉"}</span>
-                  {[1,2,3,4,5].map(i=><span key={i} style={{fontSize:22,filter:i<=result.stars?"none":"grayscale(1) opacity(0.25)"}}>⭐</span>)}
-                </div>
-                <div style={{fontSize:15,color:"#374151",fontWeight:800}}>{PRAISE[result.stars]}</div>
-                {result.note&&<div style={{fontSize:12,color:"#9a3412",fontWeight:700,textAlign:"center"}}>{result.note}</div>}
-                {!guided&&<div style={{fontSize:10,color:"#16a34a",fontWeight:700}}>Grün = so sieht die Vorlage aus</div>}
-              </div>
-            )}
-          </div>
-        </div>
-        {!probe&&<div style={{position:"absolute",bottom:-14,right:-14,fontSize:38,transform:animalBounce?"scale(1.4) rotate(-12deg)":"scale(1)",transition:"transform 0.25s cubic-bezier(.34,1.56,.64,1)",filter:"drop-shadow(0 2px 4px #0003)",userSelect:"none"}}>{animal}</div>}
+            {done&&result&&!probe&&<StarResult stars={result.stars} hint={!guided?"Grün = so sieht die Vorlage aus":null}/>}
+        </FieldFrame>
         {confetti&&<Confetti/>}
       </div>
-      <div style={{display:"flex",gap:8,marginTop:6}}>
-        {probe&&!done&&<button onClick={()=>{report(false,{skipped:1});setDone(true);onComplete(0,{mode,skipped:true});}} style={{padding:"8px 16px",borderRadius:20,border:"2px solid #cbd5e1",background:"white",color:"#64748b",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"Arial,sans-serif"}}>🤷 Weiß ich nicht</button>}
-        <button onClick={()=>mode==="memory"?setRound(r=>r+1):reset()} style={{padding:"8px 16px",borderRadius:20,border:"2px solid #f87171",background:"white",color:"#ef4444",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"Arial,sans-serif"}}>🗑️ Neu</button>
-        {hasLines&&!done&&<button onClick={checkScore} style={{padding:"8px 16px",borderRadius:20,border:"none",background:"linear-gradient(135deg,#4ade80,#16a34a)",color:"white",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"Arial,sans-serif",animation:allStrokesDone?"glowPulse 1.6s infinite":"none"}}>✓ Fertig</button>}
+      <div style={{display:"flex",gap:10,marginTop:4,flexWrap:"wrap",justifyContent:"center",alignItems:"center"}}>
+        {probe&&!done&&<Btn bg="white" sh="#cbd5e1" color="#64748b" style={{border:"2px solid #cbd5e1"}} onClick={()=>{report(false,{skipped:1});setDone(true);onComplete(0,{mode,skipped:true});}}>🤷 Weiß ich nicht</Btn>}
+        {!(done&&probe)&&<Btn bg="white" sh="#fca5a5" color="#e11d48" style={{border:"2px solid #fecdd3"}} onClick={()=>{sfx("tap");mode==="memory"?setRound(r=>r+1):reset();}}>{done?"🔁 Nochmal":"🗑️ Neu"}</Btn>}
+        {hasLines&&!done&&<Btn bg="var(--mint)" sh="var(--mintD)" onClick={checkScore} style={{animation:allStrokesDone?"glowPulse 1.6s infinite":"none"}}>✓ Fertig</Btn>}
+        {done&&!probe&&onNext&&<Btn bg="var(--coral)" sh="var(--coralD)" data-k="next" onClick={()=>{sfx("pop");onNext();}} style={{minWidth:120,animation:"popIn 0.35s ease-out"}}>Weiter ➜</Btn>}
         {showHintBtn&&!done&&!hasLines&&guided&&(
-          <button onClick={()=>{setShowHintBtn(false);resetIdleTimer();startPulse();haptic("tick",hapticsEnabled);}}
-            style={{padding:"8px 16px",borderRadius:20,border:"2px solid #fbbf24",background:"#fef9c3",color:"#92400e",fontWeight:800,fontSize:13,cursor:"pointer",fontFamily:"Arial,sans-serif",
-              animation:"hintWiggle 0.5s ease-in-out 0s 3"}}>
+          <Btn bg="#fff4c2" sh="#f2c94c" color="#8a5a00" style={{border:"2px solid #ffc93c",animation:"hintWiggle 0.5s ease-in-out 0s 3"}}
+            onClick={()=>{setShowHintBtn(false);resetIdleTimer();startPulse();haptic("tick",hapticsEnabled);}}>
             👆 Hier starten!
-          </button>
+          </Btn>
         )}
         {showHintBtn&&!done&&hasLines&&!allStrokesDone&&(
-          <button onClick={checkScore}
-            style={{padding:"8px 16px",borderRadius:20,border:"2px solid #fbbf24",background:"#fef9c3",color:"#92400e",fontWeight:800,fontSize:13,cursor:"pointer",fontFamily:"Arial,sans-serif",
-              animation:"hintWiggle 0.5s ease-in-out 0s 3"}}>
+          <Btn bg="#fff4c2" sh="#f2c94c" color="#8a5a00" style={{border:"2px solid #ffc93c",animation:"hintWiggle 0.5s ease-in-out 0s 3"}} onClick={checkScore}>
             🤔 Fertig?
-          </button>
+          </Btn>
         )}
+        {!probe&&tools}
       </div>
-      <style>{`
-        @keyframes hintWiggle {
-          0%,100%{transform:rotate(0deg) scale(1)}
-          20%{transform:rotate(-8deg) scale(1.08)}
-          40%{transform:rotate(8deg) scale(1.12)}
-          60%{transform:rotate(-5deg) scale(1.08)}
-          80%{transform:rotate(5deg) scale(1.05)}
-        }
-      `}</style>
+    </div>
+  );
+}
+
+// Ergebnis im Schreibfeld: Sterne erscheinen nacheinander
+function StarResult({stars,hint,label}){
+  return(
+    <div data-stars={stars} style={{position:"absolute",left:0,right:0,bottom:0,background:"#ffffffeb",display:"flex",flexDirection:"column",alignItems:"center",gap:2,padding:"10px 8px 12px",borderTop:"3px solid #ffe7a3",animation:"slideUp 0.3s ease-out"}}>
+      <div style={{display:"flex",gap:4,alignItems:"center"}}>
+        {[1,2,3,4,5].map(i=><span key={i} style={{fontSize:30,lineHeight:1,display:"inline-block",filter:i<=stars?"none":"grayscale(1) opacity(0.22)",animation:i<=stars?`kStarPop 0.45s ease-out ${i*0.12}s both`:"none"}}>⭐</span>)}
+      </div>
+      <div style={{fontSize:18,color:"var(--ink)",fontWeight:900}}>{label||PRAISE[stars]}</div>
+      {hint&&<div style={{fontSize:11,color:"#16a34a",fontWeight:800}}>{hint}</div>}
     </div>
   );
 }
@@ -1337,7 +1349,7 @@ function TraceCanvas({letter,onComplete,difficulty="medium",mode="trace",memoryD
 // ═══════════════════════════════════════════════════════════════════════════════
 // GUIDED CANVAS  — Phase 1: geführt, Phase 2: frei nachzeichnen, Phase 3: Vergleich
 // ═══════════════════════════════════════════════════════════════════════════════
-function GuidedCanvas({letter, onComplete, onSpeak=()=>{}, onTrial=null, scale=1, W=260, H=310}){
+function GuidedCanvas({letter, onComplete, onNext=null, onSpeak=()=>{}, onTrial=null, scale=1, W=260, H=310}){
   const bgRef=useRef(null);
   const ovRef=useRef(null);
   const compareRef=useRef(null);
@@ -1369,14 +1381,13 @@ function GuidedCanvas({letter, onComplete, onSpeak=()=>{}, onTrial=null, scale=1
   const freeStrokePts=useRef([]);
 
   const [phase,setPhase]=useState("guided");
-  const [statusMsg,setStatusMsg]=useState("👆 Tippe auf den gelben Punkt um zu starten!");
-  const [animalBounce,setAnimalBounce]=useState(false);
+  const [statusMsg,setStatusMsg]=useState("👆 Leg den Finger auf den orangen Punkt!");
+  const [kick,setKick]=useState(0);
   const [confetti,setConfetti]=useState(false);
   const [hasDrawn,setHasDrawn]=useState(false);
   const [scoreInfo,setScoreInfo]=useState({score:0,label:"",color:"#374151"});
 
   const strokes=useStrokes(letter,W,H);
-  const animal=mascotOf(letter);
 
   const drawRules=useCallback((ctx)=>{
     drawLineatur(ctx,W,H);
@@ -1535,7 +1546,7 @@ function GuidedCanvas({letter, onComplete, onSpeak=()=>{}, onTrial=null, scale=1
     isDrawing.current=false;strokeStarted.current=false;lastSnapped.current=null;currentStrokePts.current=[];
     freeLastPos.current=null;freePoints.current=[];freeStrokeIdx.current=0;freeStrokePts.current=[];
     setPhase("guided");setConfetti(false);setHasDrawn(false);setScoreInfo({score:0,label:"",color:"#374151"});
-    setStatusMsg("👆 Tippe auf den gelben Punkt um zu starten!");
+    setStatusMsg("👆 Leg den Finger auf den orangen Punkt!");
     const bg=bgRef.current;const ov=ovRef.current;if(!bg||!ov)return;
     ov.getContext("2d").clearRect(0,0,W,H);drawGuidedTemplate(bg.getContext("2d"));
   },[drawGuidedTemplate,W,H]);
@@ -1596,7 +1607,7 @@ function GuidedCanvas({letter, onComplete, onSpeak=()=>{}, onTrial=null, scale=1
     const pts=strokes[strokeIdx.current];
     if(progressRef.current>=pts.length-3){
       currentStrokePts.current=[];strokeStarted.current=false;isDrawing.current=false;progressRef.current=0;lastSnapped.current=null;
-      setAnimalBounce(true);setTimeout(()=>setAnimalBounce(false),400);
+      setKick(n=>n+1);sfx("stroke");
       strokeIdx.current++;
       if(strokeIdx.current>=strokes.length){
         setConfetti(true);setTimeout(()=>setConfetti(false),1500);
@@ -1646,6 +1657,7 @@ function GuidedCanvas({letter, onComplete, onSpeak=()=>{}, onTrial=null, scale=1
     freeStrokePts.current=[];
     const next=freeStrokeIdx.current+1;
     if(next<strokes.length){
+      sfx("stroke");setKick(n=>n+1);
       freeStrokeIdx.current=next;
       drawFreeTemplate(bgRef.current.getContext("2d"));
       const m=`✏️ Strich ${next+1} von ${strokes.length}!`;setStatusMsg(m);onSpeak(m);
@@ -1656,22 +1668,25 @@ function GuidedCanvas({letter, onComplete, onSpeak=()=>{}, onTrial=null, scale=1
   };
 
   const finishFree=()=>{
-    const pct=calcScore();
-    const label=pct>=90?"🌟 Ausgezeichnet!":pct>=70?"👍 Sehr gut!":pct>=50?"😊 Gut gemacht!":"💪 Weiter üben!";
+    const pct=calcScore(),stars=Math.max(1,Math.round(pct/20));
+    const label=pct>=90?"🌟 Super genau!":pct>=70?"👍 Sehr schön!":pct>=50?"😊 Gut geschrieben!":"💪 Weiter so!";
     const color=pct>=90?"#16a34a":pct>=70?"#4361ee":pct>=50?"#f59e0b":"#f97316";
-    setScoreInfo({score:pct,label,color});setPhase("compare");
-    reportG(true,{score_raw:pct/100,stars:Math.max(1,Math.round(pct/20)),n_strokes:strokes.length});
-    setTimeout(()=>onComplete(Math.max(1,Math.round(pct/20))),1800);
+    const praise=stars>=3?"Erst mit Hilfe, dann ganz allein nachgefahren! 🖐️":processPraise({stars,mode:"guided"});
+    setScoreInfo({score:pct,label,color,praise,stars});setPhase("compare");
+    sfx(stars>=4?"fanfare":stars>=3?"done":"soft");
+    setTimeout(()=>onSpeak(praise),500);
+    reportG(true,{score_raw:pct/100,stars,n_strokes:strokes.length});
+    onComplete(stars,{mode:"guided"});
   };
 
+  const bubble=phase==="compare"?{text:scoreInfo.praise,mood:scoreInfo.stars>=3?"cheer":"happy",tone:scoreInfo.stars>=3?"praise":"info"}
+    :statusMsg.startsWith("✓")?{text:statusMsg,mood:"cheer",tone:"praise"}
+    :{text:statusMsg,mood:"happy",tone:"info"};
   return(
-    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
-      <div style={{fontSize:12,color:"#475569",background:phase==="freeTrace"?"#f0fdf4":"#eff6ff",borderRadius:12,padding:"5px 16px",border:`1px solid ${phase==="freeTrace"?"#bbf7d0":"#bfdbfe"}`,fontWeight:600,minHeight:28,textAlign:"center",transition:"all 0.3s"}}>
-        {statusMsg}
-      </div>
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:10}}>
+      <KlecksBubble {...bubble} kick={kick} maxWidth={W*scale+22}/>
       <div style={{position:"relative"}}>
-        <div style={{background:"#1e1b4b",borderRadius:24,padding:10,boxShadow:"0 8px 32px #1e1b4b50"}}>
-          <div style={{position:"relative",width:W*scale,height:H*scale,borderRadius:16,overflow:"hidden",background:"#fafafa"}}>
+        <FieldFrame W={W} H={H} scale={scale}>
             <canvas ref={bgRef} width={W*k} height={H*k} style={{position:"absolute",inset:0,width:"100%",height:"100%"}}/>
             {phase!=="compare"&&(
               <canvas ref={ovRef} width={W*k} height={H*k}
@@ -1685,29 +1700,23 @@ function GuidedCanvas({letter, onComplete, onSpeak=()=>{}, onTrial=null, scale=1
                 onTouchEnd={phase==="guided"?guidedEnd:freeEnd}/>
             )}
             {phase==="compare"&&(
-              <div style={{position:"absolute",inset:0,borderRadius:16,overflow:"hidden",background:"#f8fafc"}}>
+              <div style={{position:"absolute",inset:0,overflow:"hidden",background:"#f8fafc"}}>
                 <canvas ref={compareRef} width={W*k} height={H*k} style={{display:"block",width:"100%",height:"100%"}}/>
-                <div style={{position:"absolute",top:0,left:0,right:0,display:"flex",justifyContent:"center",gap:10,padding:"5px 8px",background:"rgba(255,255,255,0.92)",borderBottom:"1px solid #e2e8f0",fontSize:10,fontWeight:700}}>
+                <div style={{position:"absolute",top:0,left:0,right:0,display:"flex",justifyContent:"center",gap:10,padding:"5px 8px",background:"rgba(255,255,255,0.92)",borderBottom:"1px solid #e2e8f0",fontSize:11,fontWeight:800}}>
                   <span style={{display:"flex",alignItems:"center",gap:3}}><span style={{width:14,height:5,borderRadius:3,background:"rgba(180,180,200,0.7)",display:"inline-block"}}/>Vorlage</span>
                   <span style={{display:"flex",alignItems:"center",gap:3}}><span style={{width:14,height:5,borderRadius:3,background:"#22c55e",display:"inline-block"}}/>Genau</span>
                   <span style={{display:"flex",alignItems:"center",gap:3}}><span style={{width:14,height:5,borderRadius:3,background:"#ef4444",display:"inline-block"}}/>Abweichung</span>
                 </div>
-                <div style={{position:"absolute",bottom:0,left:0,right:0,padding:"6px 12px",background:"rgba(255,255,255,0.92)",borderTop:"1px solid #e2e8f0",textAlign:"center"}}>
-                  <span style={{fontSize:16,fontWeight:900,color:scoreInfo.color}}>{scoreInfo.label}</span>
-                  <span style={{fontSize:11,color:"#6b7280",marginLeft:8}}>({scoreInfo.score}%)</span>
-                </div>
+                <StarResult stars={scoreInfo.stars} label={scoreInfo.label}/>
               </div>
             )}
-          </div>
-        </div>
-        <div style={{position:"absolute",bottom:-14,right:-14,fontSize:38,transform:animalBounce?"scale(1.4) rotate(-12deg)":"scale(1)",transition:"transform 0.25s cubic-bezier(.34,1.56,.64,1)",userSelect:"none"}}>{animal}</div>
+        </FieldFrame>
         {confetti&&<Confetti/>}
       </div>
-      <div style={{display:"flex",gap:8}}>
-        <button onClick={reset} style={{padding:"8px 16px",borderRadius:20,border:"2px solid #f87171",background:"white",color:"#ef4444",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"Arial,sans-serif"}}>🗑️ Neu</button>
-        {phase==="freeTrace"&&hasDrawn&&(
-          <button onClick={finishFree} style={{padding:"8px 16px",borderRadius:20,border:"none",background:"linear-gradient(135deg,#4ade80,#16a34a)",color:"white",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"Arial,sans-serif"}}>✓ Fertig</button>
-        )}
+      <div style={{display:"flex",gap:10,marginTop:4}}>
+        <Btn bg="white" sh="#fca5a5" color="#e11d48" style={{border:"2px solid #fecdd3"}} onClick={()=>{sfx("tap");reset();}}>{phase==="compare"?"🔁 Nochmal":"🗑️ Neu"}</Btn>
+        {phase==="freeTrace"&&hasDrawn&&<Btn bg="var(--mint)" sh="var(--mintD)" onClick={finishFree} style={{animation:"glowPulse 1.6s infinite"}}>✓ Fertig</Btn>}
+        {phase==="compare"&&onNext&&<Btn bg="var(--coral)" sh="var(--coralD)" data-k="next" onClick={()=>{sfx("pop");onNext();}} style={{minWidth:120,animation:"popIn 0.35s ease-out"}}>Weiter ➜</Btn>}
       </div>
     </div>
   );
@@ -1716,7 +1725,7 @@ function GuidedCanvas({letter, onComplete, onSpeak=()=>{}, onTrial=null, scale=1
 // FORSCHUNG — Teilnahme im Elternbereich, Zustimmung des Kindes, Schreibtest
 // ═══════════════════════════════════════════════════════════════════════════════
 const fmtCode=(pid)=>pid?`${pid.slice(0,3)}-${pid.slice(3)}`:"";
-const studyBtn=(bg,fg="white",border="none")=>({width:"100%",padding:10,background:bg,color:fg,border,borderRadius:14,fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"Arial,sans-serif",marginTop:6});
+const studyBtn=(bg,fg="white",border="none")=>({width:"100%",padding:10,background:bg,color:fg,border,borderRadius:14,fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"inherit",marginTop:6});
 
 function StudySection({onStartProbe}){
   const rs=useResearch();
@@ -1779,7 +1788,7 @@ function StudyEnroll({onClose,onStartProbe}){
       setStep("done");
     }catch{setErr("Keine Verbindung zum Studienserver. Bitte mit Internet erneut versuchen.");setStep("child");}
   };
-  const box={background:"white",borderRadius:24,padding:20,maxWidth:440,width:"100%",maxHeight:"88vh",overflowY:"auto",position:"relative",boxShadow:"0 20px 60px #0004",fontFamily:"Arial,sans-serif",color:"#334155"};
+  const box={background:"white",borderRadius:24,padding:20,maxWidth:440,width:"100%",maxHeight:"88vh",overflowY:"auto",position:"relative",boxShadow:"0 20px 60px #0004",fontFamily:"inherit",color:"#334155"};
   const p={fontSize:13,lineHeight:1.55,margin:"0 0 8px"};
   const check=(k,label)=>(
     <label style={{display:"flex",gap:9,alignItems:"flex-start",fontSize:13,lineHeight:1.45,marginBottom:10,cursor:"pointer"}}>
@@ -1789,7 +1798,7 @@ function StudyEnroll({onClose,onStartProbe}){
   );
   const select=(k,label,opts)=>(
     <label style={{display:"block",fontSize:12,fontWeight:700,margin:"0 0 8px"}}>{label}
-      <select value={d[k]} onChange={e=>setD({...d,[k]:e.target.value})} style={{display:"block",width:"100%",marginTop:3,padding:8,borderRadius:10,border:"2px solid #e2e8f0",fontSize:13,fontFamily:"Arial,sans-serif"}}>
+      <select value={d[k]} onChange={e=>setD({...d,[k]:e.target.value})} style={{display:"block",width:"100%",marginTop:3,padding:8,borderRadius:10,border:"2px solid #e2e8f0",fontSize:13,fontFamily:"inherit"}}>
         <option value="">Bitte wählen</option>
         {opts.map(([v,l])=><option key={v} value={v}>{l}</option>)}
       </select>
@@ -1879,8 +1888,8 @@ function ProbeTest({wave,chars,difficulty,scale,onSpeak,onLog,onFinish,onExit}){
   const [i,setI]=useState(-1);
   const ch=order[i];
   useEffect(()=>{if(ch)onSpeak(probePrompt(ch));},[i]);
-  const page={minHeight:"100vh",background:"linear-gradient(160deg,#ecfeff,#f0fdfa)",fontFamily:"Arial,sans-serif",display:"flex",flexDirection:"column",alignItems:"center",padding:12,gap:10};
-  const big={padding:"14px 28px",borderRadius:18,border:"none",background:"#0f766e",color:"white",fontWeight:900,fontSize:17,cursor:"pointer",fontFamily:"Arial,sans-serif"};
+  const page={minHeight:"100vh",background:"linear-gradient(160deg,#ecfeff,#f0fdfa)",fontFamily:"inherit",display:"flex",flexDirection:"column",alignItems:"center",padding:12,gap:10};
+  const big={padding:"14px 28px",borderRadius:18,border:"none",background:"#0f766e",color:"white",fontWeight:900,fontSize:17,cursor:"pointer",fontFamily:"inherit"};
   if(i<0)return(
     <div style={{...page,justifyContent:"center",textAlign:"center"}}>
       <div style={{fontSize:64}}>🔬</div>
@@ -1934,7 +1943,7 @@ function ParentZone({settings,onChange,onClose,journal,onStartProbe}){
       <div style={{background:"white",borderRadius:24,padding:24,maxWidth:360,width:"100%",position:"relative",boxShadow:"0 20px 60px #0003",textAlign:"center"}}>
         <button onClick={onClose} style={{position:"absolute",top:14,right:14,background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#94a3b8"}}>✕</button>
         <div style={{fontSize:36,marginBottom:8}}>🔒</div>
-        <h3 style={{margin:"0 0 4px",fontSize:18,fontWeight:900,color:"#1e3a8a",fontFamily:"Arial,sans-serif"}}>Elternbereich</h3>
+        <h3 style={{margin:"0 0 4px",fontSize:18,fontWeight:900,color:"#1e3a8a",fontFamily:"inherit"}}>Elternbereich</h3>
         <p style={{fontSize:13,color:"#64748b",margin:"0 0 16px"}}>Bitte löse die Aufgabe:</p>
         <div style={{display:"flex",alignItems:"center",gap:8,justifyContent:"center",marginBottom:12}}>
           <span style={{fontSize:22,fontWeight:900,color:"#1e3a8a"}}>{math.a}</span>
@@ -1942,11 +1951,11 @@ function ParentZone({settings,onChange,onClose,journal,onStartProbe}){
           <span style={{fontSize:22,fontWeight:900,color:"#1e3a8a"}}>{math.b}</span>
           <span style={{fontSize:18,color:"#64748b"}}>=</span>
           <input value={ans} onChange={e=>setAns(e.target.value)} onKeyDown={e=>e.key==="Enter"&&(parseInt(ans)===math.ans?setAccess(true):setErr(true))}
-            style={{width:56,padding:"8px",fontSize:18,border:`2px solid ${err?"#ef4444":"#e2e8f0"}`,borderRadius:10,textAlign:"center",fontFamily:"Arial,sans-serif"}}/>
+            style={{width:56,padding:"8px",fontSize:18,border:`2px solid ${err?"#ef4444":"#e2e8f0"}`,borderRadius:10,textAlign:"center",fontFamily:"inherit"}}/>
         </div>
         {err&&<p style={{color:"#ef4444",fontSize:12,margin:"0 0 10px"}}>✗ Leider falsch — nochmal!</p>}
         <button onClick={()=>parseInt(ans)===math.ans?setAccess(true):setErr(true)}
-          style={{width:"100%",padding:12,background:"#1e3a8a",color:"white",border:"none",borderRadius:14,fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"Arial,sans-serif"}}>
+          style={{width:"100%",padding:12,background:"#1e3a8a",color:"white",border:"none",borderRadius:14,fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>
           Zugang erhalten
         </button>
       </div>
@@ -1959,7 +1968,7 @@ function ParentZone({settings,onChange,onClose,journal,onStartProbe}){
       <div style={{background:"white",borderRadius:24,padding:20,maxWidth:480,width:"100%",maxHeight:"88vh",overflowY:"auto",position:"relative",boxShadow:"0 20px 60px #0003"}}>
         <button onClick={onClose} style={{position:"absolute",top:14,right:14,background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#94a3b8"}}>✕</button>
         <div style={{fontSize:28,marginBottom:4}}>👨‍👩‍👧</div>
-        <h3 style={{margin:"0 0 2px",fontSize:18,fontWeight:900,color:"#1e3a8a",fontFamily:"Arial,sans-serif"}}>Elternbereich</h3>
+        <h3 style={{margin:"0 0 2px",fontSize:18,fontWeight:900,color:"#1e3a8a",fontFamily:"inherit"}}>Elternbereich</h3>
         <p style={{fontSize:12,color:"#64748b",margin:"0 0 16px"}}>Pädagogische Einstellungen</p>
 
         {/* Edu tip */}
@@ -1979,7 +1988,7 @@ function ParentZone({settings,onChange,onClose,journal,onStartProbe}){
           <h4 style={{margin:"0 0 8px",fontSize:14,fontWeight:800,color:"#1e3a8a"}}>🎯 Schwierigkeitsgrad</h4>
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
             {Object.entries(DIFFICULTY).map(([k,d])=>(
-              <button key={k} onClick={()=>onChange({...settings,difficulty:k})} style={{padding:"10px 14px",borderRadius:12,border:`2px solid ${settings.difficulty===k?"#4361ee":"#e2e8f0"}`,background:settings.difficulty===k?"#4361ee":"white",color:settings.difficulty===k?"white":"#374151",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"Arial,sans-serif",textAlign:"left"}}>
+              <button key={k} onClick={()=>onChange({...settings,difficulty:k})} style={{padding:"10px 14px",borderRadius:12,border:`2px solid ${settings.difficulty===k?"#4361ee":"#e2e8f0"}`,background:settings.difficulty===k?"#4361ee":"white",color:settings.difficulty===k?"white":"#374151",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}>
                 {d.label}
               </button>
             ))}
@@ -1990,7 +1999,7 @@ function ParentZone({settings,onChange,onClose,journal,onStartProbe}){
         <div style={{marginBottom:14,paddingBottom:14,borderBottom:"1px solid #e2e8f0"}}>
           <h4 style={{margin:"0 0 8px",fontSize:14,fontWeight:800,color:"#1e3a8a"}}>⏱️ Bildschirmzeit</h4>
           <select value={settings.screenTime} onChange={e=>onChange({...settings,screenTime:parseInt(e.target.value)})}
-            style={{width:"100%",padding:10,borderRadius:10,border:"2px solid #e2e8f0",fontSize:13,fontFamily:"Arial,sans-serif"}}>
+            style={{width:"100%",padding:10,borderRadius:10,border:"2px solid #e2e8f0",fontSize:13,fontFamily:"inherit"}}>
             {[5,10,15,20,30,0].map(v=><option key={v} value={v}>{v===0?"Keine Begrenzung":`${v} Minuten`}</option>)}
           </select>
           <p style={{fontSize:11,color:"#94a3b8",margin:"4px 0 0"}}>Nach dieser Zeit erscheint eine freundliche Pausenerinnerung.</p>
@@ -2048,9 +2057,9 @@ function ParentZone({settings,onChange,onClose,journal,onStartProbe}){
         {/* Options */}
         <div style={{marginBottom:14,paddingBottom:14,borderBottom:"1px solid #e2e8f0"}}>
           <h4 style={{margin:"0 0 8px",fontSize:14,fontWeight:800,color:"#1e3a8a"}}>⚙️ Optionen</h4>
-          {[["autoAdvance","Automatisch zum nächsten Buchstaben"],["speechEnabled","Vorlesen aktiviert"],["rewardVideos","Schatzkisten-Belohnungen erlauben"]].map(([k,label])=>(
+          {[["autoAdvance","Automatisch zum nächsten Buchstaben (sonst mit dem Knopf „Weiter“)"],["speechEnabled","Vorlesen aktiviert"],["soundEnabled","Töne (kurze Klänge bei Erfolg)"],["rewardVideos","Überraschungen und Effekte zeigen (Fundstücke, Einhorn, Sternenregen)"]].map(([k,label])=>(
             <label key={k} style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:"#374151",marginBottom:8,cursor:"pointer"}}>
-              <input type="checkbox" checked={!!settings[k]} onChange={e=>onChange({...settings,[k]:e.target.checked})} style={{width:16,height:16}}/>
+              <input type="checkbox" checked={k==="soundEnabled"?settings[k]!==false:!!settings[k]} onChange={e=>onChange({...settings,[k]:e.target.checked})} style={{width:16,height:16}}/>
               {label}
             </label>
           ))}
@@ -2067,6 +2076,7 @@ function ParentZone({settings,onChange,onClose,journal,onStartProbe}){
             <div><b>Gesamtpunkte:</b> {settings.totalScore||0}</div>
             <div><b>Lernstufe Abschreiben:</b> {Object.values(settings.stageMap||{}).filter(v=>v===2).length} · <b>Aus dem Kopf:</b> {Object.values(settings.stageMap||{}).filter(v=>v>=3).length}</div>
             <div><b>Sicher aus dem Kopf geschrieben:</b> {Object.values(settings.memMap||{}).filter(v=>v>0).length}</div>
+            <div><b>Gefundene Überraschungen:</b> {(settings.unlocks||[]).length} von {SURPRISES.length}</div>
           </div>
           {journal.length>0&&(
             <div style={{marginTop:10}}>
@@ -2080,10 +2090,10 @@ function ParentZone({settings,onChange,onClose,journal,onStartProbe}){
           )}
         </div>
 
-        <button onClick={onClose} style={{width:"100%",padding:10,background:"#e2e8f0",border:"none",borderRadius:14,fontWeight:700,fontSize:13,cursor:"pointer",color:"#475569",fontFamily:"Arial,sans-serif"}}>
+        <button onClick={onClose} style={{width:"100%",padding:10,background:"#e2e8f0",border:"none",borderRadius:14,fontWeight:700,fontSize:13,cursor:"pointer",color:"#475569",fontFamily:"inherit"}}>
           Elternbereich schließen
         </button>
-        <button onClick={()=>{if(window.confirm("Wirklich alle Fortschritte zurücksetzen? Das kann nicht rückgängig gemacht werden.")){clearPersisted();setTimeout(()=>window.location.reload(),120);}}} style={{width:"100%",padding:8,background:"white",border:"2px solid #f87171",borderRadius:14,fontWeight:700,fontSize:12,cursor:"pointer",color:"#ef4444",fontFamily:"Arial,sans-serif",marginTop:6}}>
+        <button onClick={()=>{if(window.confirm("Wirklich alle Fortschritte zurücksetzen? Das kann nicht rückgängig gemacht werden.")){clearPersisted();setTimeout(()=>window.location.reload(),120);}}} style={{width:"100%",padding:8,background:"white",border:"2px solid #f87171",borderRadius:14,fontWeight:700,fontSize:12,cursor:"pointer",color:"#ef4444",fontFamily:"inherit",marginTop:6}}>
           🗑️ Fortschritt zurücksetzen
         </button>
       </div>
@@ -2096,15 +2106,13 @@ function ParentZone({settings,onChange,onClose,journal,onStartProbe}){
 // ═══════════════════════════════════════════════════════════════════════════════
 function ScreenTimeReminder({limit,onDismiss}){
   return(
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000,backdropFilter:"blur(4px)"}}>
-      <div style={{background:"white",borderRadius:28,padding:28,maxWidth:320,textAlign:"center",boxShadow:"0 20px 60px #0003",animation:"slideUp 0.4s ease"}}>
-        <div style={{fontSize:56,marginBottom:10}}>🧘</div>
-        <h3 style={{margin:"0 0 8px",fontSize:20,fontWeight:900,color:"#1e3a8a",fontFamily:"Arial,sans-serif"}}>Pausen-Zeit!</h3>
-        <p style={{fontSize:14,color:"#6b7280",margin:"0 0 20px",lineHeight:1.6}}>Du hast jetzt {limit} Minuten toll geübt!<br/>Dein Gehirn freut sich über eine kleine Pause. 🌱</p>
-        <button onClick={onDismiss} style={{width:"100%",padding:14,background:"linear-gradient(135deg,#4ade80,#16a34a)",color:"white",border:"none",borderRadius:18,fontWeight:900,fontSize:15,cursor:"pointer",fontFamily:"Arial,sans-serif",marginBottom:8}}>
-          OK, mache Pause!
-        </button>
-        <button onClick={onDismiss} style={{background:"none",border:"none",color:"#94a3b8",fontSize:12,cursor:"pointer"}}>Noch 5 Minuten üben</button>
+    <div style={{position:"fixed",inset:0,background:"rgba(20,24,44,0.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000,backdropFilter:"blur(4px)",padding:16}}>
+      <div className="k-card" style={{padding:24,maxWidth:330,textAlign:"center",animation:"slideUp 0.4s ease"}}>
+        <div style={{display:"flex",justifyContent:"center",marginBottom:6}}><Klecks size={96} mood="sleepy"/></div>
+        <h3 style={{margin:"0 0 8px",fontSize:22,fontWeight:900}}>Pausen-Zeit!</h3>
+        <p style={{fontSize:15,color:"var(--ink2)",margin:"0 0 18px",lineHeight:1.5}}>Du hast jetzt {limit} Minuten geübt.<br/>Dein Kopf freut sich über eine kleine Pause. 🌱</p>
+        <Btn bg="var(--mint)" sh="var(--mintD)" style={{width:"100%",fontSize:16,marginBottom:10}} onClick={onDismiss}>OK, mache Pause!</Btn>
+        <button onClick={onDismiss} style={{background:"none",border:"none",color:"var(--muted)",fontSize:13,cursor:"pointer",fontWeight:800}}>Noch 5 Minuten üben</button>
       </div>
     </div>
   );
@@ -2117,8 +2125,8 @@ function StickerBook({learnedMap}){
   const allLetters=[...UPPERCASE,...LOWERCASE,...NUMBERS];
   const perfect=allLetters.filter(l=>(learnedMap[l]||0)>=5);
   return(
-    <div style={{background:"linear-gradient(135deg,#fef9c3,#fde68a)",borderRadius:20,padding:16}}>
-      <div style={{fontSize:13,fontWeight:800,color:"#78350f",marginBottom:10}}>🎀 Sticker-Album — {perfect.length} gesammelt!</div>
+    <div className="k-card" style={{background:"linear-gradient(135deg,#fffbea,#fff1c1)",padding:16,maxWidth:560,margin:"0 auto"}}>
+      <div style={{fontSize:16,fontWeight:900,color:"#78350f",marginBottom:10}}>🎀 {perfect.length} Sticker gesammelt</div>
       <div style={{fontSize:11,fontWeight:700,color:"#92400e",marginBottom:6}}>Großbuchstaben</div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(8,1fr)",gap:5,marginBottom:10}}>
         {UPPERCASE.map(l=>{const have=(learnedMap[l]||0)>=5;return(<div key={l} title={have?`${l} — ${STICKERS[l]}`:`${l} noch nicht`} style={{textAlign:"center",fontSize:have?22:14,filter:have?"none":"grayscale(1) opacity(0.2)",transition:"all 0.4s"}}>{have?STICKERS[l]||"⭐":"⬜"}</div>);})}
@@ -2131,7 +2139,7 @@ function StickerBook({learnedMap}){
       <div style={{display:"grid",gridTemplateColumns:"repeat(8,1fr)",gap:5}}>
         {NUMBERS.map(l=>{const have=(learnedMap[l]||0)>=5;return(<div key={l} title={have?`${l} — ${STICKERS[l]}`:`${l} noch nicht`} style={{textAlign:"center",fontSize:have?22:14,filter:have?"none":"grayscale(1) opacity(0.2)",transition:"all 0.4s"}}>{have?STICKERS[l]||"⭐":"⬜"}</div>);})}
       </div>
-      {perfect.length===0&&<div style={{textAlign:"center",color:"#a16207",fontSize:13,marginTop:8}}>Erreiche 5 Sterne für einen Sticker! ✨</div>}
+      {perfect.length===0&&<div style={{textAlign:"center",color:"#a16207",fontSize:14,marginTop:8}}>Hier kleben bald deine ersten Sticker! ✨</div>}
     </div>
   );
 }
@@ -2146,15 +2154,15 @@ function FlowerGarden({learnedMap,tab}){
   const perfect=items.filter(l=>(learnedMap[l]||0)>=5);
   const avg=learned.length?(learned.reduce((a,l)=>a+(learnedMap[l]||0),0)/learned.length).toFixed(1):0;
   return(
-    <div style={{background:"linear-gradient(135deg,#f0fdf4,#dcfce7)",borderRadius:20,padding:14,border:"1px solid #bbf7d0"}}>
-      <div style={{fontSize:13,fontWeight:800,color:"#166534",marginBottom:8}}>🌿 Mein Garten — {tab}</div>
+    <div className="k-card" style={{background:"linear-gradient(135deg,#f3fff7,#dcfce7)",padding:14}}>
+      <div style={{fontSize:16,fontWeight:900,color:"#166534",marginBottom:8}}>{WORLDS[tab].emoji} {WORLDS[tab].name}</div>
       <div style={{display:"flex",gap:14,marginBottom:10}}>
         <div style={{textAlign:"center"}}><div style={{fontSize:20,fontWeight:900,color:"#16a34a"}}>{learned.length}</div><div style={{fontSize:10,color:"#6b7280"}}>geübt</div></div>
         <div style={{textAlign:"center"}}><div style={{fontSize:20,fontWeight:900,color:"#f59e0b"}}>{perfect.length}</div><div style={{fontSize:10,color:"#6b7280"}}>perfekt 🌻</div></div>
         <div style={{textAlign:"center"}}><div style={{fontSize:20,fontWeight:900,color:"#6366f1"}}>⭐{avg}</div><div style={{fontSize:10,color:"#6b7280"}}>Ø</div></div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(9,1fr)",gap:3}}>
-        {items.map(l=><span key={l} title={`${l}: ${learnedMap[l]||0}⭐`} style={{fontSize:18,textAlign:"center"}}>{flower(learnedMap[l]||0)}</span>)}
+        {items.map(l=><span key={l} title={`${l}: ${learnedMap[l]||0}⭐`} style={{fontSize:20,textAlign:"center"}}>{flower(learnedMap[l]||0)}</span>)}
       </div>
     </div>
   );
@@ -2165,30 +2173,31 @@ function FlowerGarden({learnedMap,tab}){
 // ═══════════════════════════════════════════════════════════════════════════════
 // Anlaut-Karte neben dem Buchstaben: „🐭 Maus" mit hervorgehobenem Buchstaben
 function AnlautChip({letter,onSay}){
-  const a=anlautOf(letter);if(!a)return null;
+  const th=useContext(ThemeCtx);
+  const a=anlautOf(letter)||(ANIMALS[letter]?[ANIMALS[letter],LETTER_NAMES[letter]]:null);if(!a)return null;
   const [emoji,word]=a;
   const i=word.toLowerCase().indexOf(letter.toLowerCase());
   return(
-    <button onClick={onSay} style={{display:"flex",alignItems:"center",gap:6,background:"white",border:"2px solid #e2e8f0",borderRadius:14,padding:"4px 10px",cursor:"pointer",fontFamily:"Arial,sans-serif",minWidth:0}}>
-      <span style={{fontSize:24,lineHeight:1}}>{emoji}</span>
-      <span style={{fontSize:15,fontWeight:700,color:"#475569",whiteSpace:"nowrap"}}>
-        {i<0?word:<>{word.slice(0,i)}<span style={{color:"#4361ee",fontWeight:900,fontSize:18}}>{word[i]}</span>{word.slice(i+1)}</>}
+    <button onClick={onSay} className="k-press" style={{display:"flex",alignItems:"center",gap:6,background:"white","--sh":"#dfe4ee",borderRadius:16,padding:"5px 12px",minWidth:0,overflow:"hidden"}}>
+      <span style={{fontSize:26,lineHeight:1}}>{emoji}</span>
+      <span style={{fontSize:17,fontWeight:800,color:"var(--ink2)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+        {i<0?word:<>{word.slice(0,i)}<span style={{color:th.acc,fontWeight:900,fontSize:21}}>{word[i]}</span>{word.slice(i+1)}</>}
       </span>
     </button>
   );
 }
 
 function LetterGrid({items,learnedMap,onSelect,current}){
+  const th=useContext(ThemeCtx);
   return(
-    <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:4}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:7}}>
       {items.map(item=>{
         const s=learnedMap[item]||0;const active=current===item;
-        const bg=active?"#4361ee":s>=5?"#fde68a":s>=3?"#bbf7d0":s>=1?"#dbeafe":"white";
-        const border=active?"2.5px solid #4361ee":s>=5?"2px solid #fbbf24":s>=3?"2px solid #4ade80":s>=1?"2px solid #93c5fd":"2px solid #e2e8f0";
         return(
-          <button key={item} onClick={()=>onSelect(item)} style={{background:bg,border,borderRadius:10,padding:"6px 2px 4px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:0,transform:active?"scale(1.12)":"scale(1)",transition:"all 0.12s",boxShadow:active?"0 4px 14px #4361ee40":"none"}}>
-            <Glyph letter={item} height={30} weight={2.6} color={active?"white":s>0?"#14532d":"#374151"}/>
-            {s>0&&<span style={{fontSize:7,lineHeight:1.2}}>{s>=5?"🌻":s>=3?"🌼":"🌱"}</span>}
+          <button key={item} data-letter={item} onClick={()=>onSelect(item)} className="k-press"
+            style={{background:active?th.acc:s>=5?"#fff1a8":s>=1?th.soft:"white","--sh":active?th.dark:s>=5?"#e9c46a":"#dfe4ee",borderRadius:14,padding:"6px 2px 3px",display:"flex",flexDirection:"column",alignItems:"center"}}>
+            <Glyph letter={item} height={30} weight={2.6} color={active?"white":"var(--ink)"}/>
+            <span style={{fontSize:9,lineHeight:1.2,height:11}}>{s>=5?"🌻":s>=3?"🌼":s>=1?"🌱":""}</span>
           </button>
         );
       })}
@@ -2204,22 +2213,23 @@ function WordsPanel({learnedMap, onPractice}){
   const available=WORDS.filter(w=>w.letters.every(l=>learned.has(l)));
   const almost=WORDS.filter(w=>!w.letters.every(l=>learned.has(l))&&w.letters.filter(l=>!learned.has(l)).length<=2);
   return(
-    <div style={{display:"flex",flexDirection:"column",gap:14}}>
-      {available.length===0&&<div style={{textAlign:"center",color:"#94a3b8",padding:"12px 0",fontSize:14}}>Lerne mehr Buchstaben! 🔒</div>}
+    <div style={{display:"flex",flexDirection:"column",gap:16,maxWidth:560,margin:"0 auto"}}>
+      {available.length===0&&(
+        <div className="k-card" style={{display:"flex",alignItems:"center",gap:12,padding:14}}>
+          <Klecks size={56} mood="think"/>
+          <div style={{fontSize:15,color:"var(--ink2)",lineHeight:1.35}}>Schreib noch ein paar Buchstaben – dann kannst du hier ganze Wörter schreiben!</div>
+        </div>
+      )}
       {available.length>0&&(
         <div>
-          <div style={{fontSize:13,fontWeight:800,color:"#78350f",marginBottom:8}}>✅ Freigeschaltet — tippe zum Schreiben üben!</div>
-          <div style={{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center"}}>
+          <div style={{fontSize:16,fontWeight:900,color:"#78350f",marginBottom:10}}>✅ Diese Wörter kannst du schon schreiben:</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:10}}>
             {available.map(w=>(
-              <button key={w.word} onClick={()=>onPractice(w)}
-                style={{background:"linear-gradient(135deg,#fef3c7,#fde68a)",borderRadius:14,padding:"10px 16px",textAlign:"center",border:"2px solid #fbbf24",cursor:"pointer",boxShadow:"0 2px 8px #f59e0b20",transition:"transform 0.1s"}}
-                onMouseDown={e=>e.currentTarget.style.transform="scale(0.95)"}
-                onMouseUp={e=>e.currentTarget.style.transform="scale(1)"}
-                onTouchStart={e=>e.currentTarget.style.transform="scale(0.95)"}
-                onTouchEnd={e=>e.currentTarget.style.transform="scale(1)"}>
-                <div style={{fontSize:20,fontWeight:900,letterSpacing:3,color:"#78350f",fontFamily:"Arial,sans-serif"}}>{w.word}</div>
-                <div style={{fontSize:11,color:"#92400e",marginTop:2}}>{w.meaning}</div>
-                <div style={{fontSize:10,color:"#b45309",marginTop:3}}>✏️ Schreiben üben</div>
+              <button key={w.word} data-word={w.word} onClick={()=>{sfx("tap");onPractice(w);}} className="k-press"
+                style={{background:"white","--sh":"#f2c94c",border:"3px solid #ffd666",borderRadius:20,padding:"12px 8px",display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
+                <div style={{fontSize:30,lineHeight:1}}>{w.meaning.split(" ").slice(-1)[0]}</div>
+                <GlyphWord word={w.word} height={26} color="#78350f"/>
+                <div style={{fontSize:12,color:"#b45309",fontWeight:900}}>✏️ Schreiben</div>
               </button>
             ))}
           </div>
@@ -2227,16 +2237,14 @@ function WordsPanel({learnedMap, onPractice}){
       )}
       {almost.length>0&&(
         <div>
-          <div style={{fontSize:13,fontWeight:800,color:"#6b7280",marginBottom:8}}>🔜 Fast geschafft:</div>
-          <div style={{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center"}}>
+          <div style={{fontSize:16,fontWeight:900,color:"var(--ink2)",marginBottom:10}}>🔜 Fast geschafft:</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:10}}>
             {almost.map(w=>{
               const miss=w.letters.filter(l=>!learned.has(l));
               return(
-                <div key={w.word} style={{background:"white",borderRadius:14,padding:"10px 16px",textAlign:"center",border:"2px dashed #d1d5db"}}>
-                  <div style={{fontSize:18,fontWeight:900,letterSpacing:3,fontFamily:"Arial,sans-serif"}}>
-                    {w.word.split("").map((ch,i)=><span key={i} style={{color:miss.includes(ch.toUpperCase())?"#ef4444":"#9ca3af"}}>{ch}</span>)}
-                  </div>
-                  <div style={{fontSize:10,color:"#ef4444",marginTop:2}}>fehlt: {miss.join(", ")}</div>
+                <div key={w.word} style={{background:"#ffffffb3",borderRadius:20,padding:"12px 8px",textAlign:"center",border:"3px dashed #e2c98a"}}>
+                  <GlyphWord word={w.word} height={22} color="#a8a29e" missing={miss}/>
+                  <div style={{fontSize:12,color:"#ef4444",marginTop:6,fontWeight:800}}>es fehlt: {miss.join(", ")}</div>
                 </div>
               );
             })}
@@ -2250,7 +2258,8 @@ function WordsPanel({learnedMap, onPractice}){
 // ═══════════════════════════════════════════════════════════════════════════════
 // WORD PRACTICE SCREEN — writes each letter of a word in sequence
 // ═══════════════════════════════════════════════════════════════════════════════
-function WordPractice({word, settings, onSpeak=()=>{}, onTrial=null, scale=1, onBack}){
+const WORD_THEME={key:"wort",acc:"#f59e0b",dark:"#b45309",soft:"#fef3c7",bg:"linear-gradient(180deg,#fff3c4 0%,#fffbea 45%,#ffffff 100%)"};
+function WordPractice({word, settings, pen="classic", onSpeak=()=>{}, onTrial=null, scale=1, onBack}){
   const letters=word.word.split("");
   const [idx,setIdx]=useState(0);           // current letter index
   const [doneLetters,setDoneLetters]=useState([]); // stars per letter
@@ -2259,103 +2268,63 @@ function WordPractice({word, settings, onSpeak=()=>{}, onTrial=null, scale=1, on
   const [finished,setFinished]=useState(false);
 
   const current=letters[idx];
-  const totalStars=doneLetters.reduce((a,s)=>a+s,0);
-  const maxStars=doneLetters.length*5;
 
   const handleLetterDone=(stars)=>{
     const next=[...doneLetters,stars];
     setDoneLetters(next);
     if(idx<letters.length-1){
-      setTimeout(()=>{ setIdx(idx+1); setPhase("anim"); setReplayKey(k=>k+1); },1200);
+      setTimeout(()=>{ setIdx(idx+1); setPhase("anim"); setReplayKey(k=>k+1); },2600);
     } else {
-      setTimeout(()=>setFinished(true),1200);
+      setTimeout(()=>{setFinished(true);sfx("fanfare");},2600);
     }
   };
 
   if(finished){
-    const pct=maxStars>0?Math.round(totalStars/maxStars*100):0;
     return(
-      <div style={{minHeight:"100vh",background:"linear-gradient(160deg,#fef9c3,#fde68a 80%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16,padding:20,fontFamily:"Arial,sans-serif"}}>
-        <div style={{fontSize:72}}>🎉</div>
-        <h2 style={{margin:0,fontSize:28,fontWeight:900,color:"#78350f"}}>{word.word}</h2>
-        <div style={{fontSize:22,color:"#92400e"}}>{word.meaning}</div>
-        <div style={{display:"flex",gap:6}}>
-          {letters.map((l,i)=>(
-            <div key={i} style={{textAlign:"center"}}>
-              <div style={{fontSize:22,fontWeight:900,color:"#78350f",fontFamily:"Arial,sans-serif"}}>{l}</div>
-              <div style={{fontSize:12}}>{"⭐".repeat(doneLetters[i]||0)}</div>
-            </div>
-          ))}
-        </div>
-        <div style={{background:"white",borderRadius:20,padding:"12px 24px",fontSize:15,fontWeight:800,color:"#374151"}}>
-          Ergebnis: {totalStars}/{maxStars} Punkte — {pct}%
+      <div style={{minHeight:"100vh",background:WORD_THEME.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16,padding:20}}>
+        <Klecks size={110} mood="cheer" anim="jump"/>
+        <div style={{fontSize:56,lineHeight:1}}>{word.meaning.split(" ").slice(-1)[0]}</div>
+        <GlyphWord word={word.word} height={48} color="#78350f"/>
+        <div className="k-card" style={{padding:"12px 20px",fontSize:17,fontWeight:900,textAlign:"center"}}>
+          Du hast das ganze Wort geschrieben! 🎉
+          <div style={{display:"flex",gap:10,justifyContent:"center",marginTop:6}}>
+            {letters.map((l,i)=><div key={i} style={{textAlign:"center",fontSize:12}}><b style={{fontSize:16}}>{l}</b><br/>{"⭐".repeat(doneLetters[i]||0)}</div>)}
+          </div>
         </div>
         <div style={{display:"flex",gap:10}}>
-          <button onClick={()=>{ setIdx(0);setDoneLetters([]);setPhase("anim");setReplayKey(k=>k+1);setFinished(false); }}
-            style={{padding:"12px 20px",borderRadius:18,border:"none",background:"#fb923c",color:"white",fontWeight:800,fontSize:14,cursor:"pointer",fontFamily:"Arial,sans-serif"}}>
-            🔄 Nochmal
-          </button>
-          <button onClick={onBack}
-            style={{padding:"12px 20px",borderRadius:18,border:"none",background:"#4361ee",color:"white",fontWeight:800,fontSize:14,cursor:"pointer",fontFamily:"Arial,sans-serif"}}>
-            ← Zurück
-          </button>
+          <Btn bg="var(--sun)" sh="var(--sunD)" color="#5a3a00" onClick={()=>{ setIdx(0);setDoneLetters([]);setPhase("anim");setReplayKey(k=>k+1);setFinished(false); }}>🔄 Nochmal</Btn>
+          <Btn bg="var(--sky)" sh="var(--skyD)" onClick={onBack}>← Zurück</Btn>
         </div>
       </div>
     );
   }
 
+  const pill=(active,c)=>({padding:"6px 12px",borderRadius:14,background:active?c:"white",color:active?"white":c,border:`2px solid ${c}`,fontWeight:900,fontSize:13,"--sh":active?"#0002":"#dfe4ee"});
   return(
-    <div style={{minHeight:"100vh",background:"#f8fafc",fontFamily:"Arial,sans-serif",display:"flex",flexDirection:"column",padding:10,gap:8}}>
-      {/* Header */}
-      <div style={{display:"flex",alignItems:"center",gap:8}}>
-        <button onClick={onBack} style={{background:"white",border:"1px solid #e2e8f0",borderRadius:50,width:36,height:36,fontSize:16,cursor:"pointer",flexShrink:0}}>←</button>
-        <div style={{flex:1,background:"white",borderRadius:14,padding:"8px 12px",border:"1px solid #e2e8f0"}}>
-          <div style={{fontSize:11,color:"#94a3b8",fontWeight:600}}>Wort schreiben</div>
-          {/* Letter progress strip */}
-          <div style={{display:"flex",gap:4,marginTop:4,alignItems:"center"}}>
+    <ThemeCtx.Provider value={WORD_THEME}>
+    <div style={{minHeight:"100vh",background:WORD_THEME.bg,display:"flex",flexDirection:"column",alignItems:"center",padding:10,gap:10}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,width:"100%",maxWidth:560}}>
+        <RoundBtn onClick={onBack} aria-label="Zurück">←</RoundBtn>
+        <div className="k-card" style={{flex:1,padding:"8px 12px",display:"flex",alignItems:"center",gap:10,borderRadius:18}}>
+          <span style={{fontSize:30,lineHeight:1}}>{word.meaning.split(" ").slice(-1)[0]}</span>
+          <div style={{display:"flex",gap:5,alignItems:"center",flexWrap:"wrap"}}>
             {letters.map((l,i)=>{
-              const done=i<idx;
-              const active=i===idx;
+              const done=i<idx,active=i===idx;
               return(
-                <div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
-                  <div style={{
-                    width:28,height:28,borderRadius:8,
-                    background:done?"#4ade80":active?"#4361ee":"#f1f5f9",
-                    border:`2px solid ${done?"#22c55e":active?"#4361ee":"#e2e8f0"}`,
-                    display:"flex",alignItems:"center",justifyContent:"center",
-                    fontSize:14,fontWeight:900,fontFamily:"Arial,sans-serif",
-                    color:done||active?"white":"#94a3b8",
-                    transition:"all 0.2s",
-                    transform:active?"scale(1.15)":"scale(1)",
-                  }}>{done?"✓":l}</div>
-                  {done&&<div style={{fontSize:8,lineHeight:1}}>{"⭐".repeat(Math.min(doneLetters[i]||0,3))}</div>}
+                <div key={i} style={{width:34,height:38,borderRadius:10,background:done?"#d9f7e4":active?WORD_THEME.acc:"#f4f5f8",border:`2px solid ${done?"#2ecc8f":active?WORD_THEME.dark:"#e3e8f2"}`,
+                  display:"flex",alignItems:"center",justifyContent:"center",transform:active?"scale(1.12)":"none",transition:"all .2s"}}>
+                  {done?<span style={{fontSize:16}}>✓</span>:<Glyph letter={l} height={30} weight={2.6} color={active?"white":"#9aa3b5"}/>}
                 </div>
               );
             })}
           </div>
         </div>
-        <div style={{background:"#fbbf24",color:"#78350f",borderRadius:12,padding:"4px 10px",fontWeight:800,fontSize:13,flexShrink:0}}>
-          {idx+1}/{letters.length}
-        </div>
       </div>
-
-      {/* Word meaning */}
-      <div style={{background:"linear-gradient(135deg,#fef3c7,#fde68a)",borderRadius:14,padding:"8px 14px",textAlign:"center",border:"1px solid #fbbf24"}}>
-        <span style={{fontSize:18,fontWeight:900,letterSpacing:4,color:"#78350f",fontFamily:"Arial,sans-serif"}}>{word.word}</span>
-        <span style={{fontSize:14,color:"#92400e",marginLeft:10}}>{word.meaning}</span>
+      <div style={{display:"flex",gap:6,justifyContent:"center"}}>
+        <button className="k-press" style={pill(phase==="anim","#f97316")} onClick={()=>{setPhase("anim");setReplayKey(k=>k+1);}}>▶ Zeigen</button>
+        {settings.allowedModes?.guided&&<button className="k-press" style={pill(phase==="trace_guided","#22c55e")} onClick={()=>setPhase("trace_guided")}>🖐️ Geführt</button>}
+        {settings.allowedModes?.trace&&<button className="k-press" style={pill(phase==="trace_free","#4361ee")} onClick={()=>setPhase("trace_free")}>✏️ Nachfahren</button>}
       </div>
-
-      {/* Mode toggle */}
-      <div style={{display:"flex",gap:4,justifyContent:"center"}}>
-        <button onClick={()=>{setPhase("anim");setReplayKey(k=>k+1);}}
-          style={{padding:"5px 10px",borderRadius:10,border:"2px solid #fb923c",background:phase==="anim"?"#fb923c":"white",color:phase==="anim"?"white":"#fb923c",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"Arial,sans-serif"}}>▶ Zeigen</button>
-        {settings.allowedModes?.guided&&<button onClick={()=>{setPhase("trace_guided");}}
-          style={{padding:"5px 10px",borderRadius:10,border:"2px solid #22c55e",background:phase==="trace_guided"?"#22c55e":"white",color:phase==="trace_guided"?"white":"#22c55e",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"Arial,sans-serif"}}>🖐️ Geführt</button>}
-        {settings.allowedModes?.trace&&<button onClick={()=>{setPhase("trace_free");}}
-          style={{padding:"5px 10px",borderRadius:10,border:"2px solid #4361ee",background:phase==="trace_free"?"#4361ee":"white",color:phase==="trace_free"?"white":"#4361ee",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"Arial,sans-serif"}}>✏️ Nachfahren</button>}
-      </div>
-
-      {/* Canvas */}
       <div style={{display:"flex",justifyContent:"center"}}>
         {phase==="anim"&&
           <AnimCanvas key={`wanim-${current}-${idx}-${replayKey}`} letter={current} scale={scale}
@@ -2365,10 +2334,251 @@ function WordPractice({word, settings, onSpeak=()=>{}, onTrial=null, scale=1, on
             onTrial={onTrial&&(t=>onTrial(current,t))}/>}
         {phase==="trace_free"&&
           <TraceCanvas key={`wtrace-${current}-${idx}-${replayKey}`} letter={current}
-            onComplete={handleLetterDone} difficulty={settings.difficulty} mode="trace" activeReward={null}
+            onComplete={handleLetterDone} difficulty={settings.difficulty} mode="trace" pen={pen}
             lefthanded={!!settings.lefthanded} highContrast={!!settings.highContrast} hapticsEnabled={settings.hapticsEnabled!==false}
             onSpeak={onSpeak} scale={scale} onTrial={onTrial&&(t=>onTrial(current,t))}/>}
       </div>
+    </div>
+    </ThemeCtx.Provider>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SPIELWELT-BAUSTEINE — Kopfzeile, Tagesziel, Lernkarte, Klecks-Zimmer, Überraschungen
+// ═══════════════════════════════════════════════════════════════════════════════
+// Meisterschaft pro Zeichen: 0 neu · 1 geübt · 2 abschreiben · 3 aus dem Kopf · 4 sitzt (👑)
+function masteryOf(l,learnedMap,stageMap,memMap){
+  if(!((learnedMap[l]||0)>0))return 0;
+  if((memMap[l]||0)>0)return 4;
+  return Math.min(3,stageMap[l]||1);
+}
+// Vorschlag „Weiter geht's": erst neue Zeichen auf dem Lernweg, dann die am wenigsten sicheren
+function nextLetterFor(tab,learnedMap,stageMap,memMap){
+  const path=LEARN_PATH[tab];
+  const fresh=path.find(l=>!((learnedMap[l]||0)>0));
+  if(fresh)return fresh;
+  let best=path[0],bm=9;
+  for(const l of path){const m=masteryOf(l,learnedMap,stageMap,memMap);if(m<bm){bm=m;best=l;}}
+  return best;
+}
+const sayName=(l)=>NUMBERS.includes(l)?`die ${l}`:l==="ß"?"das ß":UPPERCASE.includes(l)?`das große ${l}`:`das kleine ${l}`;
+
+function RoundBtn({children,bg="white",sh="#d5dbe7",color="var(--ink)",size=42,style,...rest}){
+  return <button className="k-press" style={{width:size,height:size,borderRadius:"50%",background:bg,color,"--sh":sh,fontSize:size*0.45,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0,...style}} {...rest}>{children}</button>;
+}
+
+function ScreenHeader({title,onBack,right,color="var(--ink)"}){
+  return(
+    <div style={{display:"flex",alignItems:"center",gap:12,width:"100%",maxWidth:560,margin:"0 auto 14px"}}>
+      <RoundBtn onClick={onBack} aria-label="Zurück">←</RoundBtn>
+      <h2 style={{margin:0,color,fontWeight:900,fontSize:23,flex:1,lineHeight:1.1}}>{title}</h2>
+      {right}
+    </div>
+  );
+}
+
+// Ring für das Tagesziel (füllt sich, bleibt danach gefüllt — kein Verlust, keine Serie)
+function DailyRing({count,goal=DAILY_GOAL,size=56}){
+  const r=size/2-5,c=2*Math.PI*r,p=Math.min(1,count/goal),done=count>=goal;
+  return(
+    <div style={{position:"relative",width:size,height:size,flexShrink:0}} aria-label={`Heute ${Math.min(count,goal)} von ${goal}`}>
+      <svg width={size} height={size} style={{transform:"rotate(-90deg)"}}>
+        <circle cx={size/2} cy={size/2} r={r} fill="white" stroke="#ffe8a8" strokeWidth="7"/>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={done?"#2ecc8f":"#ffb020"} strokeWidth="7" strokeLinecap="round"
+          strokeDasharray={c} strokeDashoffset={c*(1-p)} style={{transition:"stroke-dashoffset .6s ease"}}/>
+      </svg>
+      <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:done?size*0.42:size*0.28,fontWeight:900,color:"var(--ink)"}}>
+        {done?"⭐":`${count}/${goal}`}
+      </div>
+    </div>
+  );
+}
+
+// Stift aussuchen (Wahlfreiheit bei Nebensächlichem steigert Motivation und Lernen — Cordova & Lepper 1996).
+// Ein runder Knopf in der Farbe des Stifts; Antippen öffnet die Auswahl.
+function PenPicker({pen,unlocks,onPick}){
+  const [open,setOpen]=useState(false);
+  const ids=Object.keys(PENS).filter(id=>penAvailable(id,unlocks));
+  return(
+    <div style={{position:"relative"}}>
+      {open&&(
+        <div style={{position:"absolute",bottom:58,right:-6,display:"flex",gap:8,background:"white",borderRadius:26,padding:"8px 10px",boxShadow:"0 5px 0 #0f172a14,0 12px 28px #0f172a24",zIndex:30,animation:"popIn 0.2s ease-out"}}>
+          {ids.map(id=>(
+            <button key={id} data-pen={id} aria-label={PENS[id].name} title={PENS[id].name} onClick={()=>{sfx("tap");onPick(id);setOpen(false);}}
+              style={{width:34,height:34,borderRadius:"50%",border:pen===id?"3px solid var(--ink)":"3px solid white",background:PENS[id].swatch,cursor:"pointer",padding:0,
+                boxShadow:"0 2px 4px #0003",flexShrink:0}}/>
+          ))}
+        </div>
+      )}
+      <button data-k="pen" className="k-press" aria-label="Stift aussuchen" aria-expanded={open} onClick={()=>{sfx("tap");setOpen(o=>!o);}}
+        style={{width:48,height:48,borderRadius:"50%",background:PENS[pen]?.swatch||PENS.classic.swatch,"--sh":"#0003",border:"3px solid white",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,padding:0}}>🖍️</button>
+    </div>
+  );
+}
+
+// ── Erster Start: Klecks stellt sich vor, das Kind wählt seine Farbe ──
+function Onboarding({onDone,onSpeak}){
+  const [color,setColor]=useState("lila");
+  const [kick,setKick]=useState(0);
+  const intro="Hallo! Ich bin Klecks, ein kleiner Tintenklecks. Ich helfe dir beim Schreiben. Welche Farbe soll ich haben?";
+  return(
+    <div style={{minHeight:"100vh",background:"linear-gradient(180deg,#8fd8ff 0%,#c9efff 45%,#fff6dc 100%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:18,padding:20,textAlign:"center"}}>
+      <Klecks key={kick} size={150} color={color} acc={null} mood="cheer" anim={kick?"jump":"bob"} onClick={()=>{setKick(k=>k+1);onSpeak(intro);}} title="Klecks"/>
+      <div className="k-card" style={{padding:"14px 18px",maxWidth:340}}>
+        <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Hallo! Ich bin Klecks.</div>
+        <div style={{fontSize:16,color:"var(--ink2)",lineHeight:1.35}}>Ich helfe dir beim Schreiben. Welche Farbe soll ich haben?</div>
+        <button onClick={()=>onSpeak(intro)} style={{marginTop:8,background:"none",border:"none",fontSize:22,cursor:"pointer"}} aria-label="Vorlesen">🔊</button>
+      </div>
+      <div style={{display:"flex",gap:10,flexWrap:"wrap",justifyContent:"center",maxWidth:360}}>
+        {KLECKS_COLORS.map(k=>(
+          <button key={k.id} data-color={k.id} aria-label={k.name} onClick={()=>{setColor(k.id);setKick(n=>n+1);sfx("pop");onSpeak(k.name);}}
+            style={{width:46,height:46,borderRadius:"50%",background:k.c,border:color===k.id?"4px solid var(--ink)":"4px solid white",cursor:"pointer",boxShadow:`0 4px 0 ${k.d}`,transform:color===k.id?"scale(1.12)":"none",transition:"transform .12s"}}/>
+        ))}
+      </div>
+      <Btn data-k="start" bg="var(--coral)" sh="var(--coralD)" style={{fontSize:20,padding:"14px 34px",borderRadius:22}} onClick={()=>{sfx("fanfare");onDone({color,acc:null});}}>Los geht's 🚀</Btn>
+    </div>
+  );
+}
+
+// ── Lernkarte einer Welt: ein Weg aus Steinen, Klecks steht beim nächsten Zeichen ──
+function WorldMap({world,learnedMap,stageMap,memMap,next,onOpen,onBack}){
+  const path=LEARN_PATH[world.key];
+  const [cw]=useState(()=>Math.min((typeof window!=="undefined"?window.innerWidth:400)-24,440));
+  const nextRef=useRef(null);
+  useEffect(()=>{nextRef.current?.scrollIntoView({block:"center"});},[]);
+  const STEP=88,PAD=64,STONE=66;
+  const pts=path.map((l,i)=>({l,i,x:cw/2+Math.sin(i*0.9)*(cw/2-STONE*0.85),y:PAD+i*STEP}));
+  const height=PAD*2+(path.length-1)*STEP;
+  let d=`M${pts[0].x} ${pts[0].y}`;
+  for(let i=1;i<pts.length;i++){const a=pts[i-1],b=pts[i],my=(a.y+b.y)/2;d+=` C${a.x} ${my} ${b.x} ${my} ${b.x} ${b.y}`;}
+  const ms=path.map(l=>masteryOf(l,learnedMap,stageMap,memMap));
+  const practiced=ms.filter(m=>m>0).length,crowns=ms.filter(m=>m>=4).length;
+  return(
+    <div style={{minHeight:"100vh",background:world.bg}}>
+      <div style={{position:"sticky",top:0,zIndex:5,padding:"12px 12px 8px",background:`linear-gradient(180deg,${world.soft} 88%,${world.soft}00)`}}>
+        <ScreenHeader onBack={onBack} title={<span>{world.emoji} {world.name}</span>} color={world.dark}
+          right={<div style={{background:"white",borderRadius:14,padding:"5px 10px",fontSize:13,fontWeight:900,color:world.dark,boxShadow:"0 3px 0 #0f172a12",whiteSpace:"nowrap"}}>{practiced}/{path.length} · {crowns}👑</div>}/>
+        <div style={{display:"flex",gap:5,justifyContent:"center",flexWrap:"wrap",fontSize:11,fontWeight:800,color:"var(--ink2)"}}>
+          {[["●","geübt"],["●●","abschreiben"],["●●●","aus dem Kopf"],["👑","kann ich"]].map(([s,t])=>(
+            <span key={t} style={{background:"#ffffffcc",borderRadius:12,padding:"3px 7px",whiteSpace:"nowrap"}}><b style={{color:world.acc}}>{s}</b> {t}</span>
+          ))}
+        </div>
+      </div>
+      <div style={{position:"relative",width:cw,height,margin:"0 auto"}}>
+        <svg width={cw} height={height} style={{position:"absolute",inset:0}} aria-hidden="true">
+          <path d={d} fill="none" stroke="#ffffff" strokeWidth="26" strokeLinecap="round"/>
+          <path d={d} fill="none" stroke={world.acc} strokeOpacity="0.35" strokeWidth="6" strokeDasharray="2 14" strokeLinecap="round"/>
+        </svg>
+        {pts.map(({l,i,x,y})=>(i%2===0)&&(
+          <div key={"d"+i} aria-hidden="true" style={{position:"absolute",left:(x<cw/2?cw-44:14),top:y-18,fontSize:30,opacity:0.9}}>{world.deco[(i/2)%world.deco.length]}</div>
+        ))}
+        <div aria-hidden="true" style={{position:"absolute",left:pts[0].x-14,top:pts[0].y-STONE/2-34,fontSize:26}}>🚩</div>
+        <div aria-hidden="true" style={{position:"absolute",left:pts[pts.length-1].x-16,top:pts[pts.length-1].y+STONE/2+4,fontSize:30}}>🏆</div>
+        {pts.map(({l,i,x,y})=>{
+          const m=ms[i],isNext=l===next;
+          const bg=m>=4?"linear-gradient(160deg,#fff1a8,#ffc93c)":m>0?world.soft:"white";
+          const border=m>=4?"#dea000":m>0?world.acc:"#d5dbe7";
+          return(
+            <div key={l} ref={isNext?nextRef:null} style={{position:"absolute",left:x-STONE/2,top:y-STONE/2,width:STONE}}>
+              {isNext&&<div style={{position:"absolute",left:x<cw/2?STONE-6:-36,top:-26,pointerEvents:"none"}}><Klecks size={40}/></div>}
+              {m>=4&&<div aria-hidden="true" style={{position:"absolute",left:STONE/2-13,top:-24,fontSize:24,pointerEvents:"none"}}>👑</div>}
+              <button data-letter={l} aria-label={`${l} üben`} className="k-press" onClick={()=>{sfx("tap");onOpen(l);}}
+                style={{width:STONE,height:STONE,borderRadius:"50%",background:bg,border:`4px solid ${border}`,"--sh":m>=4?"#c98d00":m>0?world.dark:"#c3cad8",
+                  display:"flex",alignItems:"center",justifyContent:"center",padding:0,animation:isNext?"kRing 1.6s ease-out infinite":"none","--ring":world.acc+"aa"}}>
+                <Glyph letter={l} height={42} weight={3} color={m>0?"var(--ink)":"#9aa3b5"}/>
+              </button>
+              <div style={{display:"flex",gap:3,justifyContent:"center",marginTop:7,height:8}}>
+                {m>0&&m<4&&[1,2,3].map(k=><span key={k} style={{width:8,height:8,borderRadius:"50%",background:k<=m?world.acc:"#ffffffcc",border:`1.5px solid ${world.acc}`}}/>)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Klecks-Zimmer: Farbe, gefundene Sachen und Stifte aussuchen ──
+function KlecksRoom({companion,onChange,unlocks,pen,onPen,onBack,onSpeak}){
+  const [kick,setKick]=useState(0);
+  const accs=SURPRISES.filter(x=>x.kind==="acc"),pens=Object.keys(PENS);
+  const tile=(active)=>({background:active?"#fff4c2":"white",border:active?"3px solid #ffb020":"3px solid #eef1f6",borderRadius:18,padding:"8px 4px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2,fontWeight:800,fontSize:12,color:"var(--ink2)"});
+  const found=SURPRISES.filter(x=>unlocks.includes(x.id)).length;
+  return(
+    <div style={{minHeight:"100vh",background:"linear-gradient(180deg,#f3edff 0%,#fff 70%)",padding:16}}>
+      <ScreenHeader onBack={onBack} title="🎨 Mein Klecks" color="#5b34c7"/>
+      <div style={{maxWidth:520,margin:"0 auto",display:"flex",flexDirection:"column",gap:14}}>
+        <div className="k-card" style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"18px 12px 12px"}}>
+          <Klecks key={kick} size={140} mood={kick?"cheer":"happy"} anim={kick?"jump":"bob"} onClick={()=>{setKick(k=>k+1);sfx("pop");onSpeak("Hihi! Das kitzelt!");}} title="Klecks"/>
+          <div style={{fontSize:13,color:"var(--muted)",marginTop:6}}>{found} von {SURPRISES.length} Überraschungen gefunden</div>
+        </div>
+        <div className="k-card" style={{padding:14}}>
+          <div style={{fontWeight:900,fontSize:16,marginBottom:10}}>Farbe</div>
+          <div style={{display:"flex",gap:10,flexWrap:"wrap",justifyContent:"center"}}>
+            {KLECKS_COLORS.map(k=>(
+              <button key={k.id} data-color={k.id} aria-label={k.name} onClick={()=>{onChange({...companion,color:k.id});setKick(n=>n+1);sfx("pop");onSpeak(k.name);}}
+                style={{width:46,height:46,borderRadius:"50%",background:k.c,border:companion.color===k.id?"4px solid var(--ink)":"4px solid white",boxShadow:`0 4px 0 ${k.d}`,cursor:"pointer"}}/>
+            ))}
+          </div>
+        </div>
+        <div className="k-card" style={{padding:14}}>
+          <div style={{fontWeight:900,fontSize:16,marginBottom:10}}>Anziehen</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
+            <button style={tile(!companion.acc)} onClick={()=>{onChange({...companion,acc:null});sfx("tap");}}><span style={{fontSize:28}}>🚫</span>Nichts</button>
+            {accs.map(x=>{const have=unlocks.includes(x.id);return(
+              <button key={x.id} data-acc={x.id} disabled={!have} style={{...tile(companion.acc===x.id),opacity:have?1:0.55,cursor:have?"pointer":"default"}}
+                onClick={()=>{if(!have)return;onChange({...companion,acc:x.id});setKick(n=>n+1);sfx("pop");}}>
+                <span style={{fontSize:28}}>{have?x.emoji:"❓"}</span>{have?x.name:"versteckt"}
+              </button>);})}
+          </div>
+        </div>
+        <div className="k-card" style={{padding:14}}>
+          <div style={{fontWeight:900,fontSize:16,marginBottom:10}}>Stifte</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
+            {pens.map(id=>{const have=penAvailable(id,unlocks);return(
+              <button key={id} disabled={!have} style={{...tile(pen===id),opacity:have?1:0.55,cursor:have?"pointer":"default"}} onClick={()=>{if(have){onPen(id);sfx("tap");}}}>
+                <span style={{width:30,height:30,borderRadius:"50%",background:have?PENS[id].swatch:"#e5e7eb",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>{have?"":"❓"}</span>{have?PENS[id].name:"versteckt"}
+              </button>);})}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Überraschung gefunden / Tagesziel geschafft ──
+function SurpriseModal({item,effects,onUse,onClose,onHome}){
+  const s=item.type==="unlock"?item.s:null;
+  const overlay={position:"fixed",inset:0,background:"rgba(20,24,44,0.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2500,backdropFilter:"blur(5px)",padding:16};
+  return(
+    <div style={overlay} role="dialog" aria-modal="true">
+      {effects&&item.type==="goal"&&<StarRain onDone={()=>{}}/>}
+      <div className="k-card" style={{padding:"20px 20px 18px",maxWidth:340,width:"100%",textAlign:"center",animation:"popIn 0.4s ease-out",position:"relative"}}>
+        <div style={{display:"flex",justifyContent:"center",marginTop:-70}}>
+          <Klecks size={120} mood="cheer" anim="jump" acc={s&&s.kind==="acc"?s.id:undefined}/>
+        </div>
+        {s?(<>
+          <div style={{fontSize:14,fontWeight:900,color:"#e0a100",letterSpacing:1,textTransform:"uppercase",marginTop:4}}>Überraschung!</div>
+          {s.kind==="pen"&&<div style={{width:64,height:64,borderRadius:"50%",margin:"8px auto",background:PENS[s.id].swatch,boxShadow:"0 4px 0 #0002",animation:"kPulse 1.4s ease-in-out infinite"}}/>}
+          <h3 style={{margin:"6px 0 14px",fontSize:22,fontWeight:900,lineHeight:1.2}}>{s.text}</h3>
+          <Btn data-k="use" bg="var(--mint)" sh="var(--mintD)" style={{width:"100%",fontSize:17,marginBottom:10}} onClick={()=>onUse(s)}>{s.kind==="acc"?"✨ Anziehen!":"✏️ Ausprobieren!"}</Btn>
+          <Btn bg="white" sh="#d5dbe7" color="var(--ink2)" style={{width:"100%",border:"2px solid #eef1f6"}} onClick={onClose}>Später</Btn>
+        </>):(<>
+          <h3 style={{margin:"8px 0 6px",fontSize:24,fontWeight:900}}>Tagesziel geschafft! 🌟</h3>
+          <p style={{margin:"0 0 14px",fontSize:16,color:"var(--ink2)",lineHeight:1.4}}>Du hast heute {DAILY_GOAL} Zeichen geschrieben. Jetzt darfst du Pause machen – oder weiter üben, wenn du magst.</p>
+          <Btn data-k="pause" bg="var(--sky)" sh="var(--skyD)" style={{width:"100%",fontSize:17,marginBottom:10}} onClick={onHome}>🏠 Pause machen</Btn>
+          <Btn data-k="more" bg="white" sh="#d5dbe7" color="var(--ink2)" style={{width:"100%",border:"2px solid #eef1f6"}} onClick={onClose}>✏️ Weiter üben</Btn>
+        </>)}
+      </div>
+    </div>
+  );
+}
+
+// Wörter in derselben Schulschrift wie beim Schreiben
+function GlyphWord({word,height=30,color="var(--ink)",missing=[]}){
+  return(
+    <div style={{display:"flex",gap:height*0.12,alignItems:"flex-end",justifyContent:"center"}} aria-label={word}>
+      {word.split("").map((ch,i)=><Glyph key={i} letter={ch} height={height} weight={2.8} tight yr={[LINES.top-7,LINES.base+7]} color={missing.includes(ch)?"#ef4444":color}/>)}
     </div>
   );
 }
@@ -2415,29 +2625,42 @@ function clearPersisted(){
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function App(){
   const persisted=useMemo(()=>loadPersisted()||{},[]);
-  const [screen,setScreen]=useState("menu");
-  const [tab,setTab]=useState("GROß");
-  const [letter,setLetter]=useState("A");
+  const startTab=WORLDS[persisted.tab]?persisted.tab:"GROß";
+  // Begleiter (Farbe und Zubehör, vom Kind gewählt). Ohne Begleiter: erst Begrüßung
+  const [companion,setCompanion]=useState(()=>persisted.companion||null);
+  const [screen,setScreen]=useState(()=>persisted.companion?"menu":"hello");
+  const [tab,setTab]=useState(startTab);
+  const [letter,setLetter]=useState(()=>LEARN_PATH[startTab][0]);
   const [phase,setPhase]=useState("anim");
   const [learnedMap,setLearnedMap]=useState(()=>persisted.learnedMap||{});
   const [totalScore,setTotalScore]=useState(()=>persisted.totalScore||0);
   const [replayKey,setReplayKey]=useState(0);
   const [settings,setSettings]=useState(()=>{
-    const s={
-      difficulty:"medium",screenTime:15,autoAdvance:true,rewardVideos:true,
-      allowedModes:{guided:true,trace:true,copy:true,memory:true},speechEnabled:true,
-      lefthanded:false,highContrast:false,hapticsEnabled:true,settingsVersion:2,
+    let s={
+      difficulty:"medium",screenTime:15,autoAdvance:false,rewardVideos:true,
+      allowedModes:{guided:true,trace:true,copy:true,memory:true},speechEnabled:true,soundEnabled:true,
+      lefthanded:false,highContrast:false,hapticsEnabled:true,settingsVersion:3,
       ...(persisted.settings||{})
     };
+    const v=s.settingsVersion||1;
     // Ältere Einstellungen: neue Modi „Abschreiben" und „Aus dem Kopf" einschalten
-    if((s.settingsVersion||1)<2)return{...s,settingsVersion:2,allowedModes:{...s.allowedModes,copy:true,memory:true}};
-    return s;
+    if(v<2)s={...s,allowedModes:{...s.allowedModes,copy:true,memory:true}};
+    // Version 3: „Weiter"-Knopf statt automatischem Weiterspringen; Töne neu
+    if(v<3)s={...s,autoAdvance:false,soundEnabled:s.soundEnabled!==false};
+    return{...s,settingsVersion:3};
   });
   // Lernstufe pro Buchstabe (1 geführt → 2 abschreiben → 3 aus dem Kopf)
   const [stageMap,setStageMap]=useState(()=>persisted.stageMap||{});
   const [memMap,setMemMap]=useState(()=>persisted.memMap||{});           // Erfolge aus dem Kopf
   const [lastPracticed,setLastPracticed]=useState(()=>persisted.lastPracticed||{});
+  const [unlocks,setUnlocks]=useState(()=>persisted.unlocks||[]);        // gefundene Überraschungen
+  const [pen,setPen]=useState(()=>persisted.pen||"classic");
+  const [daily,setDaily]=useState(()=>persisted.daily||{date:"",letters:[],celebrated:false});
+  const [queue,setQueue]=useState([]);                                   // Überraschungen / Tagesziel
   const [levelUp,setLevelUp]=useState(null);
+  const [backTo,setBackTo]=useState("menu");
+  const [mapWorld,setMapWorld]=useState(startTab);
+  const [homeKick,setHomeKick]=useState(0);
   const rs=useResearch();
   // Wartekontrollgruppe der Studie: bis zum Studienende nur geführt und nachfahren
   const allowed=(m)=>!!settings.allowedModes?.[m]&&(!rs.restricted||m==="guided"||m==="trace");
@@ -2450,29 +2673,27 @@ export default function App(){
     }
     return Object.keys(MODES).find(allowed)||"trace";
   };
-  const [mode,setMode]=useState(()=>modeFor("A"));
+  const [mode,setMode]=useState(()=>modeFor(LEARN_PATH[startTab][0]));
   const fs=useMemo(()=>fieldScale(),[]);
   useEffect(()=>{setFieldScale(fs);},[fs,rs.enrolled]);
+  useEffect(()=>{setSoundOn(settings.soundEnabled!==false);},[settings.soundEnabled]);
   // Messwerte eines Versuchs an den Forschungsmodus geben (nur bei Teilnahme)
   const studyLog=rs.enrolled?(extra)=>(t)=>logTrial({...t,difficulty:settings.difficulty,restricted:rs.restricted?1:0,...extra}):null;
   const [gridOpen,setGridOpen]=useState(false);
-  const gridOpenedOnce=useRef(false);
   const [showParent,setShowParent]=useState(false);
-  const [showReward,setShowReward]=useState(false);
-  const [activeReward,setActiveReward]=useState(null);
   const [practiceWord,setPracticeWord]=useState(null);
   const [showUnicorn,setShowUnicorn]=useState(false);
   const [showStarRain,setShowStarRain]=useState(false);
   const [showScreenTime,setShowScreenTime]=useState(false);
   const [journal,setJournal]=useState([]);
-  const [kidTip]=useState(()=>KID_TIPS[Math.floor(Math.random()*KID_TIPS.length)]);
   const screenTimerRef=useRef(null);
+  const surpriseTimer=useRef(null);
   const {say,sayLetter,sayIt}=useSpeech(settings.speechEnabled);
 
   // Fortschritt automatisch speichern
   useEffect(()=>{
-    savePersisted({learnedMap,totalScore,settings,stageMap,memMap,lastPracticed});
-  },[learnedMap,totalScore,settings,stageMap,memMap,lastPracticed]);
+    savePersisted({learnedMap,totalScore,settings,stageMap,memMap,lastPracticed,companion,unlocks,pen,daily,tab});
+  },[learnedMap,totalScore,settings,stageMap,memMap,lastPracticed,companion,unlocks,pen,daily,tab]);
 
   // Beim Start aus nativem Speicher wiederherstellen, falls localStorage leer war
   useEffect(()=>{
@@ -2485,34 +2706,36 @@ export default function App(){
       if(data.stageMap)setStageMap(data.stageMap);
       if(data.memMap)setMemMap(data.memMap);
       if(data.lastPracticed)setLastPracticed(data.lastPracticed);
+      if(data.unlocks)setUnlocks(data.unlocks);
+      if(data.pen)setPen(data.pen);
+      if(data.daily)setDaily(data.daily);
+      if(data.companion){setCompanion(data.companion);setScreen(sc=>sc==="hello"?"menu":sc);}
     });
     return()=>{cancelled=true;};
   },[]);
 
-  // Android Zurück-Taste: zuerst Overlays schließen, dann zum Menü
+  // Zurück-Taste: zuerst Fenster schließen, dann eine Ebene zurück
   useEffect(()=>{
     const onBack=(e)=>{
+      if(queue.length){e.preventDefault();setQueue(q=>q.slice(1));return;}
       if(showParent){e.preventDefault();setShowParent(false);return;}
-      if(showReward){e.preventDefault();setShowReward(false);return;}
       if(gridOpen){e.preventDefault();setGridOpen(false);return;}
       if(practiceWord){e.preventDefault();setPracticeWord(null);return;}
-      if(screen!=="menu"){e.preventDefault();setScreen("menu");return;}
-      // sonst: nicht abfangen → App darf sich beenden
+      if(screen==="practice"){e.preventDefault();setScreen(backTo);return;}
+      if(screen!=="menu"&&screen!=="hello"){e.preventDefault();setScreen("menu");return;}
+      // sonst: nicht abfangen → Seite darf verlassen werden
     };
     window.addEventListener("app:backbutton",onBack);
     return()=>window.removeEventListener("app:backbutton",onBack);
-  },[showParent,showReward,gridOpen,practiceWord,screen]);
+  },[queue,showParent,gridOpen,practiceWord,screen,backTo]);
 
   const items=tab==="GROß"?UPPERCASE:tab==="klein"?LOWERCASE:NUMBERS;
   const learnedCount=Object.values(learnedMap).filter(v=>v>0).length;
   const perfectCount=Object.values(learnedMap).filter(v=>v>=5).length;
+  const today=todayKey();
+  const todayLetters=daily.date===today?daily.letters:[];
+  const dailyCount=todayLetters.length;
 
-  useEffect(()=>{
-    if(screen==="practice"&&!gridOpenedOnce.current){
-      gridOpenedOnce.current=true;setGridOpen(true);
-      const t=setTimeout(()=>setGridOpen(false),2000);return()=>clearTimeout(t);
-    }
-  },[screen]);
   useEffect(()=>{
     clearTimeout(screenTimerRef.current);
     if(settings.screenTime>0&&screen==="practice"){
@@ -2525,262 +2748,349 @@ export default function App(){
   // Automatisches Weiterschalten abbrechen, sobald das Kind selbst etwas wählt
   const advanceTimer=useRef(null);
   useEffect(()=>{if(screen!=="practice")clearTimeout(advanceTimer.current);},[screen]);
-  useEffect(()=>()=>clearTimeout(advanceTimer.current),[]);
-  const selectLetter=(l)=>{clearTimeout(advanceTimer.current);const m=modeFor(l);setLetter(l);setMode(m);setPhase(m==="memory"?"write":"anim");setReplayKey(k=>k+1);sayLetter(l);};
-  const changeTab=(t)=>{setTab(t);selectLetter(LEARN_PATH[t][0]);};
-  const openLetter=(l)=>{setTab(tabOf(l));selectLetter(l);setScreen("practice");};
-  const chooseMode=(m)=>{clearTimeout(advanceTimer.current);setMode(m);setPhase("write");setReplayKey(k=>k+1);};
+  useEffect(()=>()=>{clearTimeout(advanceTimer.current);clearTimeout(surpriseTimer.current);},[]);
+  const selectLetter=(l)=>{clearTimeout(advanceTimer.current);const m=modeFor(l);setTab(tabOf(l));setLetter(l);setMode(m);setPhase(m==="memory"?"write":"anim");setReplayKey(k=>k+1);sayLetter(l);};
+  const changeTab=(t)=>{setTab(t);selectLetter(nextLetterFor(t,learnedMap,stageMap,memMap));};
+  const openLetter=(l,from="menu")=>{selectLetter(l);setBackTo(from);setGridOpen(false);setScreen("practice");};
+  const chooseMode=(m)=>{clearTimeout(advanceTimer.current);sfx("tap");setMode(m);setPhase("write");setReplayKey(k=>k+1);};
+  const step=(d)=>{const path=LEARN_PATH[tabOf(letter)],i=path.indexOf(letter);selectLetter(path[(i+d+path.length)%path.length]);};
+  const goNext=()=>step(1);
 
   const handleDone=(s,info={})=>{
     const now=new Date();
-    setLearnedMap(m=>({...m,[letter]:Math.max(m[letter]||0,s)}));
+    const newLearned={...learnedMap,[letter]:Math.max(learnedMap[letter]||0,s)};
+    setLearnedMap(newLearned);
     setTotalScore(sc=>sc+s*10);
     setLastPracticed(m=>({...m,[letter]:now.getTime()}));
     setJournal(j=>[...j,{letter,stars:s,mode:info.mode||mode,time:`${now.getHours()}:${String(now.getMinutes()).padStart(2,"0")}`}]);
-    const praise=["","Weiter üben!","Fast!","Gut gemacht!","Sehr gut!","Perfekt!"][s]||"";
-    if(praise)say(praise,0.85,1.3);
     // Lernstufe: ab 4 Sternen geht es zur nächsten Stufe (weniger Hilfe)
-    const used=info.mode||mode,cur=stageOf(letter);let next=null;
+    const used=info.mode||mode,cur=stageOf(letter);let next=null,firstFromMemory=false;
     if(s>=4){
-      if(used==="memory")setMemMap(m=>({...m,[letter]:(m[letter]||0)+1}));
+      if(used==="memory"){firstFromMemory=!((memMap[letter]||0)>0);setMemMap(m=>({...m,[letter]:(m[letter]||0)+1}));}
       const target=Math.min(3,MODE_STAGE[used]+1);   // wer es schon aus dem Kopf kann, bleibt dort
       if(target>cur&&!rs.restricted){
         next=target;
         setStageMap(m=>({...m,[letter]:next}));
-        setLevelUp({letter,stage:next});setTimeout(()=>setLevelUp(null),4000);
-        setTimeout(()=>say(STAGE_NEXT_TEXT[next],0.85,1.2),1400);
+        setLevelUp({letter,stage:next});setTimeout(()=>setLevelUp(null),4500);
+        setTimeout(()=>say(STAGE_NEXT_TEXT[next],0.85,1.2),3400);
       }
+    }
+    // Effekte nur bei echtem Lernfortschritt — nie zufällig
+    const fx=settings.rewardVideos!==false&&!reducedMotion();
+    if(fx&&firstFromMemory)setTimeout(()=>setShowUnicorn(true),1200);
+    else if(fx&&next)setTimeout(()=>setShowStarRain(true),900);
+    // Tagesziel: verschiedene Zeichen heute
+    const base=daily.date===today?daily:{date:today,letters:[],celebrated:false};
+    let goalHit=false;
+    if(!base.letters.includes(letter)){
+      const nd={...base,letters:[...base.letters,letter]};
+      if(nd.letters.length>=DAILY_GOAL&&!nd.celebrated){nd.celebrated=true;goalHit=true;}
+      setDaily(nd);
+    }
+    // Überraschungen: gefunden, sobald genug Zeichen gut sitzen (vorher nicht angekündigt)
+    const good=Object.values(newLearned).filter(v=>v>=4).length;
+    const fresh=SURPRISES.filter(x=>good>=x.at&&!unlocks.includes(x.id));
+    const show=[];
+    if(fresh.length){
+      setUnlocks(u=>[...u,...fresh.map(f=>f.id).filter(id=>!u.includes(id))]);
+      if(settings.rewardVideos!==false)show.push(...fresh.map(f=>({type:"unlock",s:f})));
+    }
+    if(goalHit)show.push({type:"goal"});
+    if(show.length){
+      clearTimeout(surpriseTimer.current);
+      surpriseTimer.current=setTimeout(()=>{setQueue(q=>[...q,...show]);sfx("unlock");},2600);
     }
     if(settings.autoAdvance){
       // Weiter auf dem Lernweg (ähnliche Bewegungen zusammen, b/d getrennt)
-      const path=LEARN_PATH[tabOf(letter)],idx=path.indexOf(letter);
-      if(idx>=0&&idx<path.length-1)advanceTimer.current=setTimeout(()=>selectLetter(path[idx+1]),next?4200:2200);
+      advanceTimer.current=setTimeout(goNext,next?5200:3800);
     }
   };
 
-  const handleEarnReward=(type)=>{
-    setActiveReward(type);
-    if(type==="unicorn") setShowUnicorn(true);
-    if(type==="stardust") setShowStarRain(true);
-    // glitter and rainbow are handled in TraceCanvas via activeReward prop
-    setTimeout(()=>setActiveReward(null),type==="unicorn"||type==="stardust"?5000:45000);
-  };
-
-  const settingsWithData={...settings,learnedMap,totalScore,stageMap,memMap};
+  const settingsWithData={...settings,learnedMap,totalScore,stageMap,memMap,unlocks};
   // Lerndaten nicht in die Einstellungen übernehmen
-  const updateSettings=({learnedMap:_l,totalScore:_t,stageMap:_s,memMap:_m,...rest})=>setSettings(rest);
+  const updateSettings=({learnedMap:_l,totalScore:_t,stageMap:_s,memMap:_m,unlocks:_u,...rest})=>setSettings(rest);
   // Verteiltes Üben: Buchstaben, die vor mehr als einem Tag geübt wurden
   const due=Object.keys(lastPracticed)
     .filter(l=>(learnedMap[l]||0)>0&&Date.now()-lastPracticed[l]>REVIEW_AFTER_MS)
     .sort((a,b)=>lastPracticed[a]-lastPracticed[b]).slice(0,6);
 
-  // ── MENU ──
-  if(screen==="menu") return(
-    <div style={{minHeight:"100vh",background:"linear-gradient(160deg,#312e81 0%,#4338ca 55%,#6366f1)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:20,fontFamily:"Arial,sans-serif",padding:20}}>
-      <div style={{textAlign:"center"}}>
-        <HeroKid/>
-        <h1 style={{fontSize:30,fontWeight:900,color:"white",margin:"0 0 4px",fontFamily:"Arial,sans-serif"}}>Schreib & Lern</h1>
-        <p style={{color:"#c7d2fe",fontSize:13,margin:0}}>Buchstaben, Zahlen & Wörter auf Deutsch</p>
-      </div>
-      <div style={{background:"#fef9c3",borderRadius:16,padding:"8px 16px",fontSize:13,color:"#78350f",fontWeight:600,maxWidth:260,textAlign:"center"}}>
-        {kidTip}
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,width:280}}>
-        {[
-          {label:"✏️ Schreiben",action:()=>setScreen("practice"),color:"#fb923c"},
-          {label:"📖 Wörter",action:()=>setScreen("words"),color:"#4ade80"},
-          {label:"🌻 Garten",action:()=>setScreen("progress"),color:"#60a5fa"},
-          {label:"🎀 Sticker",action:()=>setScreen("stickers"),color:"#f472b6"},
-        ].map(b=>(
-          <button key={b.label} onClick={b.action} style={{padding:"16px 8px",borderRadius:18,border:"none",background:b.color,color:"white",fontWeight:900,fontSize:16,cursor:"pointer",fontFamily:"Arial,sans-serif",boxShadow:`0 4px 16px ${b.color}60`}}>{b.label}</button>
-        ))}
-      </div>
-      <div style={{background:"rgba(255,255,255,0.15)",borderRadius:14,padding:"8px 16px",color:"white",fontSize:13,fontWeight:700}}>
-        🏆 {totalScore} &nbsp;·&nbsp; {learnedCount} gelernt &nbsp;·&nbsp; {perfectCount} 🌻
-      </div>
-      {rs.enrolled&&rs.dueWave!=null&&(
-        <button onClick={()=>setScreen("probe")} style={{background:"linear-gradient(135deg,#14b8a6,#0f766e)",border:"none",borderRadius:18,padding:"12px 16px",width:280,color:"white",fontWeight:900,fontSize:15,cursor:"pointer",fontFamily:"Arial,sans-serif",boxShadow:"0 4px 16px #0f766e60",animation:"glowPulse 2s infinite"}}>
-          🔬 Kleiner Schreibtest
-        </button>
+  const comp=companion||{color:"lila",acc:null};
+  const closeSurprise=()=>setQueue(q=>q.slice(1));
+  const wrap=(el)=>(
+    <CompanionCtx.Provider value={comp}>
+      {el}
+      {queue[0]&&screen!=="probe"&&(
+        <SurpriseModal key={queue.length} item={queue[0]} effects={settings.rewardVideos!==false&&!reducedMotion()}
+          onUse={(x)=>{sfx("pop");if(x.kind==="acc")setCompanion(c=>({...(c||comp),acc:x.id}));else setPen(x.id);closeSurprise();}}
+          onClose={closeSurprise} onHome={()=>{closeSurprise();setScreen("menu");}}/>
       )}
-      {due.length>0&&(
-        <div style={{background:"rgba(255,255,255,0.95)",borderRadius:18,padding:"10px 14px",width:280,boxShadow:"0 4px 16px #0003",animation:"slideUp 0.4s ease-out"}}>
-          <div style={{fontSize:13,fontWeight:900,color:"#312e81",marginBottom:6}}>🔁 Heute wiederholen</div>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-            {due.map(l=>(
-              <button key={l} onClick={()=>openLetter(l)} style={{background:"#eef2ff",border:"2px solid #c7d2fe",borderRadius:12,padding:"4px 6px",cursor:"pointer"}}>
-                <Glyph letter={l} height={34} weight={2.8} color="#312e81"/>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-      <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",justifyContent:"center"}}>
-        <button onClick={()=>{const n=!settings.speechEnabled;setSettings(s=>({...s,speechEnabled:n}));if(n)setTimeout(()=>speak("Vorlesen ist an!"),100);}}
-          style={{background:settings.speechEnabled?"#fbbf24":"rgba(255,255,255,0.1)",border:`2px solid ${settings.speechEnabled?"#f59e0b":"rgba(255,255,255,0.2)"}`,borderRadius:50,width:52,height:52,fontSize:24,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:settings.speechEnabled?"0 4px 16px #fbbf2460":"none",transition:"all 0.2s"}}>
-          {settings.speechEnabled?"🔊":"🔇"}
-        </button>
-        <button onClick={()=>setShowParent(true)} style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:14,padding:"7px 18px",color:"#c7d2fe",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"Arial,sans-serif"}}>
-          👨‍👩‍👧 Eltern
-        </button>
-        <button onClick={()=>setScreen("impressum")} style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:14,padding:"7px 18px",color:"#c7d2fe",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"Arial,sans-serif"}}>
-          📄 Impressum
-        </button>
-      </div>
+      {showUnicorn&&<UnicornRun onDone={()=>setShowUnicorn(false)}/>}
+      {showStarRain&&<StarRain onDone={()=>setShowStarRain(false)}/>}
       {showParent&&<ParentZone settings={settingsWithData} onChange={updateSettings} onStartProbe={()=>{setShowParent(false);setScreen("probe");}} onClose={()=>setShowParent(false)} journal={journal}/>}
-    </div>
+    </CompanionCtx.Provider>
   );
 
-  if(screen==="impressum") return <ImpressumScreen onBack={()=>setScreen("menu")}/>;
+  // ── BEGRÜSSUNG (erster Start) ──
+  if(screen==="hello") return wrap(<Onboarding onSpeak={sayIt} onDone={(c)=>{setCompanion(c);setScreen("menu");}}/>);
+
+  // ── STARTSEITE ──
+  if(screen==="menu"){
+    const next=nextLetterFor(tab,learnedMap,stageMap,memMap);
+    const an=anlautOf(next);
+    const hour=new Date().getHours();
+    const hello=hour<11?"Guten Morgen!":hour>=17?"Guten Abend!":"Hallo!";
+    const goalDone=dailyCount>=DAILY_GOAL;
+    const greet=goalDone?`${hello} Heute hast du schon fleißig geübt! 🌟`
+      :learnedCount===0?`${hello} Ich bin Klecks. Wollen wir zusammen schreiben?`
+      :due.length?`${hello} Magst du ein paar alte Bekannte wiederholen?`
+      :`${hello} Heute ist ${sayName(next)} dran!`;
+    const link={background:"#ffffffb3",border:"none",borderRadius:14,padding:"8px 14px",color:"var(--ink2)",fontSize:13,fontWeight:800,cursor:"pointer"};
+    return wrap(
+      <div style={{minHeight:"100vh",background:"linear-gradient(180deg,#8fd8ff 0%,#c9efff 34%,#fff6dc 100%)",position:"relative"}}>
+        <SkyDecor/>
+        <div style={{position:"relative",zIndex:1,maxWidth:480,margin:"0 auto",padding:"12px 16px 120px",display:"flex",flexDirection:"column",gap:14}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <div style={{flex:1,fontSize:21,fontWeight:900,color:"#0b4f7a",letterSpacing:0.2}}>✏️ Schreib & Lern</div>
+            <RoundBtn aria-label={settings.speechEnabled?"Vorlesen ausschalten":"Vorlesen einschalten"} bg={settings.speechEnabled?"var(--sun)":"white"} sh={settings.speechEnabled?"var(--sunD)":"#d5dbe7"}
+              onClick={()=>{const n=!settings.speechEnabled;setSettings(s=>({...s,speechEnabled:n}));if(n)setTimeout(()=>speak("Vorlesen ist an!"),100);}}>{settings.speechEnabled?"🔊":"🔇"}</RoundBtn>
+            <RoundBtn aria-label={settings.soundEnabled!==false?"Töne ausschalten":"Töne einschalten"} bg={settings.soundEnabled!==false?"var(--sun)":"white"} sh={settings.soundEnabled!==false?"var(--sunD)":"#d5dbe7"}
+              onClick={()=>{const n=settings.soundEnabled===false;setSettings(s=>({...s,soundEnabled:n}));setSoundOn(n);if(n)sfx("pop");}}>{settings.soundEnabled!==false?"🎵":"🔕"}</RoundBtn>
+          </div>
+
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+            <Klecks key={homeKick} size={100} mood={goalDone||homeKick?"cheer":"happy"} anim={homeKick?"jump":"bob"} title="Klecks"
+              onClick={()=>{setHomeKick(k=>k+1);sfx("pop");sayIt(greet);}}/>
+            <div className="k-bubble" style={{"--bb":"#ffffff","--bg":"#ffffff",flex:1,background:"white",borderRadius:20,padding:"12px 14px",fontSize:17,fontWeight:800,lineHeight:1.3,boxShadow:"0 4px 0 #0f172a12"}}>{greet}</div>
+          </div>
+
+          <button data-k="go" className="k-press" onClick={()=>{sfx("pop");openLetter(next,"menu");}}
+            style={{"--sh":"var(--coralD)",background:"linear-gradient(135deg,#ff9271,#ff6a4d)",borderRadius:26,padding:"14px 16px",display:"flex",alignItems:"center",gap:14,color:"white",textAlign:"left"}}>
+            <div style={{width:76,height:76,borderRadius:20,background:"white",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              <Glyph letter={next} height={58} weight={3.4} color="var(--coralD)" fit/>
+            </div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:26,fontWeight:900,lineHeight:1.05}}>✏️ Schreiben</div>
+              <div style={{fontSize:15,fontWeight:800,opacity:0.95,marginTop:4}}>{learnedCount?"Weiter mit":"Los geht's mit"} {an?`${an[0]} ${an[1]}`:`${ANIMALS[next]||""} ${next}`}</div>
+            </div>
+            <div style={{fontSize:30,fontWeight:900}}>➜</div>
+          </button>
+
+          <div className="k-card" style={{display:"flex",alignItems:"center",gap:14,padding:"12px 14px"}}>
+            <DailyRing count={dailyCount}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:17,fontWeight:900}}>{goalDone?"Tagesziel geschafft! 🌟":"Heute"}</div>
+              <div style={{fontSize:14,color:"var(--ink2)"}}>{goalDone?"Jetzt darfst du Pause machen.":`${dailyCount} von ${DAILY_GOAL} Zeichen geschrieben`}</div>
+            </div>
+            <div style={{display:"flex",gap:4,flexShrink:0}}>
+              {!goalDone&&todayLetters.slice(-3).map(l=><div key={l} style={{background:"#f4f5f8",borderRadius:10,padding:"3px 5px"}}><Glyph letter={l} height={26} weight={2.6} fit/></div>)}
+            </div>
+          </div>
+
+          {rs.enrolled&&rs.dueWave!=null&&(
+            <Btn bg="linear-gradient(135deg,#14b8a6,#0f766e)" sh="#0b5e57" style={{fontSize:17,padding:"14px 16px",borderRadius:22,animation:"glowPulse 2s infinite"}} onClick={()=>setScreen("probe")}>
+              🔬 Kleiner Schreibtest
+            </Btn>
+          )}
+
+          {due.length>0&&(
+            <div className="k-card" style={{padding:"12px 14px",animation:"slideUp 0.4s ease-out"}}>
+              <div style={{fontSize:16,fontWeight:900,marginBottom:8}}>🔁 Heute wiederholen</div>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                {due.map(l=>(
+                  <button key={l} data-letter={l} className="k-press" onClick={()=>openLetter(l,"menu")} style={{background:"#eef4ff","--sh":"#c9d6f2",borderRadius:14,padding:"5px 8px"}}>
+                    <Glyph letter={l} height={36} weight={2.8} color="var(--ink)"/>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <div style={{fontSize:17,fontWeight:900,color:"#0b4f7a",margin:"2px 4px 8px"}}>🗺️ Meine Welten</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+              {Object.values(WORLDS).map(w=>{
+                const path=LEARN_PATH[w.key],done=path.filter(l=>(learnedMap[l]||0)>0).length;
+                const crowns=path.filter(l=>masteryOf(l,learnedMap,stageMap,memMap)>=4).length;
+                return(
+                  <button key={w.key} data-world={w.key} className="k-press" onClick={()=>{sfx("tap");setTab(w.key);setMapWorld(w.key);setScreen("map");}}
+                    style={{background:`linear-gradient(180deg,${w.soft},#ffffff)`,"--sh":w.dark,border:`3px solid ${w.acc}`,borderRadius:22,padding:"10px 6px 8px",display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+                    <div style={{fontSize:36,lineHeight:1}}>{w.emoji}</div>
+                    <div style={{fontSize:21,fontWeight:900,color:w.dark,lineHeight:1.1}}>{w.short}</div>
+                    <div style={{fontSize:11,fontWeight:800,color:"var(--ink2)",lineHeight:1.1,minHeight:24}}>{w.name}</div>
+                    <div style={{width:"100%",height:8,background:"white",borderRadius:6,overflow:"hidden",border:`1.5px solid ${w.acc}66`}}>
+                      <div style={{width:`${done/path.length*100}%`,height:"100%",background:w.acc,transition:"width .5s"}}/>
+                    </div>
+                    <div style={{fontSize:11,fontWeight:900,color:w.dark}}>{done}/{path.length}{crowns?` · ${crowns}👑`:""}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+            {[{k:"words",e:"📖",t:"Wörter",bg:"var(--sun)",sh:"var(--sunD)",c:"#5a3a00"},
+              {k:"progress",e:"🌻",t:"Garten",bg:"var(--mint)",sh:"var(--mintD)"},
+              {k:"stickers",e:"🎀",t:"Sticker",bg:"var(--pink)",sh:"var(--pinkD)"},
+              {k:"klecks",e:"🎨",t:"Klecks",bg:"var(--grape)",sh:"var(--grapeD)"}].map(b=>(
+              <Btn key={b.k} data-nav={b.k} bg={b.bg} sh={b.sh} color={b.c||"white"} onClick={()=>{sfx("tap");setScreen(b.k);}}
+                style={{padding:"10px 2px",borderRadius:20,display:"flex",flexDirection:"column",alignItems:"center",gap:2,fontSize:13}}>
+                <span style={{fontSize:28,lineHeight:1.1}}>{b.e}</span>{b.t}
+              </Btn>
+            ))}
+          </div>
+
+          <div style={{display:"flex",gap:8,justifyContent:"center",marginTop:4}}>
+            <button onClick={()=>setShowParent(true)} style={link}>👨‍👩‍👧 Eltern</button>
+            <button onClick={()=>setScreen("impressum")} style={link}>📄 Impressum</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if(screen==="impressum") return wrap(<ImpressumScreen onBack={()=>setScreen("menu")}/>);
 
   if(screen==="probe"){
     if(!rs.enrolled||rs.dueWave==null){setTimeout(()=>setScreen("menu"),0);return null;}
     const wave=rs.dueWave;
-    return <ProbeTest key={wave} wave={wave} chars={rs.probeChars} difficulty={settings.difficulty} scale={fs} onSpeak={sayIt}
+    return wrap(<ProbeTest key={wave} wave={wave} chars={rs.probeChars} difficulty={settings.difficulty} scale={fs} onSpeak={sayIt}
       onLog={t=>logTrial({...t,difficulty:settings.difficulty,restricted:rs.restricted?1:0})}
-      onFinish={()=>{markWaveDone(wave);setScreen("menu");}} onExit={()=>setScreen("menu")}/>;
+      onFinish={()=>{markWaveDone(wave);setScreen("menu");}} onExit={()=>setScreen("menu")}/>);
   }
 
+  if(screen==="map") return wrap(
+    <WorldMap world={WORLDS[mapWorld]} learnedMap={learnedMap} stageMap={stageMap} memMap={memMap}
+      next={nextLetterFor(mapWorld,learnedMap,stageMap,memMap)} onOpen={(l)=>openLetter(l,"map")} onBack={()=>setScreen("menu")}/>
+  );
+
+  if(screen==="klecks") return wrap(
+    <KlecksRoom companion={comp} onChange={setCompanion} unlocks={unlocks} pen={pen} onPen={setPen} onSpeak={sayIt} onBack={()=>setScreen("menu")}/>
+  );
+
   if(screen==="words"){
-    if(practiceWord) return(
-      <WordPractice word={practiceWord} settings={settings} onSpeak={sayIt} scale={fs}
+    if(practiceWord) return wrap(
+      <WordPractice word={practiceWord} settings={settings} pen={pen} onSpeak={sayIt} scale={fs}
         onTrial={studyLog&&((ch,t)=>studyLog({kind:"word",ch,stage:stageOf(ch)})(t))}
         onBack={()=>setPracticeWord(null)}/>
     );
-    return(
-      <div style={{minHeight:"100vh",background:"linear-gradient(160deg,#fef9c3,#fde68a 80%)",fontFamily:"Arial,sans-serif",padding:16}}>
-        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
-          <button onClick={()=>setScreen("menu")} style={{background:"white",border:"none",borderRadius:50,width:40,height:40,fontSize:20,cursor:"pointer"}}>←</button>
-          <h2 style={{margin:0,color:"#78350f",fontWeight:900,fontSize:22,fontFamily:"Arial,sans-serif"}}>Meine Wörter 📖</h2>
-        </div>
+    return wrap(
+      <div style={{minHeight:"100vh",background:WORD_THEME.bg,padding:16}}>
+        <ScreenHeader title="📖 Meine Wörter" color="#78350f" onBack={()=>setScreen("menu")}/>
         <WordsPanel learnedMap={learnedMap} onPractice={w=>setPracticeWord(w)}/>
       </div>
     );
   }
 
-  if(screen==="progress") return(
-    <div style={{minHeight:"100vh",background:"#f0fdf4",fontFamily:"Arial,sans-serif",padding:16}}>
-      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
-        <button onClick={()=>setScreen("menu")} style={{background:"white",border:"none",borderRadius:50,width:40,height:40,fontSize:20,cursor:"pointer"}}>←</button>
-        <h2 style={{margin:0,color:"#166534",fontWeight:900,fontSize:22,fontFamily:"Arial,sans-serif"}}>Mein Garten 🌻</h2>
-      </div>
-      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+  if(screen==="progress") return wrap(
+    <div style={{minHeight:"100vh",background:"linear-gradient(180deg,#d9f7e4 0%,#ffffff 70%)",padding:16}}>
+      <ScreenHeader title="🌻 Mein Garten" color="#166534" onBack={()=>setScreen("menu")}/>
+      <div style={{display:"flex",flexDirection:"column",gap:12,maxWidth:560,margin:"0 auto"}}>
         {["GROß","klein","Zahlen"].map(t=><FlowerGarden key={t} learnedMap={learnedMap} tab={t}/>)}
       </div>
     </div>
   );
 
-  if(screen==="stickers") return(
-    <div style={{minHeight:"100vh",background:"linear-gradient(160deg,#fdf2f8,#fce7f3 80%)",fontFamily:"Arial,sans-serif",padding:16}}>
-      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
-        <button onClick={()=>setScreen("menu")} style={{background:"white",border:"none",borderRadius:50,width:40,height:40,fontSize:20,cursor:"pointer"}}>←</button>
-        <h2 style={{margin:0,color:"#9d174d",fontWeight:900,fontSize:22,fontFamily:"Arial,sans-serif"}}>Sticker-Album 🎀</h2>
-      </div>
+  if(screen==="stickers") return wrap(
+    <div style={{minHeight:"100vh",background:"linear-gradient(180deg,#ffe3f1 0%,#ffffff 70%)",padding:16}}>
+      <ScreenHeader title="🎀 Sticker-Album" color="#9d174d" onBack={()=>setScreen("menu")}/>
       <StickerBook learnedMap={learnedMap}/>
     </div>
   );
 
-  // ── PRACTICE ──
-  return(
-    <div style={{minHeight:"100vh",background:"#f8fafc",fontFamily:"Arial,sans-serif",display:"flex",flexDirection:"column",padding:10,gap:8}}>
-      <div style={{display:"flex",alignItems:"center",gap:6}}>
-        <button onClick={()=>setScreen("menu")} style={{background:"white",border:"1px solid #e2e8f0",borderRadius:50,width:36,height:36,fontSize:16,cursor:"pointer",flexShrink:0}}>←</button>
-        <div style={{flex:1,display:"flex",background:"white",borderRadius:12,padding:3,gap:2,border:"1px solid #e2e8f0"}}>
-          {["GROß","klein","Zahlen"].map(t=>(
-            <button key={t} onClick={()=>changeTab(t)} style={{flex:1,padding:"6px 2px",borderRadius:9,border:"none",fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:"Arial,sans-serif",background:tab===t?"#4361ee":"transparent",color:tab===t?"white":"#64748b"}}>{t}</button>
-          ))}
-        </div>
-        <div style={{background:"#4361ee",color:"white",borderRadius:12,padding:"4px 10px",fontWeight:800,fontSize:12,flexShrink:0}}>🏆{totalScore}</div>
-        <button onClick={()=>setShowParent(true)} style={{background:"white",border:"1px solid #e2e8f0",borderRadius:50,width:34,height:34,fontSize:16,cursor:"pointer",flexShrink:0}}>👪</button>
+  // ── ÜBEN ──
+  const world=WORLDS[tab];
+  const pill=(active,c)=>({position:"relative",padding:"7px 11px",borderRadius:14,background:active?c:"white",color:active?"white":c,border:`2px solid ${c}`,fontWeight:900,fontSize:13,"--sh":active?"#00000033":"#dfe4ee"});
+  return wrap(
+    <ThemeCtx.Provider value={world}>
+    <div style={{minHeight:"100vh",background:world.bg,display:"flex",flexDirection:"column",alignItems:"center",padding:"10px 10px 18px",gap:10}}>
+      <div style={{width:"100%",maxWidth:560,display:"flex",alignItems:"center",gap:7}}>
+        <RoundBtn onClick={()=>setScreen(backTo)} aria-label="Zurück">←</RoundBtn>
+        <RoundBtn size={34} onClick={()=>step(-1)} aria-label="Vorheriges Zeichen">‹</RoundBtn>
+        <button className="k-press" onClick={()=>sayLetter(letter)} aria-label={`${letter} vorlesen`}
+          style={{background:world.acc,"--sh":world.dark,borderRadius:16,width:56,height:56,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0}}>
+          <Glyph letter={letter} height={42} weight={3.4} color="white" fit/>
+        </button>
+        <RoundBtn size={34} data-k="nextletter" onClick={()=>step(1)} aria-label="Nächstes Zeichen">›</RoundBtn>
+        <div style={{flex:1,minWidth:0,display:"flex"}}><AnlautChip letter={letter} onSay={()=>sayLetter(letter)}/></div>
+        <DailyRing count={dailyCount} size={42}/>
       </div>
 
-      {/* Letter Grid — eingeklappt, aufklappbar */}
-      <div style={{background:"white",borderRadius:14,border:"1px solid #e2e8f0",overflow:"hidden"}}>
-        <button
-          onClick={()=>setGridOpen(g=>!g)}
-          style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"none",border:"none",cursor:"pointer",fontFamily:"Arial,sans-serif"}}>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <span style={{fontSize:13,fontWeight:800,color:"#374151"}}>
-              {tab} — Buchstabe wählen
-            </span>
-            <span style={{background:"#4361ee",color:"white",borderRadius:8,padding:"1px 8px",fontSize:11,fontWeight:700}}>
-              {letter}
-            </span>
+      <div className="k-card" style={{width:"100%",maxWidth:560,borderRadius:20,overflow:"hidden"}}>
+        <div style={{display:"flex",alignItems:"center",gap:6,padding:6}}>
+          <div style={{display:"flex",background:"#f1f3f8",borderRadius:14,padding:3,gap:2}}>
+            {Object.values(WORLDS).map(w=>(
+              <button key={w.key} data-tab={w.key} onClick={()=>{sfx("tap");changeTab(w.key);setGridOpen(true);}}
+                style={{padding:"6px 10px",borderRadius:11,border:"none",fontSize:14,fontWeight:900,cursor:"pointer",background:tab===w.key?w.acc:"transparent",color:tab===w.key?"white":"var(--ink2)"}}>{w.short}</button>
+            ))}
           </div>
-          <span style={{fontSize:14,color:"#94a3b8",transition:"transform 0.2s",transform:gridOpen?"rotate(180deg)":"rotate(0deg)"}}>▾</span>
-        </button>
+          <button data-k="grid" onClick={()=>setGridOpen(g=>!g)} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"flex-end",gap:6,background:"none",border:"none",cursor:"pointer",fontSize:14,fontWeight:900,color:"var(--ink2)",padding:"6px 2px"}}>
+            {tab==="Zahlen"?"Zahl wählen":"Buchstabe wählen"} <span style={{display:"inline-block",transition:"transform 0.2s",transform:gridOpen?"rotate(180deg)":"none"}}>▾</span>
+          </button>
+          <RoundBtn size={34} onClick={()=>setShowParent(true)} aria-label="Elternbereich">👪</RoundBtn>
+        </div>
         {gridOpen&&(
-          <div style={{padding:"0 8px 8px"}}>
-            <LetterGrid items={items} learnedMap={learnedMap} onSelect={(l)=>{selectLetter(l);setGridOpen(false);}} current={letter}/>
+          <div style={{padding:"2px 8px 12px"}}>
+            <LetterGrid items={items} learnedMap={learnedMap} onSelect={(l)=>{sfx("tap");selectLetter(l);setGridOpen(false);}} current={letter}/>
           </div>
         )}
       </div>
 
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:4}}>
-        <div style={{display:"flex",alignItems:"center",gap:5,flexShrink:0}}>
-          <div style={{background:"#4361ee",color:"white",borderRadius:12,width:46,height:46,display:"flex",alignItems:"center",justifyContent:"center"}}><Glyph letter={letter} height={42} weight={3.2} color="white"/></div>
-          <button onClick={()=>sayLetter(letter)} style={{background:"#fbbf24",border:"none",borderRadius:50,width:38,height:38,fontSize:18,cursor:"pointer",boxShadow:"0 2px 8px #fbbf2460"}}>🔊</button>
-        </div>
-        <AnlautChip letter={letter} onSay={()=>sayLetter(letter)}/>
-      </div>
-
       {/* Lernweg: Vorführen, dann Hilfe Schritt für Schritt abbauen */}
-      <div style={{display:"flex",gap:4,flexWrap:"wrap",justifyContent:"center"}}>
-        <button onClick={()=>{clearTimeout(advanceTimer.current);setPhase("anim");setReplayKey(k=>k+1);}} style={{padding:"6px 9px",borderRadius:11,border:"2px solid #fb923c",background:phase==="anim"?"#fb923c":"white",color:phase==="anim"?"white":"#fb923c",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"Arial,sans-serif"}}>▶ Zeigen</button>
+      <div style={{display:"flex",gap:7,flexWrap:"wrap",justifyContent:"center"}}>
+        <button className="k-press" style={pill(phase==="anim","#f97316")} onClick={()=>{clearTimeout(advanceTimer.current);sfx("tap");setPhase("anim");setReplayKey(k=>k+1);}}>▶ Zeigen</button>
         {Object.entries(MODES).filter(([m])=>allowed(m)).map(([m,{label,color}])=>{
           const active=phase==="write"&&mode===m;
           const recommended=m===modeFor(letter);
           const passed=MODE_STAGE[m]<stageOf(letter)||(m==="memory"&&(memMap[letter]||0)>0);
           return(
-            <button key={m} onClick={()=>chooseMode(m)} style={{position:"relative",padding:"6px 9px",borderRadius:11,border:`2px solid ${color}`,background:active?color:"white",color:active?"white":color,fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"Arial,sans-serif"}}>
+            <button key={m} data-mode={m} className="k-press" onClick={()=>chooseMode(m)} style={pill(active,color)}>
               {passed?"✓ ":""}{label}
-              {recommended&&!passed&&<span style={{position:"absolute",top:-8,right:-6,fontSize:12}}>⭐</span>}
+              {recommended&&!passed&&<span aria-label="empfohlen" style={{position:"absolute",top:-10,right:-7,fontSize:15}}>⭐</span>}
             </button>
           );
         })}
       </div>
 
       {levelUp&&levelUp.letter===letter&&(
-        <div style={{background:"linear-gradient(135deg,#fef3c7,#fde68a)",borderRadius:14,padding:"8px 14px",textAlign:"center",fontSize:13,fontWeight:800,color:"#78350f",border:"2px solid #fbbf24",animation:"popIn 0.4s ease-out"}}>
-          🎉 Neue Stufe! {STAGE_NEXT_TEXT[levelUp.stage]}
+        <div style={{position:"fixed",top:12,left:0,right:0,display:"flex",justifyContent:"center",zIndex:1500,pointerEvents:"none",padding:"0 12px"}}>
+          <div role="status" style={{background:"linear-gradient(135deg,#fff4c2,#ffe08a)",borderRadius:18,padding:"10px 16px",textAlign:"center",fontSize:16,fontWeight:900,color:"#6b4400",border:"3px solid #ffc93c",boxShadow:"0 6px 0 #dea00055, 0 12px 30px #0002",animation:"popIn 0.4s ease-out",maxWidth:520}}>
+            🎉 Neue Stufe! {STAGE_NEXT_TEXT[levelUp.stage]}
+          </div>
         </div>
       )}
 
-      {activeReward&&(
-        <div style={{background:activeReward==="glitter"?"#fef9c3":activeReward==="rainbow"?"#f0fdf4":activeReward==="stardust"?"#fdf2f8":"#f5f3ff",borderRadius:14,padding:"8px 14px",textAlign:"center",fontSize:13,fontWeight:700,animation:"glowPulse 2s infinite",border:"2px solid #fbbf24"}}>
-          {activeReward==="glitter"&&"✨ Glitzerstift aktiv! Zeichne und schau was passiert!"}
-          {activeReward==="rainbow"&&"🌈 Regenbogen-Stift aktiv! Jede Linie wird bunt!"}
-          {activeReward==="stardust"&&"🌟 Sternenregen! Schau in den Himmel!"}
-          {activeReward==="unicorn"&&"🦄 Das Einhorn ist vorbeigesprungen!"}
-        </div>
-      )}
-
-      <div style={{display:"flex",justifyContent:"center",flexDirection:"column",gap:8}}>
+      <div style={{display:"flex",justifyContent:"center",flexDirection:"column",alignItems:"center",gap:8}}>
         {phase==="anim"&&<StrokePreview letter={letter}/>}
         {phase==="anim"
           ?<AnimCanvas key={`anim-${letter}-${replayKey}`} letter={letter} onDone={()=>setPhase("write")} scale={fs}/>
           :mode==="guided"
-            ?<GuidedCanvas key={`guided-${letter}-${replayKey}`} letter={letter} onComplete={handleDone} onSpeak={sayIt} scale={fs}
+            ?<GuidedCanvas key={`guided-${letter}-${replayKey}`} letter={letter} onComplete={handleDone} onNext={goNext} onSpeak={sayIt} scale={fs}
                onTrial={studyLog&&studyLog({kind:"practice",ch:letter,stage:stageOf(letter)})}/>
-            :<TraceCanvas key={`trace-${letter}-${mode}-${replayKey}`} letter={letter} onComplete={handleDone}
-               difficulty={settings.difficulty} mode={mode} activeReward={activeReward}
+            :<TraceCanvas key={`trace-${letter}-${mode}-${replayKey}`} letter={letter} onComplete={handleDone} onNext={goNext}
+               difficulty={settings.difficulty} mode={mode} pen={penAvailable(pen,unlocks)?pen:"classic"}
                memoryDelay={MEMORY_DELAYS[Math.min(memMap[letter]||0,MEMORY_DELAYS.length-1)]}
                lefthanded={!!settings.lefthanded} highContrast={!!settings.highContrast} hapticsEnabled={settings.hapticsEnabled!==false}
+               tools={<PenPicker pen={penAvailable(pen,unlocks)?pen:"classic"} unlocks={unlocks} onPick={setPen}/>}
                onSpeak={sayIt} scale={fs} onTrial={studyLog&&studyLog({kind:"practice",ch:letter,stage:stageOf(letter)})}/>
         }
       </div>
 
-      <div style={{display:"flex",gap:8}}>
-        {learnedCount>=2&&<button onClick={()=>setScreen("words")} style={{flex:1,background:"linear-gradient(135deg,#fbbf24,#f59e0b)",border:"none",borderRadius:14,padding:"10px",color:"white",fontWeight:800,fontSize:13,cursor:"pointer",fontFamily:"Arial,sans-serif"}}>📖 Wörter ({learnedCount})</button>}
-        {settings.rewardVideos&&<button onClick={()=>setShowReward(true)} style={{flex:1,background:"linear-gradient(135deg,#c084fc,#a855f7)",border:"none",borderRadius:14,padding:"10px",color:"white",fontWeight:800,fontSize:13,cursor:"pointer",fontFamily:"Arial,sans-serif"}}>🎁 Belohnung</button>}
-        {perfectCount>=1&&<button onClick={()=>setScreen("stickers")} style={{flex:1,background:"linear-gradient(135deg,#f472b6,#ec4899)",border:"none",borderRadius:14,padding:"10px",color:"white",fontWeight:800,fontSize:13,cursor:"pointer",fontFamily:"Arial,sans-serif"}}>🎀 ({perfectCount})</button>}
-      </div>
-
-      {showReward&&<RewardModal onEarn={handleEarnReward} onClose={()=>setShowReward(false)} hapticsEnabled={settings.hapticsEnabled!==false}/>}
-      {showUnicorn&&<UnicornRun onDone={()=>setShowUnicorn(false)}/>}
-      {showStarRain&&<StarRain onDone={()=>setShowStarRain(false)}/>}
       {showScreenTime&&<ScreenTimeReminder limit={settings.screenTime} onDismiss={()=>setShowScreenTime(false)}/>}
-      {showParent&&<ParentZone settings={settingsWithData} onChange={updateSettings} onStartProbe={()=>{setShowParent(false);setScreen("probe");}} onClose={()=>setShowParent(false)} journal={journal}/>}
+    </div>
+    </ThemeCtx.Provider>
+  );
+}
+
+// Himmel der Startseite: zwei ziehende Wolken und grüne Hügel
+function SkyDecor(){
+  return(
+    <div aria-hidden="true" style={{position:"fixed",inset:0,overflow:"hidden",pointerEvents:"none",zIndex:0}}>
+      <div style={{position:"absolute",top:64,left:0,fontSize:64,opacity:0.9,animation:"kCloud 70s linear infinite"}}>☁️</div>
+      <div style={{position:"absolute",top:200,left:0,fontSize:42,opacity:0.75,animation:"kCloud 95s linear -45s infinite"}}>☁️</div>
+      <svg viewBox="0 0 400 120" preserveAspectRatio="none" style={{position:"absolute",left:0,bottom:0,width:"100%",height:110}}>
+        <path d="M0 70 Q80 22 170 58 T400 48 V120 H0Z" fill="#b5ecaa"/>
+        <path d="M0 96 Q110 58 220 90 T400 84 V120 H0Z" fill="#86d97f"/>
+      </svg>
     </div>
   );
 }
@@ -2791,13 +3101,13 @@ export default function App(){
 function ImpressumScreen({onBack}){
   const [tab,setTab]=useState("impressum"); // impressum | datenschutz | attribution
   const s = {
-    page:{minHeight:"100vh",background:"#f8fafc",fontFamily:"Arial,sans-serif",fontSize:13,color:"#374151"},
+    page:{minHeight:"100vh",background:"#f8fafc",fontFamily:"inherit",fontSize:13,color:"#374151"},
     header:{background:"white",borderBottom:"1px solid #e2e8f0",padding:"12px 16px",display:"flex",alignItems:"center",gap:12,position:"sticky",top:0,zIndex:10},
     tabs:{display:"flex",gap:0,background:"#f1f5f9",borderRadius:12,padding:3,margin:"16px 16px 0"},
-    tab:{flex:1,padding:"8px 4px",borderRadius:9,border:"none",fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:"Arial,sans-serif"},
+    tab:{flex:1,padding:"8px 4px",borderRadius:9,border:"none",fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:"inherit"},
     body:{padding:16,display:"flex",flexDirection:"column",gap:14},
     card:{background:"white",borderRadius:16,padding:16,border:"1px solid #e2e8f0"},
-    h2:{fontSize:15,fontWeight:900,color:"#1e3a8a",margin:"0 0 10px",fontFamily:"Arial,sans-serif"},
+    h2:{fontSize:15,fontWeight:900,color:"#1e3a8a",margin:"0 0 10px",fontFamily:"inherit"},
     h3:{fontSize:13,fontWeight:800,color:"#374151",margin:"10px 0 4px"},
     p:{margin:"0 0 8px",lineHeight:1.6,color:"#4b5563"},
     placeholder:{background:"#fef9c3",borderRadius:8,padding:"6px 10px",fontSize:11,color:"#92400e",margin:"6px 0"},
@@ -2809,7 +3119,7 @@ function ImpressumScreen({onBack}){
     <div style={s.page}>
       <div style={s.header}>
         <button onClick={onBack} style={{background:"none",border:"1px solid #e2e8f0",borderRadius:50,width:36,height:36,fontSize:16,cursor:"pointer",flexShrink:0}}>←</button>
-        <h2 style={{margin:0,fontSize:17,fontWeight:900,color:"#1e3a8a",fontFamily:"Arial,sans-serif"}}>📄 Rechtliches</h2>
+        <h2 style={{margin:0,fontSize:17,fontWeight:900,color:"#1e3a8a",fontFamily:"inherit"}}>📄 Rechtliches</h2>
       </div>
 
       <div style={s.tabs}>
@@ -2878,7 +3188,7 @@ function ImpressumScreen({onBack}){
             </p>
 
             <h3 style={s.h3}>2. Speicherung auf deinem Gerät</h3>
-            <p style={s.p}>Diese App speichert <strong>keine personenbezogenen Daten</strong> auf externen Servern. Lernfortschritte (Sterne, gelernte Buchstaben, Punkte) und die Einstellungen aus dem Elternbereich werden ausschließlich lokal im Speicher deines Browsers (localStorage) auf diesem Gerät abgelegt und nicht übertragen. Du kannst sie jederzeit im Elternbereich über „Fortschritt zurücksetzen" oder durch Löschen der Browserdaten entfernen.</p>
+            <p style={s.p}>Diese App speichert <strong>keine personenbezogenen Daten</strong> auf externen Servern. Lernfortschritte (Sterne, gelernte Buchstaben, Punkte, Tagesziel, gefundene Überraschungen), die gewählte Farbe von Klecks und die Einstellungen aus dem Elternbereich werden ausschließlich lokal im Speicher deines Browsers (localStorage) auf diesem Gerät abgelegt und nicht übertragen. Du kannst sie jederzeit im Elternbereich über „Fortschritt zurücksetzen" oder durch Löschen der Browserdaten entfernen.</p>
 
             <h3 style={s.h3}>3. Aufruf der Webseite (Server-Logfiles)</h3>
             <p style={s.p}>Beim Aufrufen der App überträgt dein Browser technisch bedingt Daten an unseren Webserver bzw. Hoster <span style={{background:"#fde68a",borderRadius:4,padding:"1px 5px"}}>[Name des Hosters]</span>: IP-Adresse, Datum und Uhrzeit, aufgerufene Datei, Browsertyp und Betriebssystem. Diese Daten sind für die Auslieferung der App erforderlich (Art. 6 Abs. 1 lit. f DSGVO), werden nicht mit anderen Daten zusammengeführt und nach <span style={{background:"#fde68a",borderRadius:4,padding:"1px 5px"}}>[z. B. 7]</span> Tagen gelöscht. Nach dem ersten Laden funktioniert die App auch offline.</p>
@@ -2889,11 +3199,11 @@ function ImpressumScreen({onBack}){
             <h3 style={s.h3}>4. Kinder & besonderer Schutz (Art. 8 DSGVO)</h3>
             <p style={s.p}>Diese App richtet sich an Kinder im Vorschul- und Grundschulalter. Wir erheben bewusst keinerlei personenbezogene Daten. Es werden keine Nutzerkonten erstellt, keine E-Mail-Adressen abgefragt und keine Tracking-Technologien eingesetzt.</p>
 
-            <h3 style={s.h3}>5. Externe Inhalte / Bildmaterial</h3>
-            <p style={s.p}>Diese App lädt Illustrationen von <strong>Freepik</strong> (freepik.com). Dabei kann es zu einer Verbindung zu Freepik-Servern kommen. Freepik's Datenschutzerklärung: <a href="https://www.freepik.com/privacy-policy" style={s.link} target="_blank" rel="noreferrer">freepik.com/privacy-policy</a></p>
+            <h3 style={s.h3}>5. Externe Inhalte</h3>
+            <p style={s.p}>Die App lädt keine Inhalte von anderen Servern nach. Schrift, Figuren und Töne sind in der App enthalten; Bilder sind die Emojis deines Geräts. Es gibt keine Werbung und keine Links zu Shops.</p>
 
-            <h3 style={s.h3}>6. Belohnungs-Videos (optional)</h3>
-            <p style={s.p}>Wenn die Eltern die Funktion "Belohnungs-Videos" aktivieren, werden kurze Animations-Sequenzen innerhalb der App abgespielt. Es werden dabei keine Daten an Dritte übermittelt, da es sich um simulierte (nicht echte) Werbevideos handelt.</p>
+            <h3 style={s.h3}>6. Überraschungen und Effekte (optional)</h3>
+            <p style={s.p}>Die kleinen Überraschungen (neue Stifte, Sachen für Klecks, Einhorn, Sternenregen) entstehen direkt in der App. Dabei werden keine Daten übertragen. Eltern können sie im Elternbereich ausschalten.</p>
 
             <h3 style={s.h3}>7. Deine Rechte (Art. 15–21 DSGVO)</h3>
             <p style={s.p}>Da wir keine personenbezogenen Daten speichern, entfallen Auskunfts-, Berichtigungs- und Löschungsrechte praktisch. Bei Fragen wende dich an: <span style={{background:"#fde68a",borderRadius:4,padding:"1px 5px"}}>[deine@email.de]</span></p>
@@ -2909,42 +3219,12 @@ function ImpressumScreen({onBack}){
         <div style={s.body}>
           <div style={s.card}>
             <h2 style={s.h2}>🎨 Bildnachweise & Lizenzen</h2>
-            <p style={s.p}>Diese App verwendet Illustrationen von <strong>Freepik</strong>. Die Nutzung erfolgt gemäß der kostenlosen Freepik-Lizenz, die eine Namensnennung (Attribution) erfordert.</p>
-
-            <div style={{background:"#f0fdf4",borderRadius:12,padding:14,border:"1px solid #bbf7d0",marginBottom:12}}>
-              <div style={{fontWeight:800,color:"#166534",marginBottom:8,fontSize:13}}>📸 Verwendete Bilder:</div>
-              {[
-                {name:"Kind schreibt",  desc:"Cute boy writing illustration",   url:"https://www.freepik.com"},
-                {name:"Einhorn",        desc:"Cute unicorn sitting illustration", url:"https://www.freepik.com"},
-                {name:"Zauberstab",     desc:"Magic wand with sparkles",         url:"https://www.freepik.com"},
-                {name:"Regenbogen",     desc:"Cute rainbow with clouds",         url:"https://www.freepik.com"},
-                {name:"Sterne",         desc:"Stars sparkles collection",        url:"https://www.freepik.com"},
-                {name:"Bleistift",      desc:"Cute pencil cartoon icon",         url:"https://www.freepik.com"},
-              ].map((img,i)=>(
-                <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 0",borderBottom:"1px solid #dcfce7"}}>
-                  <span style={{fontSize:18}}>{["👦","🦄","✨","🌈","⭐","✏️"][i]}</span>
-                  <div style={{flex:1}}>
-                    <div style={{fontWeight:700,fontSize:12}}>{img.name}</div>
-                    <div style={{fontSize:11,color:"#6b7280"}}>{img.desc}</div>
-                  </div>
-                  <a href={img.url} style={{...s.link,fontSize:11}} target="_blank" rel="noreferrer">freepik.com</a>
-                </div>
-              ))}
-            </div>
-
-            <div style={{background:"#eff6ff",borderRadius:12,padding:12,border:"1px solid #bfdbfe"}}>
-              <div style={{fontWeight:800,color:"#1e40af",marginBottom:6,fontSize:13}}>📜 Lizenzhinweis</div>
-              <p style={{...s.p,fontSize:12,margin:0}}>
-                Designed by <a href="https://www.freepik.com" style={s.link} target="_blank" rel="noreferrer">Freepik</a> from <a href="https://www.flaticon.com" style={s.link} target="_blank" rel="noreferrer">Flaticon</a> &amp; <a href="https://www.freepik.com" style={s.link} target="_blank" rel="noreferrer">Freepik.com</a>.
-                Genutzt unter der <a href="https://www.freepikcompany.com/legal" style={s.link} target="_blank" rel="noreferrer">Freepik Free License</a>.
-              </p>
-            </div>
-
+            <p style={s.p}>Die Figur „Klecks“, die Buchstaben-Vorlagen und die Töne wurden für diese App selbst erstellt. Alle übrigen Bilder sind Emojis des jeweiligen Betriebssystems.</p>
             <div style={{...s.divider}}/>
             <h3 style={s.h3}>Weitere verwendete Ressourcen</h3>
             <p style={{...s.p,fontSize:12}}>
               <strong>React</strong> — MIT License — <a href="https://react.dev" style={s.link} target="_blank" rel="noreferrer">react.dev</a><br/>
-              <strong>Schriften</strong> — Arial (Systemschrift, keine gesonderte Lizenz erforderlich)<br/>
+              <strong>Schrift</strong> — Nunito von Vernon Adams u. a., SIL Open Font License 1.1 — <a href="https://fonts.google.com/specimen/Nunito" style={s.link} target="_blank" rel="noreferrer">fonts.google.com/specimen/Nunito</a> (in der App eingebettet, kein Abruf bei Google)<br/>
               <strong>Emojis</strong> — System-Emojis des jeweiligen Betriebssystems
             </p>
           </div>

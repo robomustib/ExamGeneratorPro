@@ -3,7 +3,7 @@
 // Strategie „erst Netz, dann Cache": Mit Internet gibt es immer die neueste
 // Version vom Webserver, ohne Internet die zuletzt geladene.
 // ═══════════════════════════════════════════════════════════════════════════════
-const CACHE = "schreiben-lernen-v1";
+const CACHE = "schreiben-lernen-v2";
 const FILES = [
   "./",
   "./index.html",
