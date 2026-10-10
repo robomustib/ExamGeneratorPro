@@ -102,11 +102,17 @@ problematischen weg.
 |---|---|
 | **Personalisierung und Wahlfreiheit** bei Nebensächlichem (Name, Figur, Farben) steigern Motivation *und* Lernerfolg ([Cordova & Lepper 1996](https://doi.org/10.1037/0022-0663.88.4.715)) | Beim ersten Start sucht das Kind die Farbe von **Klecks** aus, dem Tintenklecks-Begleiter. Stift wählbar (🖍️, in allen Modi: Klassik, Blau, Lila, Türkis, später Glitzer und Regenbogen). Im „Klecks-Zimmer“ kann Klecks mehrere gefundene Sachen gleichzeitig tragen (Hut oder Krone, dazu Schleife, Blume, Brille). |
 | **Lernbegleiter-Figuren** helfen wenig, aber messbar, bei Schulkindern mehr als bei Erwachsenen ([Schroeder, Adesope & Gilbert 2013](https://doi.org/10.2190/EC.49.1.a)) | Klecks gibt Hinweise und Lob in einer Sprechblase (auch vorgelesen) und zeigt mit seiner Mimik, ob es geklappt hat. |
-| **Angekündigte Belohnungen** („Wenn du …, bekommst du …“) verdrängen die Freude an der Sache, **unerwartete** nicht; Lob als Information stärkt sie ([Deci, Koestner & Ryan 1999](https://doi.org/10.1037/0033-2909.125.6.627)) | Die Zufalls-Schatzkiste ist entfernt. Stattdessen werden **Überraschungen gefunden** (Glitzerstift, Regenbogenstift, Schleife, Hut, Krone …), sobald genug Zeichen gut sitzen, ohne Ankündigung und ohne Zufall. Sterne zeigen, *wie genau* geschrieben wurde. |
+| **Angekündigte Belohnungen** („Wenn du …, bekommst du …“) verdrängen die Freude an der Sache, **unerwartete** nicht; Lob als Information stärkt sie ([Deci, Koestner & Ryan 1999](https://doi.org/10.1037/0033-2909.125.6.627)) | Keine Zufalls-Kisten. Auf dem Spielbrett stehen **Schatztruhen**; eine Truhe geht auf, wenn alle Buchstaben davor mindestens zwei Sterne haben. *Was* drin ist (Glitzer-, Regenbogen-, Goldstift, Schleife, Hut, Krone, Blume, Brille, Umhang, Regenbogen-Klecks), bleibt bis zum Öffnen eine Überraschung. Die Truhe belohnt gutes Schreiben, nicht Zeit oder Zufall. |
 | **Lob für den Weg, nicht für die Person** führt dazu, dass Kinder bei Fehlern dranbleiben ([Mueller & Dweck 1998](https://doi.org/10.1037/0022-3514.75.1.33); [Gunderson u. a. 2013](https://doi.org/10.1111/cdev.12064)) | Rückmeldungen wie „Jeden Strich am richtigen Punkt angefangen!“, „Du hast die Richtung verbessert!“, „Du hast nicht aufgegeben – so lernt man!“ statt „Du bist toll!“. |
 | Gute Lern-Apps sind **aktiv, bei der Sache, sinnvoll und sozial**. Effekte, die vom Lernen ablenken, schaden ([Hirsh-Pasek u. a. 2015](https://doi.org/10.1177/1529100615569721); [Meyer u. a. 2021](https://doi.org/10.1080/17482798.2021.1882516)) | Das Schreibfeld bleibt ruhig. Animationen gibt es nur außerhalb des Felds und nach dem Schreiben. Wer „Bewegung reduzieren“ eingestellt hat, bekommt keine. |
 | Viele Kinder-Apps arbeiten mit **manipulativen Mustern**: Druck durch Figuren, Zeitdruck, Lockangebote, Autoplay ([Radesky u. a. 2022](https://doi.org/10.1001/jamanetworkopen.2022.17641)). Kinder sollen nicht zu längerer Nutzung gedrängt werden ([ICO Age Appropriate Design Code, Standard 13](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/childrens-information/childrens-code-guidance-and-resources/age-appropriate-design-a-code-of-practice-for-online-services/)) | Keine Serien („Streaks“), die abreißen, kein „Komm zurück!“, keine Zeitlimits, keine Verluste. **Tagesziel**: 3 Zeichen, danach sagt Klecks ausdrücklich, dass jetzt Pause sein darf. Automatisches Weiterspringen ist aus; das Kind tippt selbst auf „Weiter ➜“. |
-| Fortschritt sichtbar machen und frei wählen lassen (Autonomie und Kompetenz) | **Drei Welten** (Buchstaben-Berg ABC, Buchstaben-Wald abc, Zahlen-Insel 123) mit einer **Lernkarte**: Jeder Stein zeigt die Lernstufe (● geübt, ●● abschreiben, ●●● aus dem Kopf, 👑 kann ich). Nichts ist gesperrt. |
+| Ein klares **Spielziel** mit sichtbarem Fortschritt und freier Wahl (Autonomie und Kompetenz) | **Drei Welten** (Buchstaben-Berg ABC, Buchstaben-Wald abc, Zahlen-Insel 123), jede ein **Spielbrett**: Jeder Buchstabe ist ein Level mit bis zu **drei Sternen**. Die Farbe des Steins zeigt die Lernstufe (hell: geübt, kräftig: aus dem Kopf, gold: sitzt). Nach jedem Level geht es zurück aufs Brett, Klecks **hüpft zum nächsten Stein**, die neuen Sterne fliegen in den Zähler. Nichts ist gesperrt. Eine kleine Geschichte gibt den Rahmen: Klecks' Buchstaben sind verstreut, das Kind sammelt sie durch Schreiben. |
+| Viele verschiedene, bunte Bildchen lenken ab | Ein **ruhiger, einheitlicher Symbolsatz** statt Emojis in Knöpfen, Überschriften und Sprechblasen. Emojis bleiben nur dort, wo sie Lerninhalt sind (Anlaut-Bild „Maus“, Wortbilder) und als Sticker. |
+
+**Ablauf:** Startseite → „Spielen“ startet das nächste Level → Ergebnis mit Sternen →
+„Weiter“ führt aufs Spielbrett → „Los“ startet das nächste Level. Die **Sammlung**
+enthält Klecks' Kleiderschrank und Stifte, das Sticker-Album und eine Übersicht aller
+Buchstaben mit ihren Sternen (ersetzt den früheren Garten).
 
 Weitere Änderungen: runde, gut lesbare Schrift **Nunito** (in die App eingebettet,
 keine Verbindung zu Google), große „drückbare“ Knöpfe, kurze leise Töne (abschaltbar
@@ -132,8 +138,8 @@ randomisierte Wartekontrollgruppe.
   Einrichtung im Browser und legt die Tabellen per Knopf an.
 - Einschalten: `forschung/config.json` → `"enabled": true` (erst nach Ethikvotum und
   Datenschutzprüfung). Ohne Server oder bei `false` sendet die App nichts.
-- Spielelemente (Klecks, Tagesziel, Überraschungen) sind in beiden Studiengruppen
-  gleich; sie hängen an der Zahl gut geschriebener Zeichen, nicht an der Lernstufe.
+- Spielelemente (Klecks, Sterne, Tagesziel, Schatztruhen) sind in beiden Studiengruppen
+  gleich; sie hängen an den Sternen, nicht an der Lernstufe.
   Der Schreibtest bleibt neutral: ohne Klecks, Töne, Effekte und Rückmeldung.
   Das Design vor Studienbeginn nicht mehr ändern, damit alle Kinder dieselbe App nutzen.
 
@@ -174,6 +180,7 @@ schreib-lern-app-web/
 │   ├── klecks.jsx      der Begleiter Klecks (Figur, Mimik, Sprechblase)
 │   ├── sound.js        kurze Töne, im Browser erzeugt
 │   ├── install.js      Knopf „App installieren“ und Hinweise je nach Gerät
+│   ├── icons.jsx       einheitliche Symbole, Welt-Bilder, Schatztruhe
 │   └── research.js     Forschungsmodus: Messung, Warteschlange, Upload
 └── dist/               ← fertige Webseite zum Hochladen
 ```

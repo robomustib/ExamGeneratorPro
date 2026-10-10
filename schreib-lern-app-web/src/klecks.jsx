@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react";
+import { createContext, useContext, useId } from "react";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // KLECKS — der Begleiter: ein kleiner Tintenklecks, der beim Schreiben hilft
@@ -16,6 +16,8 @@ export const KLECKS_COLORS = [
   { id: "orange", c: "#ffa046", d: "#e07b17", name: "Orange" },
   { id: "pink", c: "#ff7eb6", d: "#e0538f", name: "Pink" },
   { id: "rot", c: "#ff6b6b", d: "#d94343", name: "Rot" },
+  // Fundstück aus einer Schatztruhe: Klecks in Regenbogenfarben
+  { id: "regenbogen", c: "rainbow", d: "#7c3aed", name: "Regenbogen", special: true },
 ];
 export const klecksColor = (id) => KLECKS_COLORS.find((k) => k.id === id) || KLECKS_COLORS[0];
 
@@ -23,8 +25,8 @@ export const CompanionCtx = createContext({ color: "lila", accs: [] });
 
 // Zubehör: mehrere Teile gleichzeitig. Teile am selben Platz (Hut und Krone sitzen
 // beide auf der Spitze) ersetzen sich gegenseitig, alles andere lässt sich kombinieren.
-const ACC_SLOT = { hat: "top", crown: "top", bow: "right", flower: "left", glasses: "face" };
-const ACC_ORDER = ["flower", "bow", "glasses", "hat", "crown"];
+const ACC_SLOT = { hat: "top", crown: "top", bow: "right", flower: "left", glasses: "face", cape: "back" };
+const ACC_ORDER = ["flower", "bow", "glasses", "hat", "crown"];   // vor dem Körper; der Umhang liegt dahinter
 export const accList = (a) => (Array.isArray(a) ? a : a ? [a] : []).filter((id) => ACC_SLOT[id]);
 export function wearAcc(accs, id) {
   const list = accList(accs).filter((x) => ACC_SLOT[x] !== ACC_SLOT[id]);
@@ -141,6 +143,7 @@ export function Klecks({ size = 96, mood = "happy", color, acc, anim = "bob", st
   const col = klecksColor(color || comp.color);
   const accs = accList(acc === undefined ? comp.accs ?? comp.acc : acc);
   const up = mood === "cheer";
+  const gid = "kr" + useId().replace(/:/g, "");
   const animation =
     anim === "bob" ? "kBob 2.8s ease-in-out infinite" : anim === "jump" ? "kJump 0.7s ease-out" : anim === "shake" ? "shake 0.3s ease-in-out 2" : "none";
   return (
@@ -154,8 +157,22 @@ export function Klecks({ size = 96, mood = "happy", color, acc, anim = "bob", st
       aria-hidden={title ? undefined : true}
       style={{ display: "block", overflow: "visible", flexShrink: 0, cursor: onClick ? "pointer" : undefined, animation, ...style }}
     >
+      {col.c === "rainbow" && (
+        <defs>
+          <linearGradient id={gid} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#ff8a5b" />
+            <stop offset="0.3" stopColor="#ffd23f" />
+            <stop offset="0.55" stopColor="#4ade80" />
+            <stop offset="0.8" stopColor="#38bdf8" />
+            <stop offset="1" stopColor="#a78bfa" />
+          </linearGradient>
+        </defs>
+      )}
       <ellipse cx="60" cy="125" rx="34" ry="5" fill="#0f172a" opacity="0.12" />
-      <g fill={col.c} stroke={col.d} strokeWidth="3">
+      {accs.includes("cape") && (
+        <path d="M38 50 Q18 88 6 122 Q60 132 114 122 Q102 88 82 50 Z" fill="#ef4444" stroke="#b91c1c" strokeWidth="3" strokeLinejoin="round" />
+      )}
+      <g fill={col.c === "rainbow" ? `url(#${gid})` : col.c} stroke={col.d} strokeWidth="3">
         <ellipse cx="46" cy="117" rx="9" ry="6" />
         <ellipse cx="74" cy="117" rx="9" ry="6" />
         {up ? (

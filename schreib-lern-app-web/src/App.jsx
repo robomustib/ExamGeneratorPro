@@ -3,6 +3,7 @@ import { useResearch, enroll, withdraw, exportMyData, logTrial, markWaveDone, tr
 import { Klecks, KlecksBubble, CompanionCtx, KLECKS_COLORS, accList, wearAcc, toggleAcc } from "./klecks.jsx";
 import { sfx, setSoundOn } from "./sound.js";
 import { useInstall } from "./install.js";
+import { Icon, Star, WorldArt, ChestArt } from "./icons.jsx";
 // Schrift „Nunito" (SIL Open Font License) — wird in die App eingebettet, kein Google-Server
 import nunito700 from "@fontsource/nunito/files/nunito-latin-700-normal.woff2";
 import nunito800 from "@fontsource/nunito/files/nunito-latin-800-normal.woff2";
@@ -33,6 +34,9 @@ button,input,select,textarea{font-family:inherit}
 @keyframes kCloud    { from{transform:translateX(-40vw)} to{transform:translateX(140vw)} }
 @keyframes kPulse    { 0%,100%{transform:scale(1)} 50%{transform:scale(1.07)} }
 @keyframes kRing     { 0%{box-shadow:0 0 0 0 var(--ring,#ffc93caa)} 100%{box-shadow:0 0 0 16px #ffc93c00} }
+@keyframes kRise     { 0%{transform:translateY(30px) scale(.6);opacity:0} 100%{transform:translateY(0) scale(1);opacity:1} }
+@keyframes kFloat    { 0%{transform:translateY(8px);opacity:0} 20%{opacity:1} 100%{transform:translateY(-28px);opacity:0} }
+@keyframes kWiggle   { 0%,55%,100%{transform:rotate(0)} 65%{transform:rotate(-9deg)} 75%{transform:rotate(9deg)} 85%{transform:rotate(-5deg)} }
 @keyframes kStarPop  { 0%{transform:scale(0) rotate(-40deg);opacity:0} 70%{transform:scale(1.3) rotate(8deg);opacity:1} 100%{transform:scale(1) rotate(0)} }
 @keyframes unicornRun  { 0%{transform:scaleX(-1) translateY(0)} 50%{transform:scaleX(-1) translateY(-18px)} 100%{transform:scaleX(-1) translateY(0)} }
 @keyframes fallStar    { from{transform:translateY(0) rotate(0deg);opacity:1} to{transform:translateY(100vh) rotate(720deg);opacity:0} }
@@ -54,7 +58,7 @@ const reducedMotion=()=>typeof window!=="undefined"&&!!window.matchMedia?.("(pre
 
 // Knopf mit „Knautsch"-Effekt: fühlt sich beim Drücken wie ein echter Knopf an
 function Btn({bg="var(--coral)",sh="var(--coralD)",color="white",style,className="",children,...rest}){
-  return <button className={"k-press "+className} style={{background:bg,color,"--sh":sh,borderRadius:18,padding:"10px 16px",fontWeight:900,fontSize:15,lineHeight:1.15,...style}} {...rest}>{children}</button>;
+  return <button className={"k-press "+className} style={{background:bg,color,"--sh":sh,borderRadius:18,padding:"10px 16px",fontWeight:900,fontSize:15,lineHeight:1.15,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:7,...style}} {...rest}>{children}</button>;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -379,35 +383,38 @@ function applyContrast(diff,high){
   };
 }
 
-// Sterne zeigen, wie genau geschrieben wurde (Information, kein Urteil über das Kind)
-const PRAISE=["","Weiter so! 💪","Schon fast! 👏","Gut geschrieben! 🌟","Sehr schön! ⭐","Super genau! 🏆"];
+// Sterne zeigen, wie genau geschrieben wurde (Information, kein Urteil über das Kind).
+// Intern 1–5 (auch für die Forschungsdaten), sichtbar wie in Spielen 1–3 Sterne.
+const PRAISE=["","Weiter so!","Schon fast!","Gut geschrieben!","Sehr schön!","Super genau!"];
+const stars3=(s)=>s>=5?3:s>=3?2:s>=1?1:0;
 
 // Lob für den Weg, nicht für die Person: Startpunkt, Richtung, Dranbleiben, Strategie.
 // Kinder, die für Anstrengung und Vorgehen gelobt werden, bleiben bei Fehlern eher dran
 // (Mueller & Dweck 1998; Gunderson u. a. 2013).
 function processPraise({stars,mode,formationErrors=0,tries=0}){
-  if(stars<=2)return "Gut, dass du es versuchst! Schau nochmal genau hin. 💪";
-  if(mode==="memory"&&stars>=4)return "Aus dem Kopf geschrieben! Du hast ihn dir gemerkt. 🧠";
-  if(mode==="copy"&&stars>=4)return "Genau hingeschaut und abgeschrieben! 👀";
-  if(tries>0)return "Du hast nicht aufgegeben – so lernt man! 💪";
-  if(mode==="trace"&&formationErrors===0&&stars>=4)return "Jeden Strich am richtigen Punkt angefangen! 🎯";
-  if(formationErrors>0)return "Du hast die Richtung verbessert! ↩️";
-  if(stars>=4)return "Du hast genau auf die Linien geachtet! ✨";
-  return "Gut geschrieben! Nächstes Mal noch näher an der Linie. 👍";
+  if(stars<=2)return "Gut, dass du es versuchst! Schau nochmal genau hin.";
+  if(mode==="memory"&&stars>=4)return "Aus dem Kopf geschrieben! Du hast ihn dir gemerkt.";
+  if(mode==="copy"&&stars>=4)return "Genau hingeschaut und abgeschrieben!";
+  if(tries>0)return "Du hast nicht aufgegeben – so lernt man!";
+  if(mode==="trace"&&formationErrors===0&&stars>=4)return "Jeden Strich am richtigen Punkt angefangen!";
+  if(formationErrors>0)return "Du hast die Richtung verbessert!";
+  if(stars>=4)return "Du hast genau auf die Linien geachtet!";
+  return "Gut geschrieben! Nächstes Mal noch näher an der Linie.";
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// SPIELWELT — Welten, Tagesziel, Überraschungen, Stifte
+// SPIELWELT — Welten, Level, Schatztruhen, Tagesziel, Stifte
 // ═══════════════════════════════════════════════════════════════════════════════
-// Jede Buchstabengruppe ist eine kleine Welt mit eigenem Lernweg (Karte).
-// Nichts ist gesperrt: Kinder dürfen frei wählen (Autonomie).
+// Jede Buchstabengruppe ist eine Welt mit einem Spielbrett: jeder Buchstabe ein
+// Level mit bis zu drei Sternen, Klecks läuft den Weg entlang. Nichts ist gesperrt:
+// Kinder dürfen jedes Level frei wählen (Autonomie).
 const WORLDS={
-  "GROß":{key:"GROß",short:"ABC",name:"Buchstaben-Berg",emoji:"⛰️",acc:"#8b5cf6",dark:"#6d28d9",soft:"#ede9fe",
-    bg:"linear-gradient(180deg,#e9e3ff 0%,#f6f3ff 45%,#ffffff 100%)",deco:["🏔️","🌲","☁️","🐐","⛺","🌷","🦅","🌲"]},
-  klein:{key:"klein",short:"abc",name:"Buchstaben-Wald",emoji:"🌳",acc:"#22c55e",dark:"#15803d",soft:"#dcfce7",
-    bg:"linear-gradient(180deg,#d9f7e4 0%,#f0fdf4 45%,#ffffff 100%)",deco:["🌳","🍄","🦔","🌲","🐿️","🌼","🦉","🍄"]},
-  Zahlen:{key:"Zahlen",short:"123",name:"Zahlen-Insel",emoji:"🏝️",acc:"#0ea5e9",dark:"#0369a1",soft:"#e0f2fe",
-    bg:"linear-gradient(180deg,#d7f0ff 0%,#eff9ff 45%,#ffffff 100%)",deco:["🌴","🐚","🦀","🐠","⛵","🌊","🐳","🐚"]},
+  "GROß":{key:"GROß",short:"ABC",name:"Buchstaben-Berg",acc:"#8b5cf6",dark:"#6d28d9",soft:"#ede9fe",scene:"#ddd3ff",
+    bg:"linear-gradient(180deg,#e9e3ff 0%,#f6f3ff 45%,#ffffff 100%)"},
+  klein:{key:"klein",short:"abc",name:"Buchstaben-Wald",acc:"#22c55e",dark:"#15803d",soft:"#dcfce7",scene:"#bfeccd",
+    bg:"linear-gradient(180deg,#d9f7e4 0%,#f0fdf4 45%,#ffffff 100%)"},
+  Zahlen:{key:"Zahlen",short:"123",name:"Zahlen-Insel",acc:"#0ea5e9",dark:"#0369a1",soft:"#e0f2fe",scene:"#c4e8fb",
+    bg:"linear-gradient(180deg,#d7f0ff 0%,#eff9ff 45%,#ffffff 100%)"},
 };
 const ThemeCtx=createContext(WORLDS["GROß"]);
 
@@ -416,20 +423,32 @@ const ThemeCtx=createContext(WORLDS["GROß"]);
 const DAILY_GOAL=3;
 const todayKey=()=>{const d=new Date();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;};
 
-// Überraschungen: werden beim Üben gefunden, aber vorher nicht angekündigt.
-// Angekündigte Belohnungen („Wenn du …, bekommst du …") können die Freude an der
-// Sache selbst verdrängen, unerwartete nicht (Deci, Koestner & Ryan 1999).
-// Zähler: Zeichen, die mindestens einmal mit 4 oder 5 Sternen geschrieben wurden.
-// Glücksspiel-Mechaniken (Zufallskisten) gibt es bewusst nicht.
-const SURPRISES=[
-  {id:"glitter",at:2, kind:"pen",name:"Glitzerstift",   emoji:"✨",text:"Du hast einen Glitzerstift gefunden!"},
-  {id:"bow",    at:4, kind:"acc",name:"Schleife",       emoji:"🎀",text:"Klecks hat eine Schleife gefunden!"},
-  {id:"hat",    at:7, kind:"acc",name:"Partyhut",       emoji:"🥳",text:"Klecks hat einen Partyhut gefunden!"},
-  {id:"rainbow",at:10,kind:"pen",name:"Regenbogenstift",emoji:"🌈",text:"Du hast einen Regenbogenstift gefunden!"},
-  {id:"flower", at:14,kind:"acc",name:"Blume",          emoji:"🌼",text:"Klecks hat eine Blume gefunden!"},
-  {id:"glasses",at:20,kind:"acc",name:"Brille",         emoji:"👓",text:"Klecks hat eine Brille gefunden!"},
-  {id:"crown",  at:28,kind:"acc",name:"Krone",          emoji:"👑",text:"Klecks hat eine Krone gefunden!"},
-];
+// Schatztruhen auf dem Spielbrett. Eine Truhe öffnet sich, wenn alle Buchstaben
+// davor mit mindestens zwei Sternen geschrieben sind — Belohnung für gutes Schreiben,
+// nicht für Zeit oder Zufall. Was drin ist, bleibt bis zum Öffnen eine Überraschung:
+// angekündigte Belohnungen („Wenn du …, bekommst du …") können die Freude an der
+// Sache verdrängen, überraschende nicht (Deci, Koestner & Ryan 1999).
+const TREASURES={
+  glitter:   {kind:"pen",  name:"Glitzerstift",     text:"Ein Glitzerstift!"},
+  bow:       {kind:"acc",  name:"Schleife",         text:"Eine Schleife für Klecks!"},
+  hat:       {kind:"acc",  name:"Partyhut",         text:"Ein Partyhut für Klecks!"},
+  crown:     {kind:"acc",  name:"Krone",            text:"Eine Krone für Klecks!"},
+  flower:    {kind:"acc",  name:"Blume",            text:"Eine Blume für Klecks!"},
+  rainbow:   {kind:"pen",  name:"Regenbogenstift",  text:"Ein Regenbogenstift!"},
+  glasses:   {kind:"acc",  name:"Brille",           text:"Eine Brille für Klecks!"},
+  cape:      {kind:"acc",  name:"Umhang",           text:"Ein Superhelden-Umhang für Klecks!"},
+  gold:      {kind:"pen",  name:"Goldstift",        text:"Ein Goldstift!"},
+  regenbogen:{kind:"color",name:"Regenbogen-Klecks",text:"Klecks kann jetzt regenbogenbunt sein!"},
+};
+const CHESTS={
+  "GROß":[{after:7,reward:"glitter"},{after:14,reward:"bow"},{after:21,reward:"hat"},{after:29,reward:"crown"}],
+  klein:[{after:7,reward:"flower"},{after:14,reward:"rainbow"},{after:21,reward:"glasses"},{after:30,reward:"cape"}],
+  Zahlen:[{after:5,reward:"gold"},{after:10,reward:"regenbogen"}],
+};
+const chestId=(w,i)=>`${w}-${i}`;
+const chestReady=(w,i,learnedMap)=>LEARN_PATH[w].slice(0,CHESTS[w][i].after).every(l=>(learnedMap[l]||0)>=3);
+const totalStars=(learnedMap,letters)=>letters.reduce((s,l)=>s+stars3(learnedMap[l]||0),0);
+
 // Stiftfarben zum Aussuchen. Rot fehlt absichtlich: Rot bedeutet beim Nachfahren „neben der Linie".
 const PENS={
   classic:{name:"Klassik",color:null,     swatch:"conic-gradient(#2ecc8f 0 50%,#1e3a8a 0)"},
@@ -438,6 +457,7 @@ const PENS={
   teal:   {name:"Türkis", color:"#0d9488",swatch:"#0d9488"},
   glitter:{name:"Glitzer",color:null,     swatch:"radial-gradient(circle at 35% 35%,#fff7c2,#fbbf24 60%,#d97706)",special:true},
   rainbow:{name:"Regenbogen",color:null,  swatch:"conic-gradient(#fb923c,#fbbf24,#4ade80,#60a5fa,#a78bfa,#f472b6,#fb923c)",special:true},
+  gold:   {name:"Gold",   color:"#c98a00",swatch:"linear-gradient(135deg,#fff3b0,#e6a800 45%,#9a6a00)",special:true,glow:true},
 };
 const penAvailable=(id,unlocks)=>!!PENS[id]&&(!PENS[id].special||unlocks.includes(id));
 
@@ -449,7 +469,7 @@ const EDU_TIPS=[
   {icon:"👀",title:"Bereitschaft erkennen",text:"Wenn Ihr Kind unruhig oder frustriert wirkt, ist es Zeit für eine Pause oder einen anderen Tag."},
   {icon:"🧠",title:"Aus dem Kopf schreiben",text:"Nachfahren ist nur der Anfang. Am meisten lernen Kinder, wenn sie einen Buchstaben ansehen, abdecken und dann aus dem Gedächtnis schreiben. Die App führt Schritt für Schritt dorthin."},
   {icon:"➡️",title:"Richtung zählt",text:"Achten Sie auf Startpunkt und Schreibrichtung, nicht nur auf das Aussehen. Wer Buchstaben immer gleich schreibt, schreibt später flüssiger."},
-  {icon:"🎁",title:"Spielen ohne Druck",text:"Die App belohnt Fortschritt mit kleinen Überraschungen, die vorher nicht angekündigt werden, statt mit Punkten zum Sammeln. Es gibt keine Serien, die abreißen, und kein „Komm zurück!“. Nach dem Tagesziel schlägt Klecks eine Pause vor."},
+  {icon:"🎁",title:"Spielen ohne Druck",text:"Jeder Buchstabe ist ein Level mit bis zu drei Sternen. Schatztruhen auf dem Spielbrett öffnen sich, wenn die Buchstaben davor gut geschrieben sind; was drin ist, bleibt eine Überraschung. Es gibt keine Serien, die abreißen, keinen Zufall und kein „Komm zurück!“. Nach dem Tagesziel schlägt Klecks eine Pause vor."},
   {icon:"🔁",title:"Wiederholen lohnt sich",text:"Ein Buchstabe sitzt besser, wenn er nach einem Tag noch einmal geübt wird. Die App schlägt dafür im Menü passende Buchstaben vor."},
 ];
 
@@ -541,34 +561,34 @@ function haptic(kind="tick",enabled=true){
   try{ if(navigator?.vibrate) navigator.vibrate(pattern); }catch{}
 }
 
-// ── Unicorn running across screen ─────────────────────────────────────────────
-function UnicornRun({onDone}){
+// ── Klecks hüpft über den Bildschirm (wenn ein Buchstabe zum ersten Mal aus dem Kopf klappt) ──
+function KlecksRun({onDone}){
   const [x,setX]=useState(-140);
   useEffect(()=>{
     let pos=-140;
     const iv=setInterval(()=>{
-      pos+=7; setX(pos);
+      pos+=6; setX(pos);
       if(pos>window.innerWidth+140){ clearInterval(iv); onDone(); }
     },16);
     return()=>clearInterval(iv);
   },[]);
   return(
-    <div style={{position:"fixed",bottom:80,left:x,zIndex:3000,pointerEvents:"none",animation:"unicornRun 0.5s infinite"}}>
-      <div style={{fontSize:96,lineHeight:1}}>🦄</div>
+    <div style={{position:"fixed",bottom:90,left:x,zIndex:3000,pointerEvents:"none",animation:"kJump 0.5s ease-in-out infinite"}}>
+      <Klecks size={96} mood="cheer" anim="none"/>
     </div>
   );
 }
 
-// ── Falling stars ─────────────────────────────────────────────────────────────
+// ── Sternenregen ──
 function StarRain({onDone}){
-  const [stars,setStars]=useState(()=>
-    Array.from({length:20},(_,i)=>({id:i,x:Math.random()*window.innerWidth,delay:i*150,size:Math.random()*16+10}))
+  const [stars]=useState(()=>
+    Array.from({length:18},(_,i)=>({id:i,x:Math.random()*window.innerWidth,delay:i*140,size:Math.random()*16+14}))
   );
   useEffect(()=>{ const t=setTimeout(onDone,3500); return()=>clearTimeout(t); },[]);
   return(
     <div style={{position:"fixed",inset:0,pointerEvents:"none",zIndex:3000,overflow:"hidden"}}>
       {stars.map(s=>(
-        <div key={s.id} style={{position:"absolute",top:-30,left:s.x,fontSize:s.size,animation:`fallStar 3s linear ${s.delay}ms forwards`}}>⭐</div>
+        <div key={s.id} style={{position:"absolute",top:-30,left:s.x,animation:`fallStar 3s linear ${s.delay}ms forwards`}}><Star size={s.size}/></div>
       ))}
     </div>
   );
@@ -586,6 +606,7 @@ function rainbowColor(len){
   return`hsl(${Math.round(28+290*tri)},92%,54%)`;
 }
 const penColorFor=(pen,len)=>pen==="rainbow"?rainbowColor(len):PENS[pen]?.color||null;
+const penGlows=(pen)=>pen==="glitter"||!!PENS[pen]?.glow;
 function paintInk(ctx,a,b,{color,glitter=false,width=10,alpha=0.85}){
   const line=(c,w)=>{ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.strokeStyle=c;ctx.lineWidth=w;ctx.stroke();};
   ctx.save();ctx.lineCap="round";ctx.lineJoin="round";
@@ -844,10 +865,7 @@ function StrokePreview({letter, W=80, H=96}){
   },[strokes,W,H]);
 
   return(
-    <div style={{background:"#e0f2fe",borderRadius:16,padding:"10px 12px",border:"2px solid #7dd3fc",marginBottom:4}}>
-      <div style={{fontSize:11,fontWeight:800,color:"#0369a1",marginBottom:8,textAlign:"center"}}>
-        📋 So wird {letter} geschrieben — Strich für Strich:
-      </div>
+    <div aria-label={`So wird ${letter} geschrieben, Strich für Strich`} style={{background:"#ffffffb3",borderRadius:18,padding:"8px 10px"}}>
       <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
         {strokes.map((pts,si)=>(
           <div key={si} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
@@ -967,7 +985,7 @@ function AnimCanvas({letter, onDone, scale=1, W=260, H=310}){
   },[letter,strokes,drawRules,onDone,W,H,th.acc]);
   return(
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:10}}>
-      <KlecksBubble text="👀 Schau zu – dann bist du dran!" mood="think" tone="think" maxWidth={W*scale+22}/>
+      <KlecksBubble text="Schau zu – dann bist du dran!" mood="think" tone="think" maxWidth={W*scale+22}/>
       <FieldFrame W={W} H={H} scale={scale}>
         <canvas ref={ref} width={W*k} height={H*k} style={{display:"block",width:"100%",height:"100%"}}/>
       </FieldFrame>
@@ -988,8 +1006,8 @@ function AnimCanvas({letter, onDone, scale=1, W=260, H=310}){
 // kommt danach als Vergleich mit der Vorlage.
 // onTrial (nur im Forschungsmodus) erhält Zeiten und Messwerte jedes Versuchs.
 const COACH={
-  start:"👆 Fang beim gelben Punkt an!",
-  direction:"↩️ Andersherum! Fang beim gelben Punkt an.",
+  start:"Fang beim gelben Punkt an!",
+  direction:"Andersherum! Fang beim gelben Punkt an.",
 };
 function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="medium",mode="trace",memoryDelay=1,pen="classic",
                      lefthanded=false,highContrast=false,hapticsEnabled=true,onSpeak=()=>{},onTrial=null,scale=1,W=260,H=310}){
@@ -1189,7 +1207,7 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
     // Stiftfarbe: vom Kind gewählt; Regenbogen wechselt die Farbe, Glitzer leuchtet
     const len=Math.hypot(b[0]-a[0],b[1]-a[1]);
     const penColor=()=>penColorFor(pen,len);
-    const penKind=pen==="glitter"?"glitter":pen==="rainbow"?"rainbow":"ink";
+    const penKind=penGlows(pen)?"glitter":pen==="rainbow"?"rainbow":"ink";
     let seg;
     if(probe){seg={a,b,kind:"ink",color:"#1e3a8a"};}           // Schreibtest: immer gleich, ohne Effekte
     else if(!guided){seg={a,b,kind:penKind,color:penColor()||"#1e3a8a"};}
@@ -1200,7 +1218,7 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
       if(!onTrack&&!offTrackRef.current){haptic("off",hapticsEnabled);offTrackRef.current=true;}
       else if(onTrack&&offTrackRef.current){offTrackRef.current=false;}
       seg=onTrack
-        ?{a,b,kind:pen==="glitter"||d<diff.tolerance*0.35?"glitter":penKind,color:penColor()||"#22c55e"}
+        ?{a,b,kind:penGlows(pen)||d<diff.tolerance*0.35?"glitter":penKind,color:penColor()||"#22c55e"}
         :{a,b,kind:"ink",color:"#f87171"};
     }
     segs.current.push(seg);
@@ -1228,7 +1246,7 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
       const q=[p[0],p[1]+0.6,p[2]+1];
       stroke.splice(1,stroke.length-1,q,[p[0],p[1]+1.2,p[2]+2]);
       const color=probe?"#1e3a8a":penColorFor(pen,4)||(guided?"#22c55e":"#1e3a8a");
-      const seg={a:p,b:q,kind:!probe&&pen==="glitter"?"glitter":"dot",color};
+      const seg={a:p,b:q,kind:!probe&&penGlows(pen)?"glitter":"dot",color};
       segs.current.push(seg);paintSeg(ovRef.current.getContext("2d"),seg);
     }
     if(guided&&strokeIdx.current<strokes.length){
@@ -1283,8 +1301,8 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
       drawModel(ctx,tpl,{color:"#22c55e",width:16,alpha:0.35,numbers:false,arrows:false});
     }
     let note=null;
-    if(mirrored)note="🪞 Gespiegelt! Schau, in welche Richtung er zeigt.";
-    else if(formationErrors.current>=2)note="➡️ Tipp: Immer beim gelben Punkt anfangen.";
+    if(mirrored)note="Gespiegelt! Schau, in welche Richtung er zeigt.";
+    else if(formationErrors.current>=2)note="Tipp: Immer beim gelben Punkt anfangen.";
     const praise=processPraise({stars:s,mode,formationErrors:formationErrors.current,tries:tries.current});
     clearTimeout(coachTimer.current);setCoach(null);
     setResult({stars:s,note,praise});setDone(true);
@@ -1297,13 +1315,13 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
   };
 
   const allStrokesDone=guided&&strokeIdx.current>=strokes.length;
-  const hint=mode==="memory"&&memPhase==="show"?"🧠 Merk dir den Buchstaben!"
-    :mode==="memory"&&memPhase==="wait"?"🤫 Gleich bist du dran …"
-    :mode==="memory"?"✏️ Jetzt aus dem Kopf schreiben!"
-    :mode==="copy"?"👀 Schau auf die Vorlage und schreib ihn ab!"
-    :probe?"✏️ Schreib ihn aus dem Kopf!"
-    :allStrokesDone?"✓ Super! Tippe auf Fertig."
-    :`👉 Strich ${strokeIdx.current+1} von ${strokes.length} — nachfahren!`;
+  const hint=mode==="memory"&&memPhase==="show"?"Merk dir den Buchstaben!"
+    :mode==="memory"&&memPhase==="wait"?"Gleich bist du dran …"
+    :mode==="memory"?"Jetzt aus dem Kopf schreiben!"
+    :mode==="copy"?"Schau auf die Vorlage und schreib ihn ab!"
+    :probe?"Schreib ihn aus dem Kopf!"
+    :allStrokesDone?"Super! Tippe auf Fertig."
+    :`Strich ${strokeIdx.current+1} von ${strokes.length} – fahr ihn nach!`;
   // Klecks: Mimik und Farbe der Sprechblase passen zur Situation
   const bubble=done&&result?{text:result.note||result.praise,mood:result.note?"think":result.stars>=3?"cheer":"happy",tone:result.note?"coach":result.stars>=3?"praise":"info"}
     :coach?{text:coach,mood:"oops",tone:"coach"}
@@ -1332,25 +1350,25 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
                 <div key={countdown} style={{fontSize:90*scale,fontWeight:900,color:"#a855f7",opacity:0.8,animation:"popIn 0.4s ease-out"}}>{countdown}</div>
               </div>
             )}
-            {done&&probe&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:80,animation:"popIn 0.3s ease-out",pointerEvents:"none"}}>👍</div>}
+            {done&&probe&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",animation:"popIn 0.3s ease-out",pointerEvents:"none"}}><div style={{width:96,height:96,borderRadius:"50%",background:"#14b8a6",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="check" size={60} color="white" stroke={3.4}/></div></div>}
             {done&&result&&!probe&&<StarResult stars={result.stars} hint={!guided?"Grün = so sieht die Vorlage aus":null}/>}
         </FieldFrame>
         {confetti&&<Confetti/>}
       </div>
       <div style={{display:"flex",gap:10,marginTop:4,flexWrap:"wrap",justifyContent:"center",alignItems:"center"}}>
-        {probe&&!done&&<Btn bg="white" sh="#cbd5e1" color="#64748b" style={{border:"2px solid #cbd5e1"}} onClick={()=>{report(false,{skipped:1});setDone(true);onComplete(0,{mode,skipped:true});}}>🤷 Weiß ich nicht</Btn>}
-        {!(done&&probe)&&<Btn bg="white" sh="#fca5a5" color="#e11d48" style={{border:"2px solid #fecdd3"}} onClick={()=>{sfx("tap");mode==="memory"?setRound(r=>r+1):reset();}}>{done?"🔁 Nochmal":"🗑️ Neu"}</Btn>}
-        {hasLines&&!done&&<Btn bg="var(--mint)" sh="var(--mintD)" onClick={checkScore} style={{animation:allStrokesDone?"glowPulse 1.6s infinite":"none"}}>✓ Fertig</Btn>}
-        {done&&!probe&&onNext&&<Btn bg="var(--coral)" sh="var(--coralD)" data-k="next" onClick={()=>{sfx("pop");onNext();}} style={{minWidth:120,animation:"popIn 0.35s ease-out"}}>Weiter ➜</Btn>}
+        {probe&&!done&&<Btn bg="white" sh="#cbd5e1" color="#64748b" style={{border:"2px solid #cbd5e1"}} onClick={()=>{report(false,{skipped:1});setDone(true);onComplete(0,{mode,skipped:true});}}>Weiß ich nicht</Btn>}
+        {!(done&&probe)&&<Btn data-k="redo" bg="white" sh="#d5dbe7" color="var(--ink2)" style={{border:"2px solid #e3e8f2"}} onClick={()=>{sfx("tap");mode==="memory"?setRound(r=>r+1):reset();}}><Icon name="redo" size={20}/>{done?"Nochmal":"Neu"}</Btn>}
+        {hasLines&&!done&&<Btn data-k="done" bg="var(--mint)" sh="var(--mintD)" onClick={checkScore} style={{fontSize:17,padding:"11px 20px",animation:allStrokesDone?"glowPulse 1.6s infinite":"none"}}><Icon name="check" size={22} stroke={3.2}/>Fertig</Btn>}
+        {done&&!probe&&onNext&&<Btn bg="var(--coral)" sh="var(--coralD)" data-k="next" onClick={()=>{sfx("pop");onNext();}} style={{minWidth:130,fontSize:17,padding:"11px 20px",animation:"popIn 0.35s ease-out"}}>Weiter<Icon name="next" size={22} stroke={3.2}/></Btn>}
         {showHintBtn&&!done&&!hasLines&&guided&&(
           <Btn bg="#fff4c2" sh="#f2c94c" color="#8a5a00" style={{border:"2px solid #ffc93c",animation:"hintWiggle 0.5s ease-in-out 0s 3"}}
             onClick={()=>{setShowHintBtn(false);resetIdleTimer();startPulse();haptic("tick",hapticsEnabled);}}>
-            👆 Hier starten!
+            Hier starten!
           </Btn>
         )}
         {showHintBtn&&!done&&hasLines&&!allStrokesDone&&(
           <Btn bg="#fff4c2" sh="#f2c94c" color="#8a5a00" style={{border:"2px solid #ffc93c",animation:"hintWiggle 0.5s ease-in-out 0s 3"}} onClick={checkScore}>
-            🤔 Fertig?
+            Fertig?
           </Btn>
         )}
         {!probe&&tools}
@@ -1360,13 +1378,19 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
 }
 
 // Ergebnis im Schreibfeld: Sterne erscheinen nacheinander
+// Ergebnis im Schreibfeld: drei Sterne erscheinen nacheinander (wie am Ende eines Levels)
 function StarResult({stars,hint,label}){
+  const n=stars3(stars);
   return(
-    <div data-stars={stars} style={{position:"absolute",left:0,right:0,bottom:0,background:"#ffffffeb",display:"flex",flexDirection:"column",alignItems:"center",gap:2,padding:"10px 8px 12px",borderTop:"3px solid #ffe7a3",animation:"slideUp 0.3s ease-out"}}>
-      <div style={{display:"flex",gap:4,alignItems:"center"}}>
-        {[1,2,3,4,5].map(i=><span key={i} style={{fontSize:30,lineHeight:1,display:"inline-block",filter:i<=stars?"none":"grayscale(1) opacity(0.22)",animation:i<=stars?`kStarPop 0.45s ease-out ${i*0.12}s both`:"none"}}>⭐</span>)}
+    <div data-stars={stars} data-stars3={n} style={{position:"absolute",left:0,right:0,bottom:0,background:"#ffffffee",display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"12px 8px 14px",borderTop:"3px solid #ffe7a3",animation:"slideUp 0.3s ease-out"}}>
+      <div style={{display:"flex",gap:6,alignItems:"flex-end"}}>
+        {[1,2,3].map(i=>(
+          <div key={i} style={{transform:i===2?"translateY(-8px)":"none"}}>
+            <Star size={i===2?54:44} on={i<=n} style={{animation:i<=n?`kStarPop 0.45s ease-out ${i*0.18}s both`:"none"}}/>
+          </div>
+        ))}
       </div>
-      <div style={{fontSize:18,color:"var(--ink)",fontWeight:900}}>{label||PRAISE[stars]}</div>
+      <div style={{fontSize:19,color:"var(--ink)",fontWeight:900}}>{label||PRAISE[stars]}</div>
       {hint&&<div style={{fontSize:11,color:"#16a34a",fontWeight:800}}>{hint}</div>}
     </div>
   );
@@ -1407,7 +1431,7 @@ function GuidedCanvas({letter, onComplete, onNext=null, tools=null, pen="classic
   const freeStrokePts=useRef([]);
 
   const [phase,setPhase]=useState("guided");
-  const [statusMsg,setStatusMsg]=useState("👆 Leg den Finger auf den orangen Punkt!");
+  const [statusMsg,setStatusMsg]=useState("Leg den Finger auf den orangen Punkt!");
   const [kick,setKick]=useState(0);
   const [confetti,setConfetti]=useState(false);
   const [hasDrawn,setHasDrawn]=useState(false);
@@ -1572,7 +1596,7 @@ function GuidedCanvas({letter, onComplete, onNext=null, tools=null, pen="classic
     isDrawing.current=false;strokeStarted.current=false;lastSnapped.current=null;currentStrokePts.current=[];
     freeLastPos.current=null;freePoints.current=[];freeStrokeIdx.current=0;freeStrokePts.current=[];
     setPhase("guided");setConfetti(false);setHasDrawn(false);setScoreInfo({score:0,label:"",color:"#374151"});
-    setStatusMsg("👆 Leg den Finger auf den orangen Punkt!");
+    setStatusMsg("Leg den Finger auf den orangen Punkt!");
     const bg=bgRef.current;const ov=ovRef.current;if(!bg||!ov)return;
     ov.getContext("2d").clearRect(0,0,W,H);drawGuidedTemplate(bg.getContext("2d"));
   },[drawGuidedTemplate,W,H]);
@@ -1611,16 +1635,16 @@ function GuidedCanvas({letter, onComplete, onNext=null, tools=null, pen="classic
         if(isDotStroke(tpl)){
           // Punkt (i, ä, ö, ü): einmal antippen reicht
           const c=tpl[Math.floor(tpl.length/2)];
-          paintInk(ovRef.current.getContext("2d"),c,[c[0],c[1]+0.6],{color:penColorFor(pen,4)||"#4361ee",glitter:pen==="glitter",width:15,alpha:1});
+          paintInk(ovRef.current.getContext("2d"),c,[c[0],c[1]+0.6],{color:penColorFor(pen,4)||"#4361ee",glitter:penGlows(pen),width:15,alpha:1});
           finishGuidedStroke();
           return;
         }
         strokeStarted.current=true;isDrawing.current=true;currentStrokePts.current=[];
         const sp=strokes[strokeIdx.current][0];lastSnapped.current={x:sp[0],y:sp[1]};
         currentStrokePts.current.push({x:sp[0],y:sp[1]});
-        const m=`✏️ Strich ${strokeIdx.current+1}/${strokes.length} — ziehe entlang!`;setStatusMsg(m);onSpeak(m);
+        const m=`Strich ${strokeIdx.current+1} von ${strokes.length} – zieh entlang!`;setStatusMsg(m);onSpeak(m);
         drawGuidedTemplate(bgRef.current.getContext("2d"));
-      } else {setStatusMsg("👆 Starte beim orangen Punkt!");onSpeak("Starte beim orangen Punkt!");}
+      } else {setStatusMsg("Starte beim orangen Punkt!");onSpeak("Starte beim orangen Punkt!");}
       return;
     }
     isDrawing.current=true;
@@ -1632,7 +1656,7 @@ function GuidedCanvas({letter, onComplete, onNext=null, tools=null, pen="classic
     const sp=s.pt;
     if(lastSnapped.current){
       const a=[lastSnapped.current.x,lastSnapped.current.y];
-      paintInk(ctx,a,sp,{color:penColorFor(pen,Math.hypot(sp[0]-a[0],sp[1]-a[1]))||"#4361ee",glitter:pen==="glitter",width:11,alpha:1});
+      paintInk(ctx,a,sp,{color:penColorFor(pen,Math.hypot(sp[0]-a[0],sp[1]-a[1]))||"#4361ee",glitter:penGlows(pen),width:11,alpha:1});
       ctx.beginPath();ctx.arc(sp[0],sp[1],9,0,Math.PI*2);ctx.fillStyle="#fbbf2450";ctx.fill();
       ctx.beginPath();ctx.arc(sp[0],sp[1],4,0,Math.PI*2);ctx.fillStyle="#fbbf24";ctx.fill();
     }
@@ -1653,10 +1677,10 @@ function GuidedCanvas({letter, onComplete, onNext=null, tools=null, pen="classic
         ovRef.current.getContext("2d").clearRect(0,0,W,H);
         drawFreeTemplate(bgRef.current.getContext("2d"));
         setPhase("freeTrace");
-        const m=`✏️ Jetzt selbst — Strich 1 von ${strokes.length}!`;setStatusMsg(m);onSpeak(m);
+        const m=`Jetzt allein – Strich 1 von ${strokes.length}!`;setStatusMsg(m);onSpeak(m);
       },900);
     } else {
-      const m=isDotStroke(strokes[strokeIdx.current])?"👆 Jetzt den Punkt antippen!":"👆 Tippe auf den nächsten Punkt!";setStatusMsg(m);onSpeak(m);
+      const m=isDotStroke(strokes[strokeIdx.current])?"Jetzt den Punkt antippen!":"Tippe auf den nächsten Punkt!";setStatusMsg(m);onSpeak(m);
       drawGuidedTemplate(bgRef.current.getContext("2d"));
     }
   };
@@ -1683,7 +1707,7 @@ function GuidedCanvas({letter, onComplete, onNext=null, tools=null, pen="classic
     if(freeLastPos.current){
       const a=[freeLastPos.current.x,freeLastPos.current.y],near=ratio<0.6;
       const pc=near?penColorFor(pen,Math.hypot(pos.x-a[0],pos.y-a[1])):null;
-      paintInk(ctx,a,[pos.x,pos.y],{color:pc||`rgb(${r},${g2},${b})`,glitter:pen==="glitter"&&near,width:10,alpha:1});
+      paintInk(ctx,a,[pos.x,pos.y],{color:pc||`rgb(${r},${g2},${b})`,glitter:penGlows(pen)&&near,width:10,alpha:1});
     }
     freePoints.current.push(pos);freeStrokePts.current.push(pos);freeLastPos.current=pos;
     drawFreeTemplate(bgRef.current.getContext("2d"));
@@ -1694,7 +1718,7 @@ function GuidedCanvas({letter, onComplete, onNext=null, tools=null, pen="classic
     const fp=freeStrokePts.current,tpl=strokes[freeStrokeIdx.current];
     if(fp.length&&fp.length<3&&tpl&&isDotStroke(tpl)){
       const p=fp[0],near=distToPolyline(p.x,p.y,strokes)<18;
-      paintInk(ovRef.current.getContext("2d"),[p.x,p.y],[p.x,p.y+0.6],{color:near?(penColorFor(pen,4)||"rgb(34,197,94)"):"rgb(239,68,68)",glitter:pen==="glitter"&&near,width:14,alpha:1});
+      paintInk(ovRef.current.getContext("2d"),[p.x,p.y],[p.x,p.y+0.6],{color:near?(penColorFor(pen,4)||"rgb(34,197,94)"):"rgb(239,68,68)",glitter:penGlows(pen)&&near,width:14,alpha:1});
       const extra=[{x:p.x,y:p.y+0.6},{x:p.x,y:p.y+1.2}];
       freePoints.current.push(...extra);fp.push(...extra);
     }
@@ -1706,18 +1730,18 @@ function GuidedCanvas({letter, onComplete, onNext=null, tools=null, pen="classic
       sfx("stroke");setKick(n=>n+1);
       freeStrokeIdx.current=next;
       drawFreeTemplate(bgRef.current.getContext("2d"));
-      const m=`✏️ Strich ${next+1} von ${strokes.length}!`;setStatusMsg(m);onSpeak(m);
+      const m=`Strich ${next+1} von ${strokes.length}!`;setStatusMsg(m);onSpeak(m);
       setHasDrawn(false);
     } else {
-      setHasDrawn(true);const m="✓ Super! Tippe auf Fertig!";setStatusMsg(m);onSpeak(m);
+      setHasDrawn(true);const m="Super! Tippe auf Fertig!";setStatusMsg(m);onSpeak(m);
     }
   };
 
   const finishFree=()=>{
     const pct=calcScore(),stars=Math.max(1,Math.round(pct/20));
-    const label=pct>=90?"🌟 Super genau!":pct>=70?"👍 Sehr schön!":pct>=50?"😊 Gut geschrieben!":"💪 Weiter so!";
+    const label=pct>=90?"Super genau!":pct>=70?"Sehr schön!":pct>=50?"Gut geschrieben!":"Weiter so!";
     const color=pct>=90?"#16a34a":pct>=70?"#4361ee":pct>=50?"#f59e0b":"#f97316";
-    const praise=stars>=3?"Erst mit Hilfe, dann ganz allein nachgefahren! 🖐️":processPraise({stars,mode:"guided"});
+    const praise=stars>=3?"Erst mit Hilfe, dann ganz allein nachgefahren!":processPraise({stars,mode:"guided"});
     setScoreInfo({score:pct,label,color,praise,stars});setPhase("compare");
     sfx(stars>=4?"fanfare":stars>=3?"done":"soft");
     setTimeout(()=>onSpeak(praise),500);
@@ -1726,7 +1750,7 @@ function GuidedCanvas({letter, onComplete, onNext=null, tools=null, pen="classic
   };
 
   const bubble=phase==="compare"?{text:scoreInfo.praise,mood:scoreInfo.stars>=3?"cheer":"happy",tone:scoreInfo.stars>=3?"praise":"info"}
-    :statusMsg.startsWith("✓")?{text:statusMsg,mood:"cheer",tone:"praise"}
+    :statusMsg.startsWith("Super")?{text:statusMsg,mood:"cheer",tone:"praise"}
     :{text:statusMsg,mood:"happy",tone:"info"};
   return(
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:10}}>
@@ -1760,9 +1784,9 @@ function GuidedCanvas({letter, onComplete, onNext=null, tools=null, pen="classic
         {confetti&&<Confetti/>}
       </div>
       <div style={{display:"flex",gap:10,marginTop:4,alignItems:"center",flexWrap:"wrap",justifyContent:"center"}}>
-        <Btn bg="white" sh="#fca5a5" color="#e11d48" style={{border:"2px solid #fecdd3"}} onClick={()=>{sfx("tap");reset();}}>{phase==="compare"?"🔁 Nochmal":"🗑️ Neu"}</Btn>
-        {phase==="freeTrace"&&hasDrawn&&<Btn bg="var(--mint)" sh="var(--mintD)" onClick={finishFree} style={{animation:"glowPulse 1.6s infinite"}}>✓ Fertig</Btn>}
-        {phase==="compare"&&onNext&&<Btn bg="var(--coral)" sh="var(--coralD)" data-k="next" onClick={()=>{sfx("pop");onNext();}} style={{minWidth:120,animation:"popIn 0.35s ease-out"}}>Weiter ➜</Btn>}
+        <Btn data-k="redo" bg="white" sh="#d5dbe7" color="var(--ink2)" style={{border:"2px solid #e3e8f2"}} onClick={()=>{sfx("tap");reset();}}><Icon name="redo" size={20}/>{phase==="compare"?"Nochmal":"Neu"}</Btn>
+        {phase==="freeTrace"&&hasDrawn&&<Btn data-k="done" bg="var(--mint)" sh="var(--mintD)" onClick={finishFree} style={{fontSize:17,padding:"11px 20px",animation:"glowPulse 1.6s infinite"}}><Icon name="check" size={22} stroke={3.2}/>Fertig</Btn>}
+        {phase==="compare"&&onNext&&<Btn bg="var(--coral)" sh="var(--coralD)" data-k="next" onClick={()=>{sfx("pop");onNext();}} style={{minWidth:130,fontSize:17,padding:"11px 20px",animation:"popIn 0.35s ease-out"}}>Weiter<Icon name="next" size={22} stroke={3.2}/></Btn>}
         {tools}
       </div>
     </div>
@@ -1939,16 +1963,16 @@ function ProbeTest({wave,chars,difficulty,scale,onSpeak,onLog,onFinish,onExit}){
   const big={padding:"14px 28px",borderRadius:18,border:"none",background:"#0f766e",color:"white",fontWeight:900,fontSize:17,cursor:"pointer",fontFamily:"inherit"};
   if(i<0)return(
     <div style={{...page,justifyContent:"center",textAlign:"center"}}>
-      <div style={{fontSize:64}}>🔬</div>
+      <Klecks size={110} mood="happy"/>
       <h2 style={{margin:0,color:"#134e4a"}}>Kleiner Schreibtest</h2>
-      <p style={{maxWidth:320,color:"#334155",lineHeight:1.5,fontSize:15}}>Ich zeige dir ein Bild und sage dir einen Buchstaben oder eine Zahl. Schreib ihn so gut du kannst — ganz ohne Vorlage. Wenn du ihn nicht weißt, tippe auf 🤷.</p>
+      <p style={{maxWidth:320,color:"#334155",lineHeight:1.5,fontSize:15}}>Ich zeige dir ein Bild und sage dir einen Buchstaben oder eine Zahl. Schreib ihn so gut du kannst — ganz ohne Vorlage. Wenn du ihn nicht weißt, tippe auf „Weiß ich nicht“.</p>
       <button onClick={()=>setI(0)} style={big}>Los geht's!</button>
       <button onClick={onExit} style={{background:"none",border:"none",color:"#64748b",fontSize:13,cursor:"pointer",marginTop:6}}>Später</button>
     </div>
   );
   if(i>=order.length)return(
     <div style={{...page,justifyContent:"center",textAlign:"center"}}>
-      <div style={{fontSize:72}}>🎉</div>
+      <Klecks size={110} mood="cheer" anim="jump"/>
       <h2 style={{margin:0,color:"#134e4a"}}>Danke! Du hast toll mitgemacht.</h2>
       <button onClick={onFinish} style={{...big,marginTop:12}}>Zurück zum Menü</button>
     </div>
@@ -1965,7 +1989,7 @@ function ProbeTest({wave,chars,difficulty,scale,onSpeak,onLog,onFinish,onExit}){
       </div>
       <button onClick={()=>onSpeak(probePrompt(ch))} style={{display:"flex",alignItems:"center",gap:12,background:"white",border:"2px solid #99f6e4",borderRadius:18,padding:"8px 18px",cursor:"pointer"}}>
         <span style={{fontSize:a?44:20,lineHeight:1.1,maxWidth:130,display:"inline-block",wordBreak:"break-all"}}>{a?a[0]:ch==="0"?"⭕":"●".repeat(Number(ch))}</span>
-        <span style={{fontSize:22}}>🔊</span>
+        <Icon name="speaker" size={24} color="#0f766e"/>
       </button>
       <TraceCanvas key={`probe-${i}`} letter={ch} mode="probe" difficulty={difficulty} scale={scale}
         onTrial={t=>onLog({...t,kind:"probe",wave,ch})}
@@ -2127,7 +2151,7 @@ function ParentZone({settings,onChange,onClose,journal,onStartProbe}){
         {/* Options */}
         <div style={{marginBottom:14,paddingBottom:14,borderBottom:"1px solid #e2e8f0"}}>
           <h4 style={{margin:"0 0 8px",fontSize:14,fontWeight:800,color:"#1e3a8a"}}>⚙️ Optionen</h4>
-          {[["autoAdvance","Automatisch zum nächsten Buchstaben (sonst mit dem Knopf „Weiter“)"],["speechEnabled","Vorlesen aktiviert"],["soundEnabled","Töne (kurze Klänge bei Erfolg)"],["rewardVideos","Überraschungen und Effekte zeigen (Fundstücke, Einhorn, Sternenregen)"]].map(([k,label])=>(
+          {[["autoAdvance","Automatisch zum nächsten Buchstaben (sonst mit dem Knopf „Weiter“)"],["speechEnabled","Vorlesen aktiviert"],["soundEnabled","Töne (kurze Klänge bei Erfolg)"],["rewardVideos","Effekte zeigen (Truhe öffnen, Sternenregen, hüpfender Klecks)"]].map(([k,label])=>(
             <label key={k} style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:"#374151",marginBottom:8,cursor:"pointer"}}>
               <input type="checkbox" checked={k==="soundEnabled"?settings[k]!==false:!!settings[k]} onChange={e=>onChange({...settings,[k]:e.target.checked})} style={{width:16,height:16}}/>
               {label}
@@ -2144,18 +2168,18 @@ function ParentZone({settings,onChange,onClose,journal,onStartProbe}){
           <h4 style={{margin:"0 0 8px",fontSize:14,fontWeight:800,color:"#1e3a8a"}}>📊 Lern-Einblicke</h4>
           <div style={{background:"#f8fafc",borderRadius:12,padding:12,fontSize:12,lineHeight:1.8}}>
             <div><b>Geübte Buchstaben:</b> {Object.values(settings.learnedMap||{}).filter(v=>v>0).length}</div>
-            <div><b>Perfekte Buchstaben (5⭐):</b> {Object.values(settings.learnedMap||{}).filter(v=>v>=5).length}</div>
+            <div><b>Buchstaben mit 3 Sternen:</b> {Object.values(settings.learnedMap||{}).filter(v=>v>=5).length}</div>
             <div><b>Gesamtpunkte:</b> {settings.totalScore||0}</div>
             <div><b>Lernstufe Abschreiben:</b> {Object.values(settings.stageMap||{}).filter(v=>v===2).length} · <b>Aus dem Kopf:</b> {Object.values(settings.stageMap||{}).filter(v=>v>=3).length}</div>
             <div><b>Sicher aus dem Kopf geschrieben:</b> {Object.values(settings.memMap||{}).filter(v=>v>0).length}</div>
-            <div><b>Gefundene Überraschungen:</b> {(settings.unlocks||[]).length} von {SURPRISES.length}</div>
+            <div><b>Geöffnete Schatztruhen:</b> {(settings.chests||[]).length} von {Object.values(CHESTS).flat().length}</div>
           </div>
           {journal.length>0&&(
             <div style={{marginTop:10}}>
               <div style={{fontSize:12,fontWeight:700,color:"#374151",marginBottom:6}}>📖 Letzte Übungen:</div>
               {journal.slice(-5).reverse().map((e,i)=>(
                 <div key={i} style={{padding:"5px 8px",borderLeft:"3px solid #fbbf24",background:"#fff7ed",marginBottom:3,fontSize:11,borderRadius:"0 6px 6px 0"}}>
-                  <b>{e.letter}</b> — {e.stars}⭐ — {MODES[e.mode]?.label||""} — {e.time}
+                  <b>{e.letter}</b> — {stars3(e.stars)} von 3 Sternen — {MODES[e.mode]?.label||""} — {e.time}
                 </div>
               ))}
             </div>
@@ -2182,7 +2206,7 @@ function ScreenTimeReminder({limit,onDismiss}){
       <div className="k-card" style={{padding:24,maxWidth:330,textAlign:"center",animation:"slideUp 0.4s ease"}}>
         <div style={{display:"flex",justifyContent:"center",marginBottom:6}}><Klecks size={96} mood="sleepy"/></div>
         <h3 style={{margin:"0 0 8px",fontSize:22,fontWeight:900}}>Pausen-Zeit!</h3>
-        <p style={{fontSize:15,color:"var(--ink2)",margin:"0 0 18px",lineHeight:1.5}}>Du hast jetzt {limit} Minuten geübt.<br/>Dein Kopf freut sich über eine kleine Pause. 🌱</p>
+        <p style={{fontSize:15,color:"var(--ink2)",margin:"0 0 18px",lineHeight:1.5}}>Du hast jetzt {limit} Minuten geübt.<br/>Dein Kopf freut sich über eine kleine Pause.</p>
         <Btn bg="var(--mint)" sh="var(--mintD)" style={{width:"100%",fontSize:16,marginBottom:10}} onClick={onDismiss}>OK, mache Pause!</Btn>
         <button onClick={onDismiss} style={{background:"none",border:"none",color:"var(--muted)",fontSize:13,cursor:"pointer",fontWeight:800}}>Noch 5 Minuten üben</button>
       </div>
@@ -2198,44 +2222,21 @@ function StickerBook({learnedMap}){
   const perfect=allLetters.filter(l=>(learnedMap[l]||0)>=5);
   return(
     <div className="k-card" style={{background:"linear-gradient(135deg,#fffbea,#fff1c1)",padding:16,maxWidth:560,margin:"0 auto"}}>
-      <div style={{fontSize:16,fontWeight:900,color:"#78350f",marginBottom:10}}>🎀 {perfect.length} Sticker gesammelt</div>
+      <div style={{fontSize:16,fontWeight:900,color:"#78350f",marginBottom:4}}>{perfect.length} Sticker gesammelt</div>
+      <div style={{fontSize:13,color:"#a16207",marginBottom:10,display:"flex",alignItems:"center",gap:4}}>Für jeden Buchstaben mit 3 <Star size={14}/> gibt es einen Sticker.</div>
       <div style={{fontSize:11,fontWeight:700,color:"#92400e",marginBottom:6}}>Großbuchstaben</div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(8,1fr)",gap:5,marginBottom:10}}>
-        {UPPERCASE.map(l=>{const have=(learnedMap[l]||0)>=5;return(<div key={l} title={have?`${l} — ${STICKERS[l]}`:`${l} noch nicht`} style={{textAlign:"center",fontSize:have?22:14,filter:have?"none":"grayscale(1) opacity(0.2)",transition:"all 0.4s"}}>{have?STICKERS[l]||"⭐":"⬜"}</div>);})}
+        {UPPERCASE.map(l=>{const have=(learnedMap[l]||0)>=5;return(<div key={l} title={have?`${l} — ${STICKERS[l]}`:`${l} noch nicht`} style={{height:34,borderRadius:10,background:have?"#ffffff":"#f3e8c8",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>{have?STICKERS[l]||"⭐":<Glyph letter={l} height={22} weight={2.4} color="#d6c08a"/>}</div>);})}
       </div>
       <div style={{fontSize:11,fontWeight:700,color:"#92400e",marginBottom:6}}>Kleinbuchstaben</div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(8,1fr)",gap:5,marginBottom:10}}>
-        {LOWERCASE.map(l=>{const have=(learnedMap[l]||0)>=5;return(<div key={l} title={have?`${l} — ${STICKERS[l]}`:`${l} noch nicht`} style={{textAlign:"center",fontSize:have?22:14,filter:have?"none":"grayscale(1) opacity(0.2)",transition:"all 0.4s"}}>{have?STICKERS[l]||"⭐":"⬜"}</div>);})}
+        {LOWERCASE.map(l=>{const have=(learnedMap[l]||0)>=5;return(<div key={l} title={have?`${l} — ${STICKERS[l]}`:`${l} noch nicht`} style={{height:34,borderRadius:10,background:have?"#ffffff":"#f3e8c8",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>{have?STICKERS[l]||"⭐":<Glyph letter={l} height={22} weight={2.4} color="#d6c08a"/>}</div>);})}
       </div>
       <div style={{fontSize:11,fontWeight:700,color:"#92400e",marginBottom:6}}>Zahlen</div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(8,1fr)",gap:5}}>
-        {NUMBERS.map(l=>{const have=(learnedMap[l]||0)>=5;return(<div key={l} title={have?`${l} — ${STICKERS[l]}`:`${l} noch nicht`} style={{textAlign:"center",fontSize:have?22:14,filter:have?"none":"grayscale(1) opacity(0.2)",transition:"all 0.4s"}}>{have?STICKERS[l]||"⭐":"⬜"}</div>);})}
+        {NUMBERS.map(l=>{const have=(learnedMap[l]||0)>=5;return(<div key={l} title={have?`${l} — ${STICKERS[l]}`:`${l} noch nicht`} style={{height:34,borderRadius:10,background:have?"#ffffff":"#f3e8c8",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>{have?STICKERS[l]||"⭐":<Glyph letter={l} height={22} weight={2.4} color="#d6c08a"/>}</div>);})}
       </div>
-      {perfect.length===0&&<div style={{textAlign:"center",color:"#a16207",fontSize:14,marginTop:8}}>Hier kleben bald deine ersten Sticker! ✨</div>}
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// FLOWER GARDEN
-// ═══════════════════════════════════════════════════════════════════════════════
-function FlowerGarden({learnedMap,tab}){
-  const items=tab==="GROß"?UPPERCASE:tab==="klein"?LOWERCASE:NUMBERS;
-  const flower=s=>s>=5?"🌻":s>=3?"🌼":s>=1?"🌱":"⬜";
-  const learned=items.filter(l=>learnedMap[l]>0);
-  const perfect=items.filter(l=>(learnedMap[l]||0)>=5);
-  const avg=learned.length?(learned.reduce((a,l)=>a+(learnedMap[l]||0),0)/learned.length).toFixed(1):0;
-  return(
-    <div className="k-card" style={{background:"linear-gradient(135deg,#f3fff7,#dcfce7)",padding:14}}>
-      <div style={{fontSize:16,fontWeight:900,color:"#166534",marginBottom:8}}>{WORLDS[tab].emoji} {WORLDS[tab].name}</div>
-      <div style={{display:"flex",gap:14,marginBottom:10}}>
-        <div style={{textAlign:"center"}}><div style={{fontSize:20,fontWeight:900,color:"#16a34a"}}>{learned.length}</div><div style={{fontSize:10,color:"#6b7280"}}>geübt</div></div>
-        <div style={{textAlign:"center"}}><div style={{fontSize:20,fontWeight:900,color:"#f59e0b"}}>{perfect.length}</div><div style={{fontSize:10,color:"#6b7280"}}>perfekt 🌻</div></div>
-        <div style={{textAlign:"center"}}><div style={{fontSize:20,fontWeight:900,color:"#6366f1"}}>⭐{avg}</div><div style={{fontSize:10,color:"#6b7280"}}>Ø</div></div>
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(9,1fr)",gap:3}}>
-        {items.map(l=><span key={l} title={`${l}: ${learnedMap[l]||0}⭐`} style={{fontSize:20,textAlign:"center"}}>{flower(learnedMap[l]||0)}</span>)}
-      </div>
+      {perfect.length===0&&<div style={{textAlign:"center",color:"#a16207",fontSize:14,marginTop:8}}>Hier kleben bald deine ersten Sticker!</div>}
     </div>
   );
 }
@@ -2259,31 +2260,15 @@ function AnlautChip({letter,onSay}){
   );
 }
 
-function LetterGrid({items,learnedMap,onSelect,current}){
-  const th=useContext(ThemeCtx);
-  return(
-    <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:7}}>
-      {items.map(item=>{
-        const s=learnedMap[item]||0;const active=current===item;
-        return(
-          <button key={item} data-letter={item} onClick={()=>onSelect(item)} className="k-press"
-            style={{background:active?th.acc:s>=5?"#fff1a8":s>=1?th.soft:"white","--sh":active?th.dark:s>=5?"#e9c46a":"#dfe4ee",borderRadius:14,padding:"6px 2px 3px",display:"flex",flexDirection:"column",alignItems:"center"}}>
-            <Glyph letter={item} height={30} weight={2.6} color={active?"white":"var(--ink)"}/>
-            <span style={{fontSize:9,lineHeight:1.2,height:11}}>{s>=5?"🌻":s>=3?"🌼":s>=1?"🌱":""}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // WORDS PANEL  — clickable cards to start writing practice
 // ═══════════════════════════════════════════════════════════════════════════════
 function WordsPanel({learnedMap, onPractice}){
   const learned=new Set(Object.keys(learnedMap).filter(k=>learnedMap[k]>0).map(k=>k.toUpperCase()));
   const available=WORDS.filter(w=>w.letters.every(l=>learned.has(l)));
-  const almost=WORDS.filter(w=>!w.letters.every(l=>learned.has(l))&&w.letters.filter(l=>!learned.has(l)).length<=2);
+  // Nur die nächsten paar Wörter zeigen (nicht alle auf einmal)
+  const almost=WORDS.filter(w=>!w.letters.every(l=>learned.has(l))&&w.letters.filter(l=>!learned.has(l)).length<=2)
+    .sort((a,b)=>a.letters.filter(l=>!learned.has(l)).length-b.letters.filter(l=>!learned.has(l)).length).slice(0,6);
   return(
     <div style={{display:"flex",flexDirection:"column",gap:16,maxWidth:560,margin:"0 auto"}}>
       {available.length===0&&(
@@ -2294,14 +2279,14 @@ function WordsPanel({learnedMap, onPractice}){
       )}
       {available.length>0&&(
         <div>
-          <div style={{fontSize:16,fontWeight:900,color:"#78350f",marginBottom:10}}>✅ Diese Wörter kannst du schon schreiben:</div>
+          <div style={{fontSize:16,fontWeight:900,color:"#78350f",marginBottom:10}}>Diese Wörter kannst du schon schreiben</div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:10}}>
             {available.map(w=>(
               <button key={w.word} data-word={w.word} onClick={()=>{sfx("tap");onPractice(w);}} className="k-press"
                 style={{background:"white","--sh":"#f2c94c",border:"3px solid #ffd666",borderRadius:20,padding:"12px 8px",display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
                 <div style={{fontSize:30,lineHeight:1}}>{w.meaning.split(" ").slice(-1)[0]}</div>
                 <GlyphWord word={w.word} height={26} color="#78350f"/>
-                <div style={{fontSize:12,color:"#b45309",fontWeight:900}}>✏️ Schreiben</div>
+                <div style={{width:34,height:34,borderRadius:"50%",background:"var(--sun)",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="play" size={18} color="#5a3a00" style={{marginLeft:2}}/></div>
               </button>
             ))}
           </div>
@@ -2309,7 +2294,7 @@ function WordsPanel({learnedMap, onPractice}){
       )}
       {almost.length>0&&(
         <div>
-          <div style={{fontSize:16,fontWeight:900,color:"var(--ink2)",marginBottom:10}}>🔜 Fast geschafft:</div>
+          <div style={{fontSize:16,fontWeight:900,color:"var(--ink2)",marginBottom:10}}>Fast geschafft</div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:10}}>
             {almost.map(w=>{
               const miss=w.letters.filter(l=>!learned.has(l));
@@ -2358,25 +2343,25 @@ function WordPractice({word, settings, pen="classic", onSpeak=()=>{}, onTrial=nu
         <div style={{fontSize:56,lineHeight:1}}>{word.meaning.split(" ").slice(-1)[0]}</div>
         <GlyphWord word={word.word} height={48} color="#78350f"/>
         <div className="k-card" style={{padding:"12px 20px",fontSize:17,fontWeight:900,textAlign:"center"}}>
-          Du hast das ganze Wort geschrieben! 🎉
+          Du hast das ganze Wort geschrieben!
           <div style={{display:"flex",gap:10,justifyContent:"center",marginTop:6}}>
-            {letters.map((l,i)=><div key={i} style={{textAlign:"center",fontSize:12}}><b style={{fontSize:16}}>{l}</b><br/>{"⭐".repeat(doneLetters[i]||0)}</div>)}
+            {letters.map((l,i)=><div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><Glyph letter={l} height={26} weight={2.6} tight yr={[LINES.top-7,LINES.base+7]}/><div style={{display:"flex"}}>{[1,2,3].map(k=><Star key={k} size={11} on={k<=stars3(doneLetters[i]||0)}/>)}</div></div>)}
           </div>
         </div>
         <div style={{display:"flex",gap:10}}>
-          <Btn bg="var(--sun)" sh="var(--sunD)" color="#5a3a00" onClick={()=>{ setIdx(0);setDoneLetters([]);setPhase("anim");setReplayKey(k=>k+1);setFinished(false); }}>🔄 Nochmal</Btn>
-          <Btn bg="var(--sky)" sh="var(--skyD)" onClick={onBack}>← Zurück</Btn>
+          <Btn bg="var(--sun)" sh="var(--sunD)" color="#5a3a00" onClick={()=>{ setIdx(0);setDoneLetters([]);setPhase("anim");setReplayKey(k=>k+1);setFinished(false); }}><Icon name="redo" size={20}/>Nochmal</Btn>
+          <Btn bg="var(--sky)" sh="var(--skyD)" onClick={onBack}><Icon name="back" size={20} stroke={3}/>Zurück</Btn>
         </div>
       </div>
     );
   }
 
-  const pill=(active,c)=>({padding:"6px 12px",borderRadius:14,background:active?c:"white",color:active?"white":c,border:`2px solid ${c}`,fontWeight:900,fontSize:13,"--sh":active?"#0002":"#dfe4ee"});
+  const pill=(active,c)=>({width:46,height:46,borderRadius:"50%",background:active?c:"white",color:active?"white":c,border:`3px solid ${c}`,display:"flex",alignItems:"center",justifyContent:"center",padding:0,"--sh":active?"#0002":"#dfe4ee"});
   return(
     <ThemeCtx.Provider value={WORD_THEME}>
     <div style={{minHeight:"100vh",background:WORD_THEME.bg,display:"flex",flexDirection:"column",alignItems:"center",padding:10,gap:10}}>
       <div style={{display:"flex",alignItems:"center",gap:8,width:"100%",maxWidth:560}}>
-        <RoundBtn onClick={onBack} aria-label="Zurück">←</RoundBtn>
+        <RoundBtn onClick={onBack} aria-label="Zurück"><Icon name="back" size={24} stroke={3}/></RoundBtn>
         <div className="k-card" style={{flex:1,padding:"8px 12px",display:"flex",alignItems:"center",gap:10,borderRadius:18}}>
           <span style={{fontSize:30,lineHeight:1}}>{word.meaning.split(" ").slice(-1)[0]}</span>
           <div style={{display:"flex",gap:5,alignItems:"center",flexWrap:"wrap"}}>
@@ -2385,7 +2370,7 @@ function WordPractice({word, settings, pen="classic", onSpeak=()=>{}, onTrial=nu
               return(
                 <div key={i} style={{width:34,height:38,borderRadius:10,background:done?"#d9f7e4":active?WORD_THEME.acc:"#f4f5f8",border:`2px solid ${done?"#2ecc8f":active?WORD_THEME.dark:"#e3e8f2"}`,
                   display:"flex",alignItems:"center",justifyContent:"center",transform:active?"scale(1.12)":"none",transition:"all .2s"}}>
-                  {done?<span style={{fontSize:16}}>✓</span>:<Glyph letter={l} height={30} weight={2.6} color={active?"white":"#9aa3b5"}/>}
+                  {done?<Icon name="check" size={18} color="#17a06c" stroke={3.4}/>:<Glyph letter={l} height={30} weight={2.6} color={active?"white":"#9aa3b5"}/>}
                 </div>
               );
             })}
@@ -2393,9 +2378,9 @@ function WordPractice({word, settings, pen="classic", onSpeak=()=>{}, onTrial=nu
         </div>
       </div>
       <div style={{display:"flex",gap:6,justifyContent:"center"}}>
-        <button className="k-press" style={pill(phase==="anim","#f97316")} onClick={()=>{setPhase("anim");setReplayKey(k=>k+1);}}>▶ Zeigen</button>
-        {settings.allowedModes?.guided&&<button className="k-press" style={pill(phase==="trace_guided","#22c55e")} onClick={()=>setPhase("trace_guided")}>🖐️ Geführt</button>}
-        {settings.allowedModes?.trace&&<button className="k-press" style={pill(phase==="trace_free","#4361ee")} onClick={()=>setPhase("trace_free")}>✏️ Nachfahren</button>}
+        <button aria-label="Vorführen" className="k-press" style={pill(phase==="anim","#f97316")} onClick={()=>{setPhase("anim");setReplayKey(k=>k+1);}}><Icon name="play" size={22} color="currentColor"/></button>
+        {settings.allowedModes?.guided&&<button data-mode="guided" aria-label="Geführt" className="k-press" style={pill(phase==="trace_guided","#22c55e")} onClick={()=>setPhase("trace_guided")}><Icon name="hand" size={22} color="currentColor" stroke={2.4}/></button>}
+        {settings.allowedModes?.trace&&<button data-mode="trace" aria-label="Nachfahren" className="k-press" style={pill(phase==="trace_free","#4361ee")} onClick={()=>setPhase("trace_free")}><Icon name="pencil" size={22} color="currentColor" stroke={2.4}/></button>}
       </div>
       <div style={{display:"flex",justifyContent:"center"}}>
         {phase==="anim"&&
@@ -2416,9 +2401,9 @@ function WordPractice({word, settings, pen="classic", onSpeak=()=>{}, onTrial=nu
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// SPIELWELT-BAUSTEINE — Kopfzeile, Tagesziel, Lernkarte, Klecks-Zimmer, Überraschungen
+// SPIELWELT-BAUSTEINE — Spielbrett, Schatztruhen, Sammlung, Kopfzeilen
 // ═══════════════════════════════════════════════════════════════════════════════
-// Meisterschaft pro Zeichen: 0 neu · 1 geübt · 2 abschreiben · 3 aus dem Kopf · 4 sitzt (👑)
+// Meisterschaft pro Zeichen: 0 neu · 1 geübt · 2 abschreiben · 3 aus dem Kopf · 4 sitzt (gold)
 function masteryOf(l,learnedMap,stageMap,memMap){
   if(!((learnedMap[l]||0)>0))return 0;
   if((memMap[l]||0)>0)return 4;
@@ -2429,7 +2414,7 @@ function normCompanion(c){
   if(!c)return null;
   return{color:c.color||"lila",accs:accList(c.accs??c.acc)};
 }
-// Vorschlag „Weiter geht's": erst neue Zeichen auf dem Lernweg, dann die am wenigsten sicheren
+// Nächstes Level: erst neue Zeichen auf dem Lernweg, dann die am wenigsten sicheren
 function nextLetterFor(tab,learnedMap,stageMap,memMap){
   const path=LEARN_PATH[tab];
   const fresh=path.find(l=>!((learnedMap[l]||0)>0));
@@ -2439,34 +2424,41 @@ function nextLetterFor(tab,learnedMap,stageMap,memMap){
   return best;
 }
 const sayName=(l)=>NUMBERS.includes(l)?`die ${l}`:l==="ß"?"das ß":UPPERCASE.includes(l)?`das große ${l}`:`das kleine ${l}`;
+const klecksSwatch=(k)=>k.c==="rainbow"?"conic-gradient(#ff8a5b,#ffd23f,#4ade80,#38bdf8,#a78bfa,#ff8a5b)":k.c;
 
-function RoundBtn({children,bg="white",sh="#d5dbe7",color="var(--ink)",size=42,style,...rest}){
+function RoundBtn({children,bg="white",sh="#d5dbe7",color="var(--ink)",size=44,style,...rest}){
   return <button className="k-press" style={{width:size,height:size,borderRadius:"50%",background:bg,color,"--sh":sh,fontSize:size*0.45,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0,...style}} {...rest}>{children}</button>;
 }
 
 function ScreenHeader({title,onBack,right,color="var(--ink)"}){
   return(
     <div style={{display:"flex",alignItems:"center",gap:12,width:"100%",maxWidth:560,margin:"0 auto 14px"}}>
-      <RoundBtn onClick={onBack} aria-label="Zurück">←</RoundBtn>
+      <RoundBtn onClick={onBack} aria-label="Zurück"><Icon name="back" size={24} stroke={3}/></RoundBtn>
       <h2 style={{margin:0,color,fontWeight:900,fontSize:23,flex:1,lineHeight:1.1}}>{title}</h2>
       {right}
     </div>
   );
 }
 
-// Ring für das Tagesziel (füllt sich, bleibt danach gefüllt — kein Verlust, keine Serie)
-function DailyRing({count,goal=DAILY_GOAL,size=56}){
-  const r=size/2-5,c=2*Math.PI*r,p=Math.min(1,count/goal),done=count>=goal;
+// Sterne-Zähler wie in Spielen: die besten Sterne aller Buchstaben zusammen
+function StarCount({n,max,style}){
   return(
-    <div style={{position:"relative",width:size,height:size,flexShrink:0}} aria-label={`Heute ${Math.min(count,goal)} von ${goal}`}>
-      <svg width={size} height={size} style={{transform:"rotate(-90deg)"}}>
-        <circle cx={size/2} cy={size/2} r={r} fill="white" stroke="#ffe8a8" strokeWidth="7"/>
-        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={done?"#2ecc8f":"#ffb020"} strokeWidth="7" strokeLinecap="round"
-          strokeDasharray={c} strokeDashoffset={c*(1-p)} style={{transition:"stroke-dashoffset .6s ease"}}/>
-      </svg>
-      <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:done?size*0.42:size*0.28,fontWeight:900,color:"var(--ink)"}}>
-        {done?"⭐":`${count}/${goal}`}
-      </div>
+    <div data-k="stars" aria-label={`${n} Sterne`} style={{display:"inline-flex",alignItems:"center",gap:5,background:"white",borderRadius:20,padding:"5px 12px 5px 7px",boxShadow:"0 3px 0 #0f172a14",fontWeight:900,fontSize:17,color:"var(--ink)",whiteSpace:"nowrap",...style}}>
+      <Star size={24}/>{n}{max!=null&&<span style={{color:"var(--muted)",fontSize:13}}>/{max}</span>}
+    </div>
+  );
+}
+
+// Tagesziel als drei Kreise — füllt sich, bleibt gefüllt (keine Serie, kein Verlust)
+function DailyDots({count,goal=DAILY_GOAL}){
+  return(
+    <div aria-label={`Heute ${Math.min(count,goal)} von ${goal}`} style={{display:"inline-flex",alignItems:"center",gap:7,background:"#ffffffcc",borderRadius:20,padding:"5px 12px",fontSize:14,fontWeight:900,color:"var(--ink2)"}}>
+      Heute
+      {Array.from({length:goal},(_,i)=>(
+        <span key={i} style={{width:22,height:22,borderRadius:"50%",background:i<count?"var(--mint)":"white",border:`3px solid ${i<count?"var(--mintD)":"#dfe4ee"}`,display:"flex",alignItems:"center",justifyContent:"center",transition:"all .3s"}}>
+          {i<count&&<Icon name="check" size={13} color="white" stroke={4}/>}
+        </span>
+      ))}
     </div>
   );
 }
@@ -2488,166 +2480,258 @@ function PenPicker({pen,unlocks,onPick}){
         </div>
       )}
       <button data-k="pen" className="k-press" aria-label="Stift aussuchen" aria-expanded={open} onClick={()=>{sfx("tap");setOpen(o=>!o);}}
-        style={{width:48,height:48,borderRadius:"50%",background:PENS[pen]?.swatch||PENS.classic.swatch,"--sh":"#0003",border:"3px solid white",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,padding:0}}>🖍️</button>
+        style={{width:48,height:48,borderRadius:"50%",background:PENS[pen]?.swatch||PENS.classic.swatch,"--sh":"#0003",border:"3px solid white",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}><Icon name="pencil" size={20} color="white" stroke={2.8} style={{filter:"drop-shadow(0 1px 1px #0006)"}}/></button>
     </div>
   );
 }
 
-// ── Erster Start: Klecks stellt sich vor, das Kind wählt seine Farbe ──
+// ── Erster Start: Klecks erzählt, worum es geht, und das Kind wählt seine Farbe ──
+// Eine kleine Geschichte als Rahmen: Schreiben = Buchstaben für Klecks einsammeln.
 function Onboarding({onDone,onSpeak}){
   const [color,setColor]=useState("lila");
   const [kick,setKick]=useState(0);
-  const intro="Hallo! Ich bin Klecks, ein kleiner Tintenklecks. Ich helfe dir beim Schreiben. Welche Farbe soll ich haben?";
+  const intro="Hallo! Ich bin Klecks. Meine Buchstaben sind über Berg, Wald und Insel verstreut. Hilfst du mir, sie zu sammeln? Jeden Buchstaben, den du schreibst, finden wir wieder. Welche Farbe soll ich haben?";
   return(
     <div style={{minHeight:"100vh",background:"linear-gradient(180deg,#8fd8ff 0%,#c9efff 45%,#fff6dc 100%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:18,padding:20,textAlign:"center"}}>
       <Klecks key={kick} size={150} color={color} acc={null} mood="cheer" anim={kick?"jump":"bob"} onClick={()=>{setKick(k=>k+1);onSpeak(intro);}} title="Klecks"/>
-      <div className="k-card" style={{padding:"14px 18px",maxWidth:340}}>
-        <div style={{fontSize:22,fontWeight:900,marginBottom:4}}>Hallo! Ich bin Klecks.</div>
-        <div style={{fontSize:16,color:"var(--ink2)",lineHeight:1.35}}>Ich helfe dir beim Schreiben. Welche Farbe soll ich haben?</div>
-        <button onClick={()=>onSpeak(intro)} style={{marginTop:8,background:"none",border:"none",fontSize:22,cursor:"pointer"}} aria-label="Vorlesen">🔊</button>
+      <div className="k-card" style={{padding:"14px 18px",maxWidth:350,position:"relative"}}>
+        <div style={{fontSize:22,fontWeight:900,marginBottom:6}}>Hallo! Ich bin Klecks.</div>
+        <div style={{fontSize:16,color:"var(--ink2)",lineHeight:1.4}}>Meine Buchstaben sind über Berg, Wald und Insel verstreut. Hilfst du mir, sie zu sammeln?</div>
+        <div style={{fontSize:16,color:"var(--ink)",lineHeight:1.4,marginTop:8,fontWeight:900}}>Welche Farbe soll ich haben?</div>
+        <button onClick={()=>onSpeak(intro)} aria-label="Vorlesen" style={{position:"absolute",top:10,right:10,background:"#eef4ff",border:"none",borderRadius:"50%",width:36,height:36,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"#3b5bdb"}}><Icon name="speaker" size={20}/></button>
       </div>
       <div style={{display:"flex",gap:10,flexWrap:"wrap",justifyContent:"center",maxWidth:360}}>
-        {KLECKS_COLORS.map(k=>(
+        {KLECKS_COLORS.filter(k=>!k.special).map(k=>(
           <button key={k.id} data-color={k.id} aria-label={k.name} onClick={()=>{setColor(k.id);setKick(n=>n+1);sfx("pop");onSpeak(k.name);}}
             style={{width:46,height:46,borderRadius:"50%",background:k.c,border:color===k.id?"4px solid var(--ink)":"4px solid white",cursor:"pointer",boxShadow:`0 4px 0 ${k.d}`,transform:color===k.id?"scale(1.12)":"none",transition:"transform .12s"}}/>
         ))}
       </div>
-      <Btn data-k="start" bg="var(--coral)" sh="var(--coralD)" style={{fontSize:20,padding:"14px 34px",borderRadius:22}} onClick={()=>{sfx("fanfare");onDone({color,accs:[]});}}>Los geht's 🚀</Btn>
+      <Btn data-k="start" bg="var(--coral)" sh="var(--coralD)" style={{fontSize:21,padding:"14px 34px",borderRadius:24}} onClick={()=>{sfx("fanfare");onDone({color,accs:[]});}}>
+        <Icon name="play" size={24} color="white"/>Los geht's
+      </Btn>
     </div>
   );
 }
 
-// ── Lernkarte einer Welt: ein Weg aus Steinen, Klecks steht beim nächsten Zeichen ──
-function WorldMap({world,learnedMap,stageMap,memMap,next,onOpen,onBack}){
-  const path=LEARN_PATH[world.key];
+// ── Spielbrett einer Welt: Buchstaben als Level, Truhen auf dem Weg, Klecks läuft mit ──
+function WorldMap({world,learnedMap,stageMap,memMap,next,opened,from,gain,onOpen,onPlay,onChest,onLockedChest,onBack}){
+  const w=world.key,path=LEARN_PATH[w],chests=CHESTS[w];
   const [cw]=useState(()=>Math.min((typeof window!=="undefined"?window.innerWidth:400)-24,440));
-  const nextRef=useRef(null);
-  useEffect(()=>{nextRef.current?.scrollIntoView({block:"center"});},[]);
-  const STEP=88,PAD=64,STONE=66;
-  const pts=path.map((l,i)=>({l,i,x:cw/2+Math.sin(i*0.9)*(cw/2-STONE*0.85),y:PAD+i*STEP}));
-  const height=PAD*2+(path.length-1)*STEP;
+  const STONE=66,STEP=92;
+  // Knoten in Reihenfolge: Steine und dazwischen die Truhen
+  const nodes=[];
+  path.forEach((l,i)=>{nodes.push({type:"stone",l,i});chests.forEach((c,ci)=>{if(c.after===i+1)nodes.push({type:"chest",ci});});});
+  const pts=nodes.map((n,k)=>({...n,k,x:cw/2+Math.sin(k*0.85)*(cw/2-STONE*0.85),y:64+k*STEP}));
+  const height=64+(pts.length-1)*STEP+150;
   let d=`M${pts[0].x} ${pts[0].y}`;
   for(let i=1;i<pts.length;i++){const a=pts[i-1],b=pts[i],my=(a.y+b.y)/2;d+=` C${a.x} ${my} ${b.x} ${my} ${b.x} ${b.y}`;}
+  const stoneAt=(l)=>pts.find(p=>p.type==="stone"&&p.l===l);
+  const target=stoneAt(next)||pts[0];
+  const start=(from&&stoneAt(from))||target;
+  const [kp,setKp]=useState(start);
+  const [hop,setHop]=useState(false);
+  const boardRef=useRef(null);
+  const scrollTo=(p,smooth)=>{const el=boardRef.current;if(el)window.scrollTo({top:el.offsetTop+p.y-window.innerHeight*0.45,behavior:smooth?"smooth":"auto"});};
+  useEffect(()=>{
+    scrollTo(start,false);
+    if(start===target)return;
+    // Klecks hüpft zum nächsten Level
+    const t=setTimeout(()=>{setHop(true);setKp(target);sfx("pop");scrollTo(target,true);setTimeout(()=>setHop(false),900);},650);
+    return()=>clearTimeout(t);
+  },[]);
   const ms=path.map(l=>masteryOf(l,learnedMap,stageMap,memMap));
-  const practiced=ms.filter(m=>m>0).length,crowns=ms.filter(m=>m>=4).length;
+  const got=totalStars(learnedMap,path),max=path.length*3;
+  const looks=[
+    {bg:"white",bd:"#d5dbe7",sh:"#c3cad8",fg:"#9aa3b5"},
+    {bg:"white",bd:world.acc,sh:world.dark,fg:"var(--ink)"},
+    {bg:world.soft,bd:world.acc,sh:world.dark,fg:"var(--ink)"},
+    {bg:world.acc,bd:world.dark,sh:world.dark,fg:"white"},
+    {bg:"linear-gradient(160deg,#fff1a8,#ffc93c)",bd:"#dea000",sh:"#c98d00",fg:"#5a3a00"},
+  ];
+  const kLeft=kp.x<cw/2?kp.x+STONE/2-10:kp.x-STONE/2-34;
   return(
     <div style={{minHeight:"100vh",background:world.bg}}>
-      <div style={{position:"sticky",top:0,zIndex:5,padding:"12px 12px 8px",background:`linear-gradient(180deg,${world.soft} 88%,${world.soft}00)`}}>
-        <ScreenHeader onBack={onBack} title={<span>{world.emoji} {world.name}</span>} color={world.dark}
-          right={<div style={{background:"white",borderRadius:14,padding:"5px 10px",fontSize:13,fontWeight:900,color:world.dark,boxShadow:"0 3px 0 #0f172a12",whiteSpace:"nowrap"}}>{practiced}/{path.length} · {crowns}👑</div>}/>
-        <div style={{display:"flex",gap:5,justifyContent:"center",flexWrap:"wrap",fontSize:11,fontWeight:800,color:"var(--ink2)"}}>
-          {[["●","geübt"],["●●","abschreiben"],["●●●","aus dem Kopf"],["👑","kann ich"]].map(([s,t])=>(
-            <span key={t} style={{background:"#ffffffcc",borderRadius:12,padding:"3px 7px",whiteSpace:"nowrap"}}><b style={{color:world.acc}}>{s}</b> {t}</span>
-          ))}
-        </div>
+      <div style={{position:"sticky",top:0,zIndex:5,padding:"12px 12px 10px",background:`linear-gradient(180deg,${world.soft} 85%,${world.soft}00)`}}>
+        <ScreenHeader onBack={onBack} color={world.dark}
+          title={<span style={{display:"flex",alignItems:"center",gap:6,fontSize:20,whiteSpace:"nowrap"}}><WorldArt world={w} size={34}/>{world.name}</span>}
+          right={<div style={{position:"relative"}}>
+            <StarCount n={got} max={max}/>
+            {gain>0&&<div style={{position:"absolute",right:8,top:40,display:"flex",alignItems:"center",gap:2,fontWeight:900,color:"#c98a00",fontSize:16,animation:"kFloat 1.8s ease-out 1.1s both",pointerEvents:"none"}}>+{gain}<Star size={16}/></div>}
+          </div>}/>
       </div>
-      <div style={{position:"relative",width:cw,height,margin:"0 auto"}}>
+      <div ref={boardRef} style={{position:"relative",width:cw,height,margin:"0 auto"}}>
         <svg width={cw} height={height} style={{position:"absolute",inset:0}} aria-hidden="true">
           <path d={d} fill="none" stroke="#ffffff" strokeWidth="26" strokeLinecap="round"/>
-          <path d={d} fill="none" stroke={world.acc} strokeOpacity="0.35" strokeWidth="6" strokeDasharray="2 14" strokeLinecap="round"/>
+          <path d={d} fill="none" stroke={world.acc} strokeOpacity="0.3" strokeWidth="6" strokeDasharray="2 14" strokeLinecap="round"/>
         </svg>
-        {pts.map(({l,i,x,y})=>(i%2===0)&&(
-          <div key={"d"+i} aria-hidden="true" style={{position:"absolute",left:(x<cw/2?cw-44:14),top:y-18,fontSize:30,opacity:0.9}}>{world.deco[(i/2)%world.deco.length]}</div>
+        {pts.map(p=>p.k%3===1&&(
+          <div key={"s"+p.k} aria-hidden="true" style={{position:"absolute",left:p.x<cw/2?cw-66:4,top:p.y-26,opacity:0.45,pointerEvents:"none"}}><WorldArt world={w} size={62}/></div>
         ))}
-        <div aria-hidden="true" style={{position:"absolute",left:pts[0].x-14,top:pts[0].y-STONE/2-34,fontSize:26}}>🚩</div>
-        <div aria-hidden="true" style={{position:"absolute",left:pts[pts.length-1].x-16,top:pts[pts.length-1].y+STONE/2+4,fontSize:30}}>🏆</div>
-        {pts.map(({l,i,x,y})=>{
-          const m=ms[i],isNext=l===next;
-          const bg=m>=4?"linear-gradient(160deg,#fff1a8,#ffc93c)":m>0?world.soft:"white";
-          const border=m>=4?"#dea000":m>0?world.acc:"#d5dbe7";
-          return(
-            <div key={l} ref={isNext?nextRef:null} style={{position:"absolute",left:x-STONE/2,top:y-STONE/2,width:STONE}}>
-              {isNext&&<div style={{position:"absolute",left:x<cw/2?STONE-6:-36,top:-26,pointerEvents:"none"}}><Klecks size={40}/></div>}
-              {m>=4&&<div aria-hidden="true" style={{position:"absolute",left:STONE/2-13,top:-24,fontSize:24,pointerEvents:"none"}}>👑</div>}
-              <button data-letter={l} aria-label={`${l} üben`} className="k-press" onClick={()=>{sfx("tap");onOpen(l);}}
-                style={{width:STONE,height:STONE,borderRadius:"50%",background:bg,border:`4px solid ${border}`,"--sh":m>=4?"#c98d00":m>0?world.dark:"#c3cad8",
-                  display:"flex",alignItems:"center",justifyContent:"center",padding:0,animation:isNext?"kRing 1.6s ease-out infinite":"none","--ring":world.acc+"aa"}}>
-                <Glyph letter={l} height={42} weight={3} color={m>0?"var(--ink)":"#9aa3b5"}/>
+        {pts.map(p=>{
+          if(p.type==="chest"){
+            const id=chestId(w,p.ci),st=opened.includes(id)?"open":chestReady(w,p.ci,learnedMap)?"ready":"locked";
+            return(
+              <button key={"c"+p.ci} data-chest={p.ci} data-state={st} aria-label={st==="open"?"Offene Truhe":st==="ready"?"Truhe öffnen":"Geschlossene Truhe"}
+                onClick={()=>{if(st==="ready")onChest(p.ci);else if(st==="locked")onLockedChest();}}
+                style={{position:"absolute",left:p.x-32,top:p.y-34,width:64,height:64,background:"none",border:"none",padding:0,cursor:st==="open"?"default":"pointer",
+                  animation:st==="ready"?"kWiggle 1.3s ease-in-out infinite":"none",opacity:st==="open"?0.7:1}}>
+                <ChestArt state={st} size={64}/>
               </button>
-              <div style={{display:"flex",gap:3,justifyContent:"center",marginTop:7,height:8}}>
-                {m>0&&m<4&&[1,2,3].map(k=><span key={k} style={{width:8,height:8,borderRadius:"50%",background:k<=m?world.acc:"#ffffffcc",border:`1.5px solid ${world.acc}`}}/>)}
-              </div>
+            );
+          }
+          const {l,i}=p,m=ms[i],best=learnedMap[l]||0,look=looks[m],isNext=l===next;
+          return(
+            <div key={l} style={{position:"absolute",left:p.x-STONE/2,top:p.y-STONE/2,width:STONE}}>
+              <button data-letter={l} aria-label={`${l} – ${stars3(best)} Sterne`} className="k-press" onClick={()=>{sfx("tap");onOpen(l);}}
+                style={{width:STONE,height:STONE,borderRadius:"50%",background:look.bg,border:`4px solid ${look.bd}`,"--sh":look.sh,
+                  display:"flex",alignItems:"center",justifyContent:"center",padding:0,animation:isNext?"kRing 1.6s ease-out infinite":"none","--ring":world.acc+"aa"}}>
+                <Glyph letter={l} height={42} weight={3} color={look.fg}/>
+              </button>
+              {best>0&&<div style={{display:"flex",gap:1,justifyContent:"center",marginTop:5}}>{[1,2,3].map(k=><Star key={k} size={16} on={k<=stars3(best)}/>)}</div>}
             </div>
           );
         })}
+        <div style={{position:"absolute",left:kLeft,top:kp.y-STONE/2-30,transition:"left .8s cubic-bezier(.45,0,.3,1), top .8s cubic-bezier(.45,0,.3,1)",pointerEvents:"none",zIndex:3}}>
+          <div style={{animation:hop?"kJump 0.8s ease-in-out":"none"}}><Klecks size={44} anim={hop?"none":"bob"} mood={hop?"cheer":"happy"}/></div>
+        </div>
+      </div>
+      <div style={{position:"fixed",left:0,right:0,bottom:0,padding:"18px 16px calc(14px + env(safe-area-inset-bottom))",background:`linear-gradient(180deg,${world.soft}00,${world.soft}ee 45%)`,display:"flex",justifyContent:"center",zIndex:6}}>
+        <Btn data-k="play" bg="var(--coral)" sh="var(--coralD)" onClick={()=>{sfx("pop");onPlay();}} style={{fontSize:21,padding:"12px 26px",borderRadius:24,minWidth:200}}>
+          <Icon name="play" size={24} color="white"/>Los
+          <span style={{background:"white",borderRadius:12,padding:"3px 8px",display:"inline-flex",marginLeft:4}}><Glyph letter={next} height={30} weight={3.2} color="var(--coralD)" fit/></span>
+        </Btn>
       </div>
     </div>
   );
 }
 
-// ── Klecks-Zimmer: Farbe, gefundene Sachen und Stifte aussuchen ──
-function KlecksRoom({companion,onChange,unlocks,pen,onPen,onBack,onSpeak}){
-  const [kick,setKick]=useState(0);
-  const accs=SURPRISES.filter(x=>x.kind==="acc"),pens=Object.keys(PENS),worn=accList(companion.accs);
-  const tile=(active)=>({background:active?"#fff4c2":"white",border:active?"3px solid #ffb020":"3px solid #eef1f6",borderRadius:18,padding:"8px 4px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2,fontWeight:800,fontSize:12,color:"var(--ink2)"});
-  const found=SURPRISES.filter(x=>unlocks.includes(x.id)).length;
-  return(
-    <div style={{minHeight:"100vh",background:"linear-gradient(180deg,#f3edff 0%,#fff 70%)",padding:16}}>
-      <ScreenHeader onBack={onBack} title="🎨 Mein Klecks" color="#5b34c7"/>
-      <div style={{maxWidth:520,margin:"0 auto",display:"flex",flexDirection:"column",gap:14}}>
-        <div className="k-card" style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"18px 12px 12px"}}>
-          <Klecks key={kick} size={140} mood={kick?"cheer":"happy"} anim={kick?"jump":"bob"} onClick={()=>{setKick(k=>k+1);sfx("pop");onSpeak("Hihi! Das kitzelt!");}} title="Klecks"/>
-          <div style={{fontSize:13,color:"var(--muted)",marginTop:6}}>{found} von {SURPRISES.length} Überraschungen gefunden</div>
-        </div>
-        <div className="k-card" style={{padding:14}}>
-          <div style={{fontWeight:900,fontSize:16,marginBottom:10}}>Farbe</div>
-          <div style={{display:"flex",gap:10,flexWrap:"wrap",justifyContent:"center"}}>
-            {KLECKS_COLORS.map(k=>(
-              <button key={k.id} data-color={k.id} aria-label={k.name} onClick={()=>{onChange({...companion,color:k.id});setKick(n=>n+1);sfx("pop");onSpeak(k.name);}}
-                style={{width:46,height:46,borderRadius:"50%",background:k.c,border:companion.color===k.id?"4px solid var(--ink)":"4px solid white",boxShadow:`0 4px 0 ${k.d}`,cursor:"pointer"}}/>
-            ))}
-          </div>
-        </div>
-        <div className="k-card" style={{padding:14}}>
-          <div style={{fontWeight:900,fontSize:16,marginBottom:2}}>Anziehen</div>
-          <div style={{fontSize:13,color:"var(--muted)",marginBottom:10}}>Tippe mehrere Sachen an – Klecks kann sie zusammen tragen. Hut oder Krone: nur eins passt auf den Kopf.</div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
-            <button style={tile(!worn.length)} onClick={()=>{onChange({...companion,accs:[]});sfx("tap");}}><span style={{fontSize:28}}>🚫</span>Nichts</button>
-            {accs.map(x=>{const have=unlocks.includes(x.id),on=worn.includes(x.id);return(
-              <button key={x.id} data-acc={x.id} aria-pressed={on} disabled={!have} style={{...tile(on),opacity:have?1:0.55,cursor:have?"pointer":"default",position:"relative"}}
-                onClick={()=>{if(!have)return;onChange({...companion,accs:toggleAcc(worn,x.id)});setKick(n=>n+1);sfx(on?"tap":"pop");}}>
-                {on&&<span style={{position:"absolute",top:4,right:8,fontSize:14,color:"#17a06c"}}>✓</span>}
-                <span style={{fontSize:28}}>{have?x.emoji:"❓"}</span>{have?x.name:"versteckt"}
-              </button>);})}
-          </div>
-        </div>
-        <div className="k-card" style={{padding:14}}>
-          <div style={{fontWeight:900,fontSize:16,marginBottom:10}}>Stifte</div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
-            {pens.map(id=>{const have=penAvailable(id,unlocks);return(
-              <button key={id} disabled={!have} style={{...tile(pen===id),opacity:have?1:0.55,cursor:have?"pointer":"default"}} onClick={()=>{if(have){onPen(id);sfx("tap");}}}>
-                <span style={{width:30,height:30,borderRadius:"50%",background:have?PENS[id].swatch:"#e5e7eb",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>{have?"":"❓"}</span>{have?PENS[id].name:"versteckt"}
-              </button>);})}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Überraschung gefunden / Tagesziel geschafft ──
-function SurpriseModal({item,effects,onUse,onClose,onHome}){
-  const s=item.type==="unlock"?item.s:null;
+// ── Truhe öffnen: wackeln, aufgehen, Fundstück zeigen ──
+function ChestModal({reward,effects,onUse,onClose}){
+  const t=TREASURES[reward];
   const comp=useContext(CompanionCtx);
+  const [open,setOpen]=useState(!effects);
+  useEffect(()=>{if(open){sfx("unlock");return;}const a=setTimeout(()=>{setOpen(true);sfx("unlock");},950);return()=>clearTimeout(a);},[]);
   const overlay={position:"fixed",inset:0,background:"rgba(20,24,44,0.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2500,backdropFilter:"blur(5px)",padding:16};
   return(
     <div style={overlay} role="dialog" aria-modal="true">
-      {effects&&item.type==="goal"&&<StarRain onDone={()=>{}}/>}
-      <div className="k-card" style={{padding:"20px 20px 18px",maxWidth:340,width:"100%",textAlign:"center",animation:"popIn 0.4s ease-out",position:"relative"}}>
-        <div style={{display:"flex",justifyContent:"center",marginTop:-70}}>
-          <Klecks size={120} mood="cheer" anim="jump" acc={s&&s.kind==="acc"?wearAcc(comp.accs,s.id):undefined}/>
+      <div className="k-card" style={{padding:"18px 20px 18px",maxWidth:340,width:"100%",textAlign:"center",animation:"popIn 0.35s ease-out"}}>
+        <div style={{position:"relative",height:190,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+          {open&&(
+            <div style={{position:"absolute",top:0,left:0,right:0,display:"flex",justifyContent:"center",animation:"kRise 0.6s ease-out both"}}>
+              {t.kind==="acc"&&<Klecks size={96} mood="cheer" anim="none" acc={wearAcc(comp.accs,reward)}/>}
+              {t.kind==="color"&&<Klecks size={96} mood="cheer" anim="none" color="regenbogen"/>}
+              {t.kind==="pen"&&<div style={{width:76,height:76,borderRadius:"50%",marginTop:20,background:PENS[reward].swatch,border:"4px solid white",boxShadow:"0 4px 0 #0002",animation:"kPulse 1.4s ease-in-out infinite"}}/>}
+            </div>
+          )}
+          <div style={{animation:open?"none":"kWiggle 0.32s ease-in-out infinite"}}><ChestArt state={open?"open":"ready"} size={open?110:150}/></div>
         </div>
-        {s?(<>
-          <div style={{fontSize:14,fontWeight:900,color:"#e0a100",letterSpacing:1,textTransform:"uppercase",marginTop:4}}>Überraschung!</div>
-          {s.kind==="pen"&&<div style={{width:64,height:64,borderRadius:"50%",margin:"8px auto",background:PENS[s.id].swatch,boxShadow:"0 4px 0 #0002",animation:"kPulse 1.4s ease-in-out infinite"}}/>}
-          <h3 style={{margin:"6px 0 14px",fontSize:22,fontWeight:900,lineHeight:1.2}}>{s.text}</h3>
-          <Btn data-k="use" bg="var(--mint)" sh="var(--mintD)" style={{width:"100%",fontSize:17,marginBottom:10}} onClick={()=>onUse(s)}>{s.kind==="acc"?"✨ Anziehen!":"✏️ Ausprobieren!"}</Btn>
-          <Btn bg="white" sh="#d5dbe7" color="var(--ink2)" style={{width:"100%",border:"2px solid #eef1f6"}} onClick={onClose}>Später</Btn>
-        </>):(<>
-          <h3 style={{margin:"8px 0 6px",fontSize:24,fontWeight:900}}>Tagesziel geschafft! 🌟</h3>
-          <p style={{margin:"0 0 14px",fontSize:16,color:"var(--ink2)",lineHeight:1.4}}>Du hast heute {DAILY_GOAL} Zeichen geschrieben. Jetzt darfst du Pause machen – oder weiter üben, wenn du magst.</p>
-          <Btn data-k="pause" bg="var(--sky)" sh="var(--skyD)" style={{width:"100%",fontSize:17,marginBottom:10}} onClick={onHome}>🏠 Pause machen</Btn>
-          <Btn data-k="more" bg="white" sh="#d5dbe7" color="var(--ink2)" style={{width:"100%",border:"2px solid #eef1f6"}} onClick={onClose}>✏️ Weiter üben</Btn>
+        {open?(<>
+          <h3 style={{margin:"10px 0 14px",fontSize:22,fontWeight:900,lineHeight:1.2}}>{t.text}</h3>
+          <Btn data-k="use" bg="var(--mint)" sh="var(--mintD)" style={{width:"100%",fontSize:17,marginBottom:10}} onClick={()=>onUse(reward)}>{t.kind==="acc"?"Anziehen":"Ausprobieren"}</Btn>
+          <Btn data-k="later" bg="white" sh="#d5dbe7" color="var(--ink2)" style={{width:"100%",border:"2px solid #eef1f6"}} onClick={onClose}>Später</Btn>
+        </>):<div style={{fontSize:18,fontWeight:900,color:"var(--ink2)",marginTop:12}}>Die Truhe geht auf …</div>}
+      </div>
+    </div>
+  );
+}
+
+// ── Tagesziel geschafft: natürlicher Endpunkt ──
+function GoalModal({effects,onHome,onMore}){
+  const overlay={position:"fixed",inset:0,background:"rgba(20,24,44,0.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2500,backdropFilter:"blur(5px)",padding:16};
+  return(
+    <div style={overlay} role="dialog" aria-modal="true">
+      {effects&&<StarRain onDone={()=>{}}/>}
+      <div className="k-card" style={{padding:"20px 20px 18px",maxWidth:340,width:"100%",textAlign:"center",animation:"popIn 0.4s ease-out"}}>
+        <div style={{display:"flex",justifyContent:"center",marginTop:-70}}><Klecks size={120} mood="cheer" anim="jump"/></div>
+        <h3 style={{margin:"8px 0 6px",fontSize:24,fontWeight:900}}>Tagesziel geschafft!</h3>
+        <p style={{margin:"0 0 14px",fontSize:16,color:"var(--ink2)",lineHeight:1.4}}>Du hast heute {DAILY_GOAL} Zeichen geschrieben. Jetzt darfst du Pause machen – oder weiter üben, wenn du magst.</p>
+        <Btn data-k="pause" bg="var(--sky)" sh="var(--skyD)" style={{width:"100%",fontSize:17,marginBottom:10}} onClick={onHome}>Pause machen</Btn>
+        <Btn data-k="more" bg="white" sh="#d5dbe7" color="var(--ink2)" style={{width:"100%",border:"2px solid #eef1f6"}} onClick={onMore}>Weiter üben</Btn>
+      </div>
+    </div>
+  );
+}
+
+// Übersicht aller Zeichen mit ihren Sternen
+function LetterStars({learnedMap,onOpen}){
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:12}}>
+      {Object.values(WORLDS).map(wd=>(
+        <div key={wd.key} className="k-card" style={{padding:14}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:900,fontSize:16,color:wd.dark,marginBottom:10}}>
+            <WorldArt world={wd.key} size={36}/>{wd.name}
+            <span style={{marginLeft:"auto"}}><StarCount n={totalStars(learnedMap,LEARN_PATH[wd.key])} max={LEARN_PATH[wd.key].length*3} style={{boxShadow:"none",background:"#f4f5f8",fontSize:14}}/></span>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:6}}>
+            {LEARN_PATH[wd.key].map(l=>{const n=stars3(learnedMap[l]||0);return(
+              <button key={l} data-letter={l} onClick={()=>onOpen(l)} style={{background:n?wd.soft:"#f6f7fa",border:"none",borderRadius:12,padding:"4px 2px 3px",display:"flex",flexDirection:"column",alignItems:"center",cursor:"pointer"}}>
+                <Glyph letter={l} height={30} weight={2.6} color={n?"var(--ink)":"#a3abbd"}/>
+                <div style={{display:"flex"}}>{[1,2,3].map(k=><Star key={k} size={10} on={k<=n}/>)}</div>
+              </button>);})}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Sammlung: Klecks anziehen, Stifte, Sticker und alle Sterne ──
+function Collection({companion,onChange,unlocks,pen,onPen,learnedMap,onOpen,onBack,onSpeak}){
+  const [tab,setTab]=useState("klecks");
+  const [kick,setKick]=useState(0);
+  const accs=Object.keys(TREASURES).filter(id=>TREASURES[id].kind==="acc"),worn=accList(companion.accs);
+  const found=Object.keys(TREASURES).filter(id=>unlocks.includes(id)).length;
+  const colors=KLECKS_COLORS.filter(k=>!k.special||unlocks.includes(k.id));
+  const tile=(active)=>({background:active?"#fff4c2":"white",border:active?"3px solid #ffb020":"3px solid #eef1f6",borderRadius:18,padding:"6px 4px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2,fontWeight:800,fontSize:12,color:"var(--ink2)",position:"relative"});
+  return(
+    <div style={{minHeight:"100vh",background:"linear-gradient(180deg,#f3edff 0%,#fff 70%)",padding:16}}>
+      <ScreenHeader onBack={onBack} title="Sammlung" color="#5b34c7"/>
+      <div style={{maxWidth:520,margin:"0 auto",display:"flex",flexDirection:"column",gap:14}}>
+        <div style={{display:"flex",background:"#ffffffcc",borderRadius:16,padding:4,gap:4}}>
+          {[["klecks","Klecks"],["sticker","Sticker"],["sterne","Sterne"]].map(([k,t])=>(
+            <button key={k} data-tab={k} onClick={()=>{sfx("tap");setTab(k);}} style={{flex:1,padding:"9px 4px",borderRadius:12,border:"none",fontSize:15,fontWeight:900,cursor:"pointer",background:tab===k?"var(--grape)":"transparent",color:tab===k?"white":"var(--ink2)"}}>{t}</button>
+          ))}
+        </div>
+        {tab==="sticker"&&<StickerBook learnedMap={learnedMap}/>}
+        {tab==="sterne"&&<LetterStars learnedMap={learnedMap} onOpen={onOpen}/>}
+        {tab==="klecks"&&(<>
+          <div className="k-card" style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"18px 12px 12px"}}>
+            <Klecks key={kick} size={140} mood={kick?"cheer":"happy"} anim={kick?"jump":"bob"} onClick={()=>{setKick(k=>k+1);sfx("pop");onSpeak("Hihi! Das kitzelt!");}} title="Klecks"/>
+            <div style={{display:"flex",alignItems:"center",gap:6,fontSize:13,color:"var(--muted)",marginTop:8}}><ChestArt state="open" size={22}/>{found} von {Object.keys(TREASURES).length} Schätzen gefunden</div>
+          </div>
+          <div className="k-card" style={{padding:14}}>
+            <div style={{fontWeight:900,fontSize:16,marginBottom:10}}>Farbe</div>
+            <div style={{display:"flex",gap:10,flexWrap:"wrap",justifyContent:"center"}}>
+              {colors.map(k=>(
+                <button key={k.id} data-color={k.id} aria-label={k.name} onClick={()=>{onChange({...companion,color:k.id});setKick(n=>n+1);sfx("pop");onSpeak(k.name);}}
+                  style={{width:46,height:46,borderRadius:"50%",background:klecksSwatch(k),border:companion.color===k.id?"4px solid var(--ink)":"4px solid white",boxShadow:`0 4px 0 ${k.d}`,cursor:"pointer"}}/>
+              ))}
+            </div>
+          </div>
+          <div className="k-card" style={{padding:14}}>
+            <div style={{fontWeight:900,fontSize:16,marginBottom:10}}>Anziehen</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
+              <button style={tile(!worn.length)} onClick={()=>{onChange({...companion,accs:[]});sfx("tap");}}><Klecks size={40} acc={[]} anim="none"/>Nichts</button>
+              {accs.map(id=>{const have=unlocks.includes(id),on=worn.includes(id);return(
+                <button key={id} data-acc={id} aria-pressed={on} disabled={!have} style={{...tile(on),cursor:have?"pointer":"default"}}
+                  onClick={()=>{if(!have)return;onChange({...companion,accs:toggleAcc(worn,id)});setKick(n=>n+1);sfx(on?"tap":"pop");}}>
+                  {on&&<span style={{position:"absolute",top:4,right:4}}><Icon name="check" size={14} color="#17a06c" stroke={3.4}/></span>}
+                  {have?<Klecks size={40} acc={[id]} anim="none"/>:<div style={{height:50,display:"flex",alignItems:"center"}}><ChestArt state="locked" size={36}/></div>}
+                  {have?TREASURES[id].name:"?"}
+                </button>);})}
+            </div>
+            <div style={{fontSize:12,color:"var(--muted)",marginTop:8}}>Mehrere Sachen gehen zusammen. Hut oder Krone: nur eins passt auf den Kopf.</div>
+          </div>
+          <div className="k-card" style={{padding:14}}>
+            <div style={{fontWeight:900,fontSize:16,marginBottom:10}}>Stifte</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
+              {Object.keys(PENS).map(id=>{const have=penAvailable(id,unlocks);return(
+                <button key={id} disabled={!have} style={{...tile(pen===id),cursor:have?"pointer":"default"}} onClick={()=>{if(have){onPen(id);sfx("tap");}}}>
+                  {have?<span style={{width:32,height:32,borderRadius:"50%",background:PENS[id].swatch,margin:"3px 0"}}/>:<div style={{height:38,display:"flex",alignItems:"center"}}><ChestArt state="locked" size={32}/></div>}
+                  {have?PENS[id].name:"?"}
+                </button>);})}
+            </div>
+          </div>
         </>)}
       </div>
     </div>
@@ -2733,14 +2817,17 @@ export default function App(){
   const [stageMap,setStageMap]=useState(()=>persisted.stageMap||{});
   const [memMap,setMemMap]=useState(()=>persisted.memMap||{});           // Erfolge aus dem Kopf
   const [lastPracticed,setLastPracticed]=useState(()=>persisted.lastPracticed||{});
-  const [unlocks,setUnlocks]=useState(()=>persisted.unlocks||[]);        // gefundene Überraschungen
+  const [unlocks,setUnlocks]=useState(()=>persisted.unlocks||[]);        // gefundene Schätze
+  const [chests,setChests]=useState(()=>persisted.chests||[]);           // geöffnete Truhen
   const [pen,setPen]=useState(()=>persisted.pen||"classic");
   const [daily,setDaily]=useState(()=>persisted.daily||{date:"",letters:[],celebrated:false});
-  const [queue,setQueue]=useState([]);                                   // Überraschungen / Tagesziel
+  const [goalOpen,setGoalOpen]=useState(false);
+  const [chestOpen,setChestOpen]=useState(null);                          // Fundstück der gerade geöffneten Truhe
+  const [lastDone,setLastDone]=useState(null);                            // für Klecks' Sprung auf dem Spielbrett
   const [levelUp,setLevelUp]=useState(null);
-  const [backTo,setBackTo]=useState("menu");
   const [mapWorld,setMapWorld]=useState(startTab);
   const [homeKick,setHomeKick]=useState(0);
+  const [hint,setHint]=useState(null);
   const rs=useResearch();
   // Wartekontrollgruppe der Studie: bis zum Studienende nur geführt und nachfahren
   const allowed=(m)=>!!settings.allowedModes?.[m]&&(!rs.restricted||m==="guided"||m==="trace");
@@ -2759,21 +2846,22 @@ export default function App(){
   useEffect(()=>{setSoundOn(settings.soundEnabled!==false);},[settings.soundEnabled]);
   // Messwerte eines Versuchs an den Forschungsmodus geben (nur bei Teilnahme)
   const studyLog=rs.enrolled?(extra)=>(t)=>logTrial({...t,difficulty:settings.difficulty,restricted:rs.restricted?1:0,...extra}):null;
-  const [gridOpen,setGridOpen]=useState(false);
   const [showParent,setShowParent]=useState(false);
   const [practiceWord,setPracticeWord]=useState(null);
-  const [showUnicorn,setShowUnicorn]=useState(false);
+  const [showRun,setShowRun]=useState(false);
   const [showStarRain,setShowStarRain]=useState(false);
   const [showScreenTime,setShowScreenTime]=useState(false);
   const [journal,setJournal]=useState([]);
   const screenTimerRef=useRef(null);
-  const surpriseTimer=useRef(null);
+  const goalTimer=useRef(null);
+  const hintTimer=useRef(null);
   const {say,sayLetter,sayIt}=useSpeech(settings.speechEnabled);
+  const inst=useInstall();
 
   // Fortschritt automatisch speichern
   useEffect(()=>{
-    savePersisted({learnedMap,totalScore,settings,stageMap,memMap,lastPracticed,companion,unlocks,pen,daily,tab});
-  },[learnedMap,totalScore,settings,stageMap,memMap,lastPracticed,companion,unlocks,pen,daily,tab]);
+    savePersisted({learnedMap,totalScore,settings,stageMap,memMap,lastPracticed,companion,unlocks,chests,pen,daily,tab});
+  },[learnedMap,totalScore,settings,stageMap,memMap,lastPracticed,companion,unlocks,chests,pen,daily,tab]);
 
   // Beim Start aus nativem Speicher wiederherstellen, falls localStorage leer war
   useEffect(()=>{
@@ -2787,6 +2875,7 @@ export default function App(){
       if(data.memMap)setMemMap(data.memMap);
       if(data.lastPracticed)setLastPracticed(data.lastPracticed);
       if(data.unlocks)setUnlocks(data.unlocks);
+      if(data.chests)setChests(data.chests);
       if(data.pen)setPen(data.pen);
       if(data.daily)setDaily(data.daily);
       if(data.companion){setCompanion(normCompanion(data.companion));setScreen(sc=>sc==="hello"?"menu":sc);}
@@ -2797,24 +2886,25 @@ export default function App(){
   // Zurück-Taste: zuerst Fenster schließen, dann eine Ebene zurück
   useEffect(()=>{
     const onBack=(e)=>{
-      if(queue.length){e.preventDefault();setQueue(q=>q.slice(1));return;}
+      if(chestOpen){e.preventDefault();setChestOpen(null);return;}
+      if(goalOpen){e.preventDefault();setGoalOpen(false);return;}
       if(showParent){e.preventDefault();setShowParent(false);return;}
-      if(gridOpen){e.preventDefault();setGridOpen(false);return;}
       if(practiceWord){e.preventDefault();setPracticeWord(null);return;}
-      if(screen==="practice"){e.preventDefault();setScreen(backTo);return;}
+      if(screen==="practice"){e.preventDefault();setScreen("map");return;}
       if(screen!=="menu"&&screen!=="hello"){e.preventDefault();setScreen("menu");return;}
       // sonst: nicht abfangen → Seite darf verlassen werden
     };
     window.addEventListener("app:backbutton",onBack);
     return()=>window.removeEventListener("app:backbutton",onBack);
-  },[queue,showParent,gridOpen,practiceWord,screen,backTo]);
+  },[chestOpen,goalOpen,showParent,practiceWord,screen]);
 
-  const items=tab==="GROß"?UPPERCASE:tab==="klein"?LOWERCASE:NUMBERS;
+  const allLetters=[...UPPERCASE,...LOWERCASE,...NUMBERS];
   const learnedCount=Object.values(learnedMap).filter(v=>v>0).length;
-  const perfectCount=Object.values(learnedMap).filter(v=>v>=5).length;
+  const starsAll=totalStars(learnedMap,allLetters);
   const today=todayKey();
   const todayLetters=daily.date===today?daily.letters:[];
   const dailyCount=todayLetters.length;
+  const fx=settings.rewardVideos!==false&&!reducedMotion();
 
   useEffect(()=>{
     clearTimeout(screenTimerRef.current);
@@ -2828,22 +2918,25 @@ export default function App(){
   // Automatisches Weiterschalten abbrechen, sobald das Kind selbst etwas wählt
   const advanceTimer=useRef(null);
   useEffect(()=>{if(screen!=="practice")clearTimeout(advanceTimer.current);},[screen]);
-  useEffect(()=>()=>{clearTimeout(advanceTimer.current);clearTimeout(surpriseTimer.current);},[]);
+  useEffect(()=>()=>{clearTimeout(advanceTimer.current);clearTimeout(goalTimer.current);clearTimeout(hintTimer.current);},[]);
   const selectLetter=(l)=>{clearTimeout(advanceTimer.current);const m=modeFor(l);setTab(tabOf(l));setLetter(l);setMode(m);setPhase(m==="memory"?"write":"anim");setReplayKey(k=>k+1);sayLetter(l);};
-  const changeTab=(t)=>{setTab(t);selectLetter(nextLetterFor(t,learnedMap,stageMap,memMap));};
-  const openLetter=(l,from="menu")=>{selectLetter(l);setBackTo(from);setGridOpen(false);setScreen("practice");};
+  const openLetter=(l)=>{selectLetter(l);setMapWorld(tabOf(l));setLastDone(null);setScreen("practice");};
   const chooseMode=(m)=>{clearTimeout(advanceTimer.current);sfx("tap");setMode(m);setPhase("write");setReplayKey(k=>k+1);};
-  const step=(d)=>{const path=LEARN_PATH[tabOf(letter)],i=path.indexOf(letter);selectLetter(path[(i+d+path.length)%path.length]);};
-  const goNext=()=>step(1);
+  const openMap=(w)=>{setTab(w);setMapWorld(w);setScreen("map");};
+  // Nach einem Level zurück aufs Spielbrett: Klecks hüpft zum nächsten Stein
+  const goNext=()=>{setMapWorld(tabOf(letter));setScreen("map");};
+  const showHint=(text)=>{setHint(text);sayIt(text);clearTimeout(hintTimer.current);hintTimer.current=setTimeout(()=>setHint(null),3500);};
 
   const handleDone=(s,info={})=>{
     const now=new Date();
-    const newLearned={...learnedMap,[letter]:Math.max(learnedMap[letter]||0,s)};
+    const before=learnedMap[letter]||0;
+    const newLearned={...learnedMap,[letter]:Math.max(before,s)};
     setLearnedMap(newLearned);
     setTotalScore(sc=>sc+s*10);
     setLastPracticed(m=>({...m,[letter]:now.getTime()}));
     setJournal(j=>[...j,{letter,stars:s,mode:info.mode||mode,time:`${now.getHours()}:${String(now.getMinutes()).padStart(2,"0")}`}]);
-    // Lernstufe: ab 4 Sternen geht es zur nächsten Stufe (weniger Hilfe)
+    setLastDone({letter,gain:Math.max(0,stars3(newLearned[letter])-stars3(before))});
+    // Lernstufe: ab 4 Sternen (von 5) geht es zur nächsten Stufe (weniger Hilfe)
     const used=info.mode||mode,cur=stageOf(letter);let next=null,firstFromMemory=false;
     if(s>=4){
       if(used==="memory"){firstFromMemory=!((memMap[letter]||0)>0);setMemMap(m=>({...m,[letter]:(m[letter]||0)+1}));}
@@ -2856,56 +2949,61 @@ export default function App(){
       }
     }
     // Effekte nur bei echtem Lernfortschritt — nie zufällig
-    const fx=settings.rewardVideos!==false&&!reducedMotion();
-    if(fx&&firstFromMemory)setTimeout(()=>setShowUnicorn(true),1200);
+    if(fx&&firstFromMemory)setTimeout(()=>setShowRun(true),1200);
     else if(fx&&next)setTimeout(()=>setShowStarRain(true),900);
     // Tagesziel: verschiedene Zeichen heute
     const base=daily.date===today?daily:{date:today,letters:[],celebrated:false};
-    let goalHit=false;
     if(!base.letters.includes(letter)){
       const nd={...base,letters:[...base.letters,letter]};
-      if(nd.letters.length>=DAILY_GOAL&&!nd.celebrated){nd.celebrated=true;goalHit=true;}
+      if(nd.letters.length>=DAILY_GOAL&&!nd.celebrated){
+        nd.celebrated=true;
+        clearTimeout(goalTimer.current);goalTimer.current=setTimeout(()=>{setGoalOpen(true);sfx("unlock");},2600);
+      }
       setDaily(nd);
     }
-    // Überraschungen: gefunden, sobald genug Zeichen gut sitzen (vorher nicht angekündigt)
-    const good=Object.values(newLearned).filter(v=>v>=4).length;
-    const fresh=SURPRISES.filter(x=>good>=x.at&&!unlocks.includes(x.id));
-    const show=[];
-    if(fresh.length){
-      setUnlocks(u=>[...u,...fresh.map(f=>f.id).filter(id=>!u.includes(id))]);
-      if(settings.rewardVideos!==false)show.push(...fresh.map(f=>({type:"unlock",s:f})));
-    }
-    if(goalHit)show.push({type:"goal"});
-    if(show.length){
-      clearTimeout(surpriseTimer.current);
-      surpriseTimer.current=setTimeout(()=>{setQueue(q=>[...q,...show]);sfx("unlock");},2600);
-    }
     if(settings.autoAdvance){
-      // Weiter auf dem Lernweg (ähnliche Bewegungen zusammen, b/d getrennt)
-      advanceTimer.current=setTimeout(goNext,next?5200:3800);
+      // Elternoption: direkt weiter zum nächsten Buchstaben auf dem Lernweg
+      const path=LEARN_PATH[tabOf(letter)],i=path.indexOf(letter);
+      advanceTimer.current=setTimeout(()=>selectLetter(path[(i+1)%path.length]),next?5200:3800);
     }
   };
 
-  const settingsWithData={...settings,learnedMap,totalScore,stageMap,memMap,unlocks};
+  const openChest=(w,i)=>{
+    const reward=CHESTS[w][i].reward;
+    setChests(c=>c.includes(chestId(w,i))?c:[...c,chestId(w,i)]);
+    setUnlocks(u=>u.includes(reward)?u:[...u,reward]);
+    setChestOpen(reward);
+  };
+  const applyTreasure=(id)=>{
+    const t=TREASURES[id];sfx("pop");
+    if(t.kind==="acc")setCompanion(c=>({...(c||comp),accs:wearAcc((c||comp).accs,id)}));
+    else if(t.kind==="color")setCompanion(c=>({...(c||comp),color:id}));
+    else setPen(id);
+    setChestOpen(null);
+  };
+
+  const settingsWithData={...settings,learnedMap,totalScore,stageMap,memMap,unlocks,chests};
   // Lerndaten nicht in die Einstellungen übernehmen
-  const updateSettings=({learnedMap:_l,totalScore:_t,stageMap:_s,memMap:_m,unlocks:_u,...rest})=>setSettings(rest);
+  const updateSettings=({learnedMap:_l,totalScore:_t,stageMap:_s,memMap:_m,unlocks:_u,chests:_c,...rest})=>setSettings(rest);
   // Verteiltes Üben: Buchstaben, die vor mehr als einem Tag geübt wurden
   const due=Object.keys(lastPracticed)
     .filter(l=>(learnedMap[l]||0)>0&&Date.now()-lastPracticed[l]>REVIEW_AFTER_MS)
     .sort((a,b)=>lastPracticed[a]-lastPracticed[b]).slice(0,6);
 
   const comp=companion||{color:"lila",accs:[]};
-  const inst=useInstall();
-  const closeSurprise=()=>setQueue(q=>q.slice(1));
   const wrap=(el)=>(
     <CompanionCtx.Provider value={comp}>
       {el}
-      {queue[0]&&screen!=="probe"&&(
-        <SurpriseModal key={queue.length} item={queue[0]} effects={settings.rewardVideos!==false&&!reducedMotion()}
-          onUse={(x)=>{sfx("pop");if(x.kind==="acc")setCompanion(c=>({...(c||comp),accs:wearAcc((c||comp).accs,x.id)}));else setPen(x.id);closeSurprise();}}
-          onClose={closeSurprise} onHome={()=>{closeSurprise();setScreen("menu");}}/>
+      {chestOpen&&<ChestModal key={chestOpen} reward={chestOpen} effects={fx} onUse={applyTreasure} onClose={()=>setChestOpen(null)}/>}
+      {goalOpen&&screen!=="probe"&&<GoalModal effects={fx} onHome={()=>{setGoalOpen(false);setScreen("menu");}} onMore={()=>setGoalOpen(false)}/>}
+      {hint&&(
+        <div style={{position:"fixed",left:0,right:0,bottom:96,display:"flex",justifyContent:"center",zIndex:1500,pointerEvents:"none",padding:"0 16px"}}>
+          <div role="status" style={{background:"white",borderRadius:18,padding:"10px 16px",fontSize:15,fontWeight:800,color:"var(--ink2)",boxShadow:"0 5px 0 #0f172a14,0 12px 28px #0f172a24",animation:"popIn 0.3s ease-out",maxWidth:420,display:"flex",alignItems:"center",gap:10}}>
+            <Klecks size={36} mood="think" anim="none"/>{hint}
+          </div>
+        </div>
       )}
-      {showUnicorn&&<UnicornRun onDone={()=>setShowUnicorn(false)}/>}
+      {showRun&&<KlecksRun onDone={()=>setShowRun(false)}/>}
       {showStarRain&&<StarRain onDone={()=>setShowStarRain(false)}/>}
       {showParent&&<ParentZone settings={settingsWithData} onChange={updateSettings} onStartProbe={()=>{setShowParent(false);setScreen("probe");}} onClose={()=>setShowParent(false)} journal={journal}/>}
     </CompanionCtx.Provider>
@@ -2917,68 +3015,60 @@ export default function App(){
   // ── STARTSEITE ──
   if(screen==="menu"){
     const next=nextLetterFor(tab,learnedMap,stageMap,memMap);
-    const an=anlautOf(next);
     const hour=new Date().getHours();
     const hello=hour<11?"Guten Morgen!":hour>=17?"Guten Abend!":"Hallo!";
     const goalDone=dailyCount>=DAILY_GOAL;
-    const greet=goalDone?`${hello} Heute hast du schon fleißig geübt! 🌟`
-      :learnedCount===0?`${hello} Ich bin Klecks. Wollen wir zusammen schreiben?`
+    const greet=goalDone?`${hello} Heute hast du schon fleißig geübt!`
+      :learnedCount===0?`${hello} Komm, wir sammeln Buchstaben!`
       :due.length?`${hello} Magst du ein paar alte Bekannte wiederholen?`
       :`${hello} Heute ist ${sayName(next)} dran!`;
-    const link={background:"#ffffffb3",border:"none",borderRadius:14,padding:"8px 14px",color:"var(--ink2)",fontSize:13,fontWeight:800,cursor:"pointer"};
+    const link={background:"none",border:"none",padding:"8px 10px",color:"#46607a",fontSize:13,fontWeight:800,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:5};
+    const soundOn=settings.soundEnabled!==false;
     return wrap(
       <div style={{minHeight:"100vh",background:"linear-gradient(180deg,#8fd8ff 0%,#c9efff 34%,#fff6dc 100%)",position:"relative"}}>
         <SkyDecor/>
-        <div style={{position:"relative",zIndex:1,maxWidth:480,margin:"0 auto",padding:"12px 16px 120px",display:"flex",flexDirection:"column",gap:14}}>
+        <div style={{position:"relative",zIndex:1,maxWidth:480,margin:"0 auto",padding:"12px 16px 120px",display:"flex",flexDirection:"column",gap:16}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <div style={{flex:1,fontSize:21,fontWeight:900,color:"#0b4f7a",letterSpacing:0.2}}>✏️ Schreib & Lern</div>
-            <RoundBtn aria-label={settings.speechEnabled?"Vorlesen ausschalten":"Vorlesen einschalten"} bg={settings.speechEnabled?"var(--sun)":"white"} sh={settings.speechEnabled?"var(--sunD)":"#d5dbe7"}
-              onClick={()=>{const n=!settings.speechEnabled;setSettings(s=>({...s,speechEnabled:n}));if(n)setTimeout(()=>speak("Vorlesen ist an!"),100);}}>{settings.speechEnabled?"🔊":"🔇"}</RoundBtn>
-            <RoundBtn aria-label={settings.soundEnabled!==false?"Töne ausschalten":"Töne einschalten"} bg={settings.soundEnabled!==false?"var(--sun)":"white"} sh={settings.soundEnabled!==false?"var(--sunD)":"#d5dbe7"}
-              onClick={()=>{const n=settings.soundEnabled===false;setSettings(s=>({...s,soundEnabled:n}));setSoundOn(n);if(n)sfx("pop");}}>{settings.soundEnabled!==false?"🎵":"🔕"}</RoundBtn>
+            <StarCount n={starsAll}/>
+            <div style={{flex:1}}/>
+            <RoundBtn aria-label={settings.speechEnabled?"Vorlesen ausschalten":"Vorlesen einschalten"} color={settings.speechEnabled?"#3b5bdb":"#9aa3b5"}
+              onClick={()=>{const n=!settings.speechEnabled;setSettings(s=>({...s,speechEnabled:n}));if(n)setTimeout(()=>speak("Vorlesen ist an!"),100);}}><Icon name={settings.speechEnabled?"speaker":"speakerOff"} size={22}/></RoundBtn>
+            <RoundBtn aria-label={soundOn?"Töne ausschalten":"Töne einschalten"} color={soundOn?"#3b5bdb":"#9aa3b5"}
+              onClick={()=>{const n=!soundOn;setSettings(s=>({...s,soundEnabled:n}));setSoundOn(n);if(n)sfx("pop");}}><Icon name={soundOn?"music":"musicOff"} size={22}/></RoundBtn>
           </div>
 
-          <div style={{display:"flex",alignItems:"center",gap:12}}>
-            <Klecks key={homeKick} size={100} mood={goalDone||homeKick?"cheer":"happy"} anim={homeKick?"jump":"bob"} title="Klecks"
+          <div style={{display:"flex",alignItems:"center",gap:12,marginTop:4}}>
+            <Klecks key={homeKick} size={110} mood={goalDone||homeKick?"cheer":"happy"} anim={homeKick?"jump":"bob"} title="Klecks"
               onClick={()=>{setHomeKick(k=>k+1);sfx("pop");sayIt(greet);}}/>
-            <div className="k-bubble" style={{"--bb":"#ffffff","--bg":"#ffffff",flex:1,background:"white",borderRadius:20,padding:"12px 14px",fontSize:17,fontWeight:800,lineHeight:1.3,boxShadow:"0 4px 0 #0f172a12"}}>{greet}</div>
+            <div style={{flex:1,display:"flex",flexDirection:"column",gap:10,alignItems:"flex-start"}}>
+              <div className="k-bubble" style={{"--bb":"#ffffff","--bg":"#ffffff",background:"white",borderRadius:20,padding:"12px 14px",fontSize:18,fontWeight:800,lineHeight:1.3,boxShadow:"0 4px 0 #0f172a12"}}>{greet}</div>
+              <DailyDots count={dailyCount}/>
+            </div>
           </div>
 
-          <button data-k="go" className="k-press" onClick={()=>{sfx("pop");openLetter(next,"menu");}}
-            style={{"--sh":"var(--coralD)",background:"linear-gradient(135deg,#ff9271,#ff6a4d)",borderRadius:26,padding:"14px 16px",display:"flex",alignItems:"center",gap:14,color:"white",textAlign:"left"}}>
-            <div style={{width:76,height:76,borderRadius:20,background:"white",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-              <Glyph letter={next} height={58} weight={3.4} color="var(--coralD)" fit/>
+          <button data-k="go" className="k-press" onClick={()=>{sfx("pop");openLetter(next);}}
+            style={{"--sh":"var(--coralD)",background:"linear-gradient(135deg,#ff9271,#ff6a4d)",borderRadius:28,padding:"16px 18px",display:"flex",alignItems:"center",gap:16,color:"white",textAlign:"left"}}>
+            <div style={{width:64,height:64,borderRadius:"50%",background:"white",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              <Icon name="play" size={34} color="var(--coral)" style={{marginLeft:4}}/>
             </div>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:26,fontWeight:900,lineHeight:1.05}}>✏️ Schreiben</div>
-              <div style={{fontSize:15,fontWeight:800,opacity:0.95,marginTop:4}}>{learnedCount?"Weiter mit":"Los geht's mit"} {an?`${an[0]} ${an[1]}`:`${ANIMALS[next]||""} ${next}`}</div>
+            <div style={{flex:1,fontSize:30,fontWeight:900,lineHeight:1}}>Spielen</div>
+            <div style={{width:58,height:58,borderRadius:16,background:"#ffffff33",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              <Glyph letter={next} height={44} weight={3.4} color="white" fit/>
             </div>
-            <div style={{fontSize:30,fontWeight:900}}>➜</div>
           </button>
-
-          <div className="k-card" style={{display:"flex",alignItems:"center",gap:14,padding:"12px 14px"}}>
-            <DailyRing count={dailyCount}/>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:17,fontWeight:900}}>{goalDone?"Tagesziel geschafft! 🌟":"Heute"}</div>
-              <div style={{fontSize:14,color:"var(--ink2)"}}>{goalDone?"Jetzt darfst du Pause machen.":`${dailyCount} von ${DAILY_GOAL} Zeichen geschrieben`}</div>
-            </div>
-            <div style={{display:"flex",gap:4,flexShrink:0}}>
-              {!goalDone&&todayLetters.slice(-3).map(l=><div key={l} style={{background:"#f4f5f8",borderRadius:10,padding:"3px 5px"}}><Glyph letter={l} height={26} weight={2.6} fit/></div>)}
-            </div>
-          </div>
 
           {rs.enrolled&&rs.dueWave!=null&&(
             <Btn bg="linear-gradient(135deg,#14b8a6,#0f766e)" sh="#0b5e57" style={{fontSize:17,padding:"14px 16px",borderRadius:22,animation:"glowPulse 2s infinite"}} onClick={()=>setScreen("probe")}>
-              🔬 Kleiner Schreibtest
+              Kleiner Schreibtest
             </Btn>
           )}
 
           {due.length>0&&(
             <div className="k-card" style={{padding:"12px 14px",animation:"slideUp 0.4s ease-out"}}>
-              <div style={{fontSize:16,fontWeight:900,marginBottom:8}}>🔁 Heute wiederholen</div>
+              <div style={{display:"flex",alignItems:"center",gap:8,fontSize:16,fontWeight:900,marginBottom:8}}><Icon name="redo" size={18} color="#3b5bdb"/>Heute wiederholen</div>
               <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                 {due.map(l=>(
-                  <button key={l} data-letter={l} className="k-press" onClick={()=>openLetter(l,"menu")} style={{background:"#eef4ff","--sh":"#c9d6f2",borderRadius:14,padding:"5px 8px"}}>
+                  <button key={l} data-letter={l} className="k-press" onClick={()=>openLetter(l)} style={{background:"#eef4ff","--sh":"#c9d6f2",borderRadius:14,padding:"5px 8px"}}>
                     <Glyph letter={l} height={36} weight={2.8} color="var(--ink)"/>
                   </button>
                 ))}
@@ -2986,44 +3076,33 @@ export default function App(){
             </div>
           )}
 
-          <div>
-            <div style={{fontSize:17,fontWeight:900,color:"#0b4f7a",margin:"2px 4px 8px"}}>🗺️ Meine Welten</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
-              {Object.values(WORLDS).map(w=>{
-                const path=LEARN_PATH[w.key],done=path.filter(l=>(learnedMap[l]||0)>0).length;
-                const crowns=path.filter(l=>masteryOf(l,learnedMap,stageMap,memMap)>=4).length;
-                return(
-                  <button key={w.key} data-world={w.key} className="k-press" onClick={()=>{sfx("tap");setTab(w.key);setMapWorld(w.key);setScreen("map");}}
-                    style={{background:`linear-gradient(180deg,${w.soft},#ffffff)`,"--sh":w.dark,border:`3px solid ${w.acc}`,borderRadius:22,padding:"10px 6px 8px",display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
-                    <div style={{fontSize:36,lineHeight:1}}>{w.emoji}</div>
-                    <div style={{fontSize:21,fontWeight:900,color:w.dark,lineHeight:1.1}}>{w.short}</div>
-                    <div style={{fontSize:11,fontWeight:800,color:"var(--ink2)",lineHeight:1.1,minHeight:24}}>{w.name}</div>
-                    <div style={{width:"100%",height:8,background:"white",borderRadius:6,overflow:"hidden",border:`1.5px solid ${w.acc}66`}}>
-                      <div style={{width:`${done/path.length*100}%`,height:"100%",background:w.acc,transition:"width .5s"}}/>
-                    </div>
-                    <div style={{fontSize:11,fontWeight:900,color:w.dark}}>{done}/{path.length}{crowns?` · ${crowns}👑`:""}</div>
-                  </button>
-                );
-              })}
-            </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+            {Object.values(WORLDS).map(w=>{
+              const path=LEARN_PATH[w.key];
+              return(
+                <button key={w.key} data-world={w.key} className="k-press" onClick={()=>{sfx("tap");openMap(w.key);}}
+                  style={{background:"white","--sh":w.dark,border:`3px solid ${tab===w.key?w.acc:"white"}`,borderRadius:22,padding:"10px 4px 8px",display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                  <WorldArt world={w.key} size={70}/>
+                  <div style={{fontSize:20,fontWeight:900,color:w.dark,lineHeight:1}}>{w.short}</div>
+                  <div style={{display:"flex",alignItems:"center",gap:3,fontSize:13,fontWeight:900,color:"var(--ink2)"}}><Star size={15}/>{totalStars(learnedMap,path)}</div>
+                </button>
+              );
+            })}
           </div>
 
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
-            {[{k:"words",e:"📖",t:"Wörter",bg:"var(--sun)",sh:"var(--sunD)",c:"#5a3a00"},
-              {k:"progress",e:"🌻",t:"Garten",bg:"var(--mint)",sh:"var(--mintD)"},
-              {k:"stickers",e:"🎀",t:"Sticker",bg:"var(--pink)",sh:"var(--pinkD)"},
-              {k:"klecks",e:"🎨",t:"Klecks",bg:"var(--grape)",sh:"var(--grapeD)"}].map(b=>(
-              <Btn key={b.k} data-nav={b.k} bg={b.bg} sh={b.sh} color={b.c||"white"} onClick={()=>{sfx("tap");setScreen(b.k);}}
-                style={{padding:"10px 2px",borderRadius:20,display:"flex",flexDirection:"column",alignItems:"center",gap:2,fontSize:13}}>
-                <span style={{fontSize:28,lineHeight:1.1}}>{b.e}</span>{b.t}
-              </Btn>
-            ))}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <Btn data-nav="words" bg="var(--sun)" sh="var(--sunD)" color="#5a3a00" onClick={()=>{sfx("tap");setScreen("words");}} style={{padding:"14px 8px",borderRadius:20,fontSize:17}}>
+              <Icon name="book" size={24} stroke={2.8}/>Wörter
+            </Btn>
+            <Btn data-nav="collection" bg="var(--grape)" sh="var(--grapeD)" onClick={()=>{sfx("tap");setScreen("collection");}} style={{padding:"14px 8px",borderRadius:20,fontSize:17}}>
+              <Icon name="chest" size={24} stroke={2.8}/>Sammlung
+            </Btn>
           </div>
 
-          <div style={{display:"flex",gap:8,justifyContent:"center",marginTop:4,flexWrap:"wrap"}}>
-            <button onClick={()=>setShowParent(true)} style={link}>👨‍👩‍👧 Eltern</button>
-            <button onClick={()=>setScreen("impressum")} style={link}>📄 Impressum</button>
-            {inst.canPrompt&&!inst.standalone&&<button data-k="install" onClick={()=>inst.prompt()} style={link}>📲 Installieren</button>}
+          <div style={{display:"flex",gap:4,justifyContent:"center",marginTop:4,flexWrap:"wrap"}}>
+            <button data-k="parents" onClick={()=>setShowParent(true)} style={link}><Icon name="lock" size={15}/>Für Eltern</button>
+            <button onClick={()=>setScreen("impressum")} style={link}>Impressum</button>
+            {inst.canPrompt&&!inst.standalone&&<button data-k="install" onClick={()=>inst.prompt()} style={link}><Icon name="install" size={15}/>Installieren</button>}
           </div>
         </div>
       </div>
@@ -3040,13 +3119,21 @@ export default function App(){
       onFinish={()=>{markWaveDone(wave);setScreen("menu");}} onExit={()=>setScreen("menu")}/>);
   }
 
-  if(screen==="map") return wrap(
-    <WorldMap world={WORLDS[mapWorld]} learnedMap={learnedMap} stageMap={stageMap} memMap={memMap}
-      next={nextLetterFor(mapWorld,learnedMap,stageMap,memMap)} onOpen={(l)=>openLetter(l,"map")} onBack={()=>setScreen("menu")}/>
-  );
+  if(screen==="map"){
+    const next=nextLetterFor(mapWorld,learnedMap,stageMap,memMap);
+    const from=lastDone&&tabOf(lastDone.letter)===mapWorld?lastDone.letter:null;
+    return wrap(
+      <WorldMap key={mapWorld+(lastDone?lastDone.letter:"")} world={WORLDS[mapWorld]} learnedMap={learnedMap} stageMap={stageMap} memMap={memMap}
+        next={next} opened={chests} from={from} gain={from?lastDone.gain:0}
+        onOpen={(l)=>openLetter(l)} onPlay={()=>openLetter(next)}
+        onChest={(i)=>openChest(mapWorld,i)} onLockedChest={()=>showHint("Die Truhe geht auf, wenn alle Buchstaben davor zwei Sterne haben.")}
+        onBack={()=>{setLastDone(null);setScreen("menu");}}/>
+    );
+  }
 
-  if(screen==="klecks") return wrap(
-    <KlecksRoom companion={comp} onChange={setCompanion} unlocks={unlocks} pen={pen} onPen={setPen} onSpeak={sayIt} onBack={()=>setScreen("menu")}/>
+  if(screen==="collection") return wrap(
+    <Collection companion={comp} onChange={setCompanion} unlocks={unlocks} pen={pen} onPen={setPen} learnedMap={learnedMap}
+      onOpen={(l)=>openLetter(l)} onSpeak={sayIt} onBack={()=>setScreen("menu")}/>
   );
 
   if(screen==="words"){
@@ -3057,86 +3144,55 @@ export default function App(){
     );
     return wrap(
       <div style={{minHeight:"100vh",background:WORD_THEME.bg,padding:16}}>
-        <ScreenHeader title="📖 Meine Wörter" color="#78350f" onBack={()=>setScreen("menu")}/>
+        <ScreenHeader title="Meine Wörter" color="#78350f" onBack={()=>setScreen("menu")}/>
         <WordsPanel learnedMap={learnedMap} onPractice={w=>setPracticeWord(w)}/>
       </div>
     );
   }
 
-  if(screen==="progress") return wrap(
-    <div style={{minHeight:"100vh",background:"linear-gradient(180deg,#d9f7e4 0%,#ffffff 70%)",padding:16}}>
-      <ScreenHeader title="🌻 Mein Garten" color="#166534" onBack={()=>setScreen("menu")}/>
-      <div style={{display:"flex",flexDirection:"column",gap:12,maxWidth:560,margin:"0 auto"}}>
-        {["GROß","klein","Zahlen"].map(t=><FlowerGarden key={t} learnedMap={learnedMap} tab={t}/>)}
-      </div>
-    </div>
-  );
-
-  if(screen==="stickers") return wrap(
-    <div style={{minHeight:"100vh",background:"linear-gradient(180deg,#ffe3f1 0%,#ffffff 70%)",padding:16}}>
-      <ScreenHeader title="🎀 Sticker-Album" color="#9d174d" onBack={()=>setScreen("menu")}/>
-      <StickerBook learnedMap={learnedMap}/>
-    </div>
-  );
-
-  // ── ÜBEN ──
+  // ── LEVEL: einen Buchstaben schreiben ──
   const world=WORLDS[tab];
-  const pill=(active,c)=>({position:"relative",padding:"7px 11px",borderRadius:14,background:active?c:"white",color:active?"white":c,border:`2px solid ${c}`,fontWeight:900,fontSize:13,"--sh":active?"#00000033":"#dfe4ee"});
+  const steps=Object.keys(MODES).filter(allowed);
+  const usePen=penAvailable(pen,unlocks)?pen:"classic";
   return wrap(
     <ThemeCtx.Provider value={world}>
-    <div style={{minHeight:"100vh",background:world.bg,display:"flex",flexDirection:"column",alignItems:"center",padding:"10px 10px 18px",gap:10}}>
-      <div style={{width:"100%",maxWidth:560,display:"flex",alignItems:"center",gap:7}}>
-        <RoundBtn onClick={()=>setScreen(backTo)} aria-label="Zurück">←</RoundBtn>
-        <RoundBtn size={34} onClick={()=>step(-1)} aria-label="Vorheriges Zeichen">‹</RoundBtn>
+    <div style={{minHeight:"100vh",background:world.bg,display:"flex",flexDirection:"column",alignItems:"center",padding:"10px 10px 18px",gap:12}}>
+      <div style={{width:"100%",maxWidth:560,display:"flex",alignItems:"center",gap:8}}>
+        <RoundBtn onClick={()=>setScreen("map")} aria-label="Zurück zum Spielbrett"><Icon name="back" size={24} stroke={3}/></RoundBtn>
         <button className="k-press" onClick={()=>sayLetter(letter)} aria-label={`${letter} vorlesen`}
           style={{background:world.acc,"--sh":world.dark,borderRadius:16,width:56,height:56,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0}}>
           <Glyph letter={letter} height={42} weight={3.4} color="white" fit/>
         </button>
-        <RoundBtn size={34} data-k="nextletter" onClick={()=>step(1)} aria-label="Nächstes Zeichen">›</RoundBtn>
         <div style={{flex:1,minWidth:0,display:"flex"}}><AnlautChip letter={letter} onSay={()=>sayLetter(letter)}/></div>
-        <DailyRing count={dailyCount} size={42}/>
+        <RoundBtn data-k="show" aria-label="Vorführen" color={phase==="anim"?"white":world.dark} bg={phase==="anim"?world.acc:"white"} sh={phase==="anim"?world.dark:"#d5dbe7"}
+          onClick={()=>{clearTimeout(advanceTimer.current);sfx("tap");setPhase("anim");setReplayKey(k=>k+1);}}><Icon name="play" size={22} color="currentColor" style={{marginLeft:2}}/></RoundBtn>
       </div>
 
-      <div className="k-card" style={{width:"100%",maxWidth:560,borderRadius:20,overflow:"hidden"}}>
-        <div style={{display:"flex",alignItems:"center",gap:6,padding:6}}>
-          <div style={{display:"flex",background:"#f1f3f8",borderRadius:14,padding:3,gap:2}}>
-            {Object.values(WORLDS).map(w=>(
-              <button key={w.key} data-tab={w.key} onClick={()=>{sfx("tap");changeTab(w.key);setGridOpen(true);}}
-                style={{padding:"6px 10px",borderRadius:11,border:"none",fontSize:14,fontWeight:900,cursor:"pointer",background:tab===w.key?w.acc:"transparent",color:tab===w.key?"white":"var(--ink2)"}}>{w.short}</button>
-            ))}
-          </div>
-          <button data-k="grid" onClick={()=>setGridOpen(g=>!g)} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"flex-end",gap:6,background:"none",border:"none",cursor:"pointer",fontSize:14,fontWeight:900,color:"var(--ink2)",padding:"6px 2px"}}>
-            {tab==="Zahlen"?"Zahl wählen":"Buchstabe wählen"} <span style={{display:"inline-block",transition:"transform 0.2s",transform:gridOpen?"rotate(180deg)":"none"}}>▾</span>
-          </button>
-          <RoundBtn size={34} onClick={()=>setShowParent(true)} aria-label="Elternbereich">👪</RoundBtn>
-        </div>
-        {gridOpen&&(
-          <div style={{padding:"2px 8px 12px"}}>
-            <LetterGrid items={items} learnedMap={learnedMap} onSelect={(l)=>{sfx("tap");selectLetter(l);setGridOpen(false);}} current={letter}/>
-          </div>
-        )}
-      </div>
-
-      {/* Lernweg: Vorführen, dann Hilfe Schritt für Schritt abbauen */}
-      <div style={{display:"flex",gap:7,flexWrap:"wrap",justifyContent:"center"}}>
-        <button className="k-press" style={pill(phase==="anim","#f97316")} onClick={()=>{clearTimeout(advanceTimer.current);sfx("tap");setPhase("anim");setReplayKey(k=>k+1);}}>▶ Zeigen</button>
-        {Object.entries(MODES).filter(([m])=>allowed(m)).map(([m,{label,color}])=>{
+      {/* Lernweg als Stufen: Hilfe wird Schritt für Schritt weniger */}
+      <div style={{display:"flex",alignItems:"center",gap:0,background:"#ffffffb3",borderRadius:30,padding:"6px 8px"}}>
+        {steps.map((m,i)=>{
           const active=phase==="write"&&mode===m;
           const recommended=m===modeFor(letter);
           const passed=MODE_STAGE[m]<stageOf(letter)||(m==="memory"&&(memMap[letter]||0)>0);
+          const c=MODES[m].color;
           return(
-            <button key={m} data-mode={m} className="k-press" onClick={()=>chooseMode(m)} style={pill(active,color)}>
-              {passed?"✓ ":""}{label}
-              {recommended&&!passed&&<span aria-label="empfohlen" style={{position:"absolute",top:-10,right:-7,fontSize:15}}>⭐</span>}
-            </button>
+            <div key={m} style={{display:"flex",alignItems:"center"}}>
+              {i>0&&<div style={{width:16,height:4,borderRadius:2,background:passed||active?c+"88":"#dfe4ee"}}/>}
+              <button data-mode={m} aria-label={MODES[m].label.replace(/^\S+\s/,"")} aria-pressed={active} className="k-press" onClick={()=>chooseMode(m)}
+                style={{position:"relative",width:46,height:46,borderRadius:"50%",background:active?c:"white",border:`3px solid ${active||passed||recommended?c:"#dfe4ee"}`,"--sh":active?"#00000033":"#dfe4ee",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>
+                <Icon name={{guided:"hand",trace:"pencil",copy:"eye",memory:"bulb"}[m]} size={24} color={active?"white":c} stroke={2.4}/>
+                {passed&&!active&&<span style={{position:"absolute",right:-5,top:-5,width:20,height:20,borderRadius:"50%",background:"var(--mint)",border:"2px solid white",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="check" size={12} color="white" stroke={4}/></span>}
+                {recommended&&!passed&&!active&&<span style={{position:"absolute",right:-7,top:-8}}><Star size={20}/></span>}
+              </button>
+            </div>
           );
         })}
       </div>
 
       {levelUp&&levelUp.letter===letter&&(
         <div style={{position:"fixed",top:12,left:0,right:0,display:"flex",justifyContent:"center",zIndex:1500,pointerEvents:"none",padding:"0 12px"}}>
-          <div role="status" style={{background:"linear-gradient(135deg,#fff4c2,#ffe08a)",borderRadius:18,padding:"10px 16px",textAlign:"center",fontSize:16,fontWeight:900,color:"#6b4400",border:"3px solid #ffc93c",boxShadow:"0 6px 0 #dea00055, 0 12px 30px #0002",animation:"popIn 0.4s ease-out",maxWidth:520}}>
-            🎉 Neue Stufe! {STAGE_NEXT_TEXT[levelUp.stage]}
+          <div role="status" style={{background:"linear-gradient(135deg,#fff4c2,#ffe08a)",borderRadius:18,padding:"10px 16px",textAlign:"center",fontSize:16,fontWeight:900,color:"#6b4400",border:"3px solid #ffc93c",boxShadow:"0 6px 0 #dea00055, 0 12px 30px #0002",animation:"popIn 0.4s ease-out",maxWidth:520,display:"flex",alignItems:"center",gap:8}}>
+            <Star size={24}/>Neue Stufe! {STAGE_NEXT_TEXT[levelUp.stage]}
           </div>
         </div>
       )}
@@ -3147,13 +3203,13 @@ export default function App(){
           ?<AnimCanvas key={`anim-${letter}-${replayKey}`} letter={letter} onDone={()=>setPhase("write")} scale={fs}/>
           :mode==="guided"
             ?<GuidedCanvas key={`guided-${letter}-${replayKey}`} letter={letter} onComplete={handleDone} onNext={goNext} onSpeak={sayIt} scale={fs}
-               pen={penAvailable(pen,unlocks)?pen:"classic"} tools={<PenPicker pen={penAvailable(pen,unlocks)?pen:"classic"} unlocks={unlocks} onPick={setPen}/>}
+               pen={usePen} tools={<PenPicker pen={usePen} unlocks={unlocks} onPick={setPen}/>}
                onTrial={studyLog&&studyLog({kind:"practice",ch:letter,stage:stageOf(letter)})}/>
             :<TraceCanvas key={`trace-${letter}-${mode}-${replayKey}`} letter={letter} onComplete={handleDone} onNext={goNext}
-               difficulty={settings.difficulty} mode={mode} pen={penAvailable(pen,unlocks)?pen:"classic"}
+               difficulty={settings.difficulty} mode={mode} pen={usePen}
                memoryDelay={MEMORY_DELAYS[Math.min(memMap[letter]||0,MEMORY_DELAYS.length-1)]}
                lefthanded={!!settings.lefthanded} highContrast={!!settings.highContrast} hapticsEnabled={settings.hapticsEnabled!==false}
-               tools={<PenPicker pen={penAvailable(pen,unlocks)?pen:"classic"} unlocks={unlocks} onPick={setPen}/>}
+               tools={<PenPicker pen={usePen} unlocks={unlocks} onPick={setPen}/>}
                onSpeak={sayIt} scale={fs} onTrial={studyLog&&studyLog({kind:"practice",ch:letter,stage:stageOf(letter)})}/>
         }
       </div>
@@ -3166,10 +3222,15 @@ export default function App(){
 
 // Himmel der Startseite: zwei ziehende Wolken und grüne Hügel
 function SkyDecor(){
+  const cloud=(w)=>(
+    <svg width={w} height={w*0.55} viewBox="0 0 100 55" aria-hidden="true">
+      <path d="M22 50a18 18 0 0 1 2-36 24 24 0 0 1 44-4 16 16 0 0 1 12 30 12 12 0 0 1-2 10z" fill="white" opacity="0.9"/>
+    </svg>
+  );
   return(
     <div aria-hidden="true" style={{position:"fixed",inset:0,overflow:"hidden",pointerEvents:"none",zIndex:0}}>
-      <div style={{position:"absolute",top:64,left:0,fontSize:64,opacity:0.9,animation:"kCloud 70s linear infinite"}}>☁️</div>
-      <div style={{position:"absolute",top:200,left:0,fontSize:42,opacity:0.75,animation:"kCloud 95s linear -45s infinite"}}>☁️</div>
+      <div style={{position:"absolute",top:70,left:0,animation:"kCloud 70s linear infinite"}}>{cloud(110)}</div>
+      <div style={{position:"absolute",top:230,left:0,animation:"kCloud 95s linear -45s infinite"}}>{cloud(76)}</div>
       <svg viewBox="0 0 400 120" preserveAspectRatio="none" style={{position:"absolute",left:0,bottom:0,width:"100%",height:110}}>
         <path d="M0 70 Q80 22 170 58 T400 48 V120 H0Z" fill="#b5ecaa"/>
         <path d="M0 96 Q110 58 220 90 T400 84 V120 H0Z" fill="#86d97f"/>
@@ -3271,7 +3332,7 @@ function ImpressumScreen({onBack}){
             </p>
 
             <h3 style={s.h3}>2. Speicherung auf deinem Gerät</h3>
-            <p style={s.p}>Diese App speichert <strong>keine personenbezogenen Daten</strong> auf externen Servern. Lernfortschritte (Sterne, gelernte Buchstaben, Punkte, Tagesziel, gefundene Überraschungen), die gewählte Farbe von Klecks und die Einstellungen aus dem Elternbereich werden ausschließlich lokal im Speicher deines Browsers (localStorage) auf diesem Gerät abgelegt und nicht übertragen. Du kannst sie jederzeit im Elternbereich über „Fortschritt zurücksetzen" oder durch Löschen der Browserdaten entfernen.</p>
+            <p style={s.p}>Diese App speichert <strong>keine personenbezogenen Daten</strong> auf externen Servern. Lernfortschritte (Sterne, gelernte Buchstaben, Punkte, Tagesziel, geöffnete Schatztruhen), die gewählte Farbe und Sachen von Klecks und die Einstellungen aus dem Elternbereich werden ausschließlich lokal im Speicher deines Browsers (localStorage) auf diesem Gerät abgelegt und nicht übertragen. Du kannst sie jederzeit im Elternbereich über „Fortschritt zurücksetzen" oder durch Löschen der Browserdaten entfernen.</p>
 
             <h3 style={s.h3}>3. Aufruf der Webseite (Server-Logfiles)</h3>
             <p style={s.p}>Beim Aufrufen der App überträgt dein Browser technisch bedingt Daten an unseren Webserver bzw. Hoster <span style={{background:"#fde68a",borderRadius:4,padding:"1px 5px"}}>[Name des Hosters]</span>: IP-Adresse, Datum und Uhrzeit, aufgerufene Datei, Browsertyp und Betriebssystem. Diese Daten sind für die Auslieferung der App erforderlich (Art. 6 Abs. 1 lit. f DSGVO), werden nicht mit anderen Daten zusammengeführt und nach <span style={{background:"#fde68a",borderRadius:4,padding:"1px 5px"}}>[z. B. 7]</span> Tagen gelöscht. Nach dem ersten Laden funktioniert die App auch offline.</p>
@@ -3285,8 +3346,8 @@ function ImpressumScreen({onBack}){
             <h3 style={s.h3}>5. Externe Inhalte</h3>
             <p style={s.p}>Die App lädt keine Inhalte von anderen Servern nach. Schrift, Figuren und Töne sind in der App enthalten; Bilder sind die Emojis deines Geräts. Es gibt keine Werbung und keine Links zu Shops.</p>
 
-            <h3 style={s.h3}>6. Überraschungen und Effekte (optional)</h3>
-            <p style={s.p}>Die kleinen Überraschungen (neue Stifte, Sachen für Klecks, Einhorn, Sternenregen) entstehen direkt in der App. Dabei werden keine Daten übertragen. Eltern können sie im Elternbereich ausschalten.</p>
+            <h3 style={s.h3}>6. Schatztruhen und Effekte</h3>
+            <p style={s.p}>Schatztruhen, neue Stifte, Sachen für Klecks und Effekte wie der Sternenregen entstehen direkt in der App. Dabei werden keine Daten übertragen. Eltern können die Effekte im Elternbereich ausschalten.</p>
 
             <h3 style={s.h3}>7. Deine Rechte (Art. 15–21 DSGVO)</h3>
             <p style={s.p}>Da wir keine personenbezogenen Daten speichern, entfallen Auskunfts-, Berichtigungs- und Löschungsrechte praktisch. Bei Fragen wende dich an: <span style={{background:"#fde68a",borderRadius:4,padding:"1px 5px"}}>[deine@email.de]</span></p>
