@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, useContext, createContext } from "react";
 import { useResearch, enroll, withdraw, exportMyData, logTrial, markWaveDone, trialMetrics, setFieldScale } from "./research.js";
-import { Klecks, KlecksBubble, CompanionCtx, KLECKS_COLORS, klecksColor } from "./klecks.jsx";
+import { Klecks, KlecksBubble, CompanionCtx, KLECKS_COLORS, accList, wearAcc, toggleAcc } from "./klecks.jsx";
 import { sfx, setSoundOn } from "./sound.js";
+import { useInstall } from "./install.js";
 // Schrift „Nunito" (SIL Open Font License) — wird in die App eingebettet, kein Google-Server
 import nunito700 from "@fontsource/nunito/files/nunito-latin-700-normal.woff2";
 import nunito800 from "@fontsource/nunito/files/nunito-latin-800-normal.woff2";
@@ -574,8 +575,27 @@ function StarRain({onDone}){
 }
 
 // ── Rainbow overlay for canvas drawing ────────────────────────────────────────
-const RAINBOW_COLS=["#fb923c","#fbbf24","#4ade80","#60a5fa","#a78bfa","#f472b6"];
-let rainbowIdx=0;
+// ── Stifte: Farbe und Effekt eines Stücks Tinte ──────────────────────────────
+// Regenbogen: Die Farbe wandert mit der geschriebenen Länge sanft von Orange über
+// Gelb, Grün, Blau und Lila bis Pink und zurück. Rot bleibt ausgespart, weil Rot
+// beim Nachfahren „neben der Linie" bedeutet.
+let rainbowPos=0;
+function rainbowColor(len){
+  rainbowPos+=len;
+  const t=(rainbowPos/240)%2,tri=t<1?t:2-t;
+  return`hsl(${Math.round(28+290*tri)},92%,54%)`;
+}
+const penColorFor=(pen,len)=>pen==="rainbow"?rainbowColor(len):PENS[pen]?.color||null;
+function paintInk(ctx,a,b,{color,glitter=false,width=10,alpha=0.85}){
+  const line=(c,w)=>{ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.strokeStyle=c;ctx.lineWidth=w;ctx.stroke();};
+  ctx.save();ctx.lineCap="round";ctx.lineJoin="round";
+  if(glitter){
+    // Leuchten hinter die Schrift legen, sonst entstehen Streifen
+    ctx.save();ctx.globalCompositeOperation="destination-over";ctx.shadowColor="#fbbf24";ctx.shadowBlur=14;line("#fde68acc",width+2);ctx.restore();
+    line(color,width-3);
+  }else{ctx.globalAlpha=alpha;line(color,width);}
+  ctx.restore();
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // HELPERS
@@ -640,6 +660,8 @@ function nearestIndex(pt,poly){
   poly.forEach((q,i)=>{const d=Math.hypot(pt[0]-q[0],pt[1]-q[1]);if(d<bd){bd=d;best=i;}});
   return best;
 }
+// Vorlagen-Strich, der nur ein Punkt ist (i-Punkt, Umlaut-Punkte): einmal antippen reicht
+const isDotStroke=(pts)=>pts.length>0&&polyLength(pts)<25;
 function signedArea(p){let a=0;for(let i=0;i<p.length;i++){const[x1,y1]=p[i],[x2,y2]=p[(i+1)%p.length];a+=x1*y2-x2*y1;}return a/2;}
 function bbox(pts){
   const xs=pts.map(p=>p[0]),ys=pts.map(p=>p[1]);
@@ -1064,17 +1086,8 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
   },[strokes,diff,drawRules,pal,lefthanded,highContrast,guided,mode,memPhase,W,H]);
 
   // Ein gemaltes Teilstück zeichnen (auch beim Wiederherstellen nach dem Zurücknehmen)
-  const paintSeg=(ctx,{a,b,kind,color})=>{
-    const line=(c,w)=>{ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.strokeStyle=c;ctx.lineWidth=w;ctx.stroke();};
-    ctx.save();ctx.lineCap="round";ctx.lineJoin="round";
-    if(kind==="glitter"){
-      ctx.save();ctx.globalCompositeOperation="destination-over";ctx.shadowColor="#fbbf24";ctx.shadowBlur=14;line("#fde68acc",12);ctx.restore();
-      line(color,7);
-    }
-    else if(kind==="rainbow")line(color,11);
-    else{ctx.globalAlpha=0.85;line(color,10);}
-    ctx.restore();
-  };
+  const paintSeg=(ctx,{a,b,kind,color})=>paintInk(ctx,a,b,{color,glitter:kind==="glitter",
+    width:kind==="dot"?14:kind==="rainbow"?11:10,alpha:kind==="ink"?0.85:1});
   const repaintInk=()=>{
     const ctx=ovRef.current.getContext("2d");ctx.clearRect(0,0,W,H);
     segs.current.forEach(s=>paintSeg(ctx,s));
@@ -1174,10 +1187,12 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
     const a=stroke[stroke.length-1],b=getPos(e);
     stroke.push(b);
     // Stiftfarbe: vom Kind gewählt; Regenbogen wechselt die Farbe, Glitzer leuchtet
-    const penColor=()=>pen==="rainbow"?RAINBOW_COLS[rainbowIdx++%RAINBOW_COLS.length]:PENS[pen]?.color||null;
+    const len=Math.hypot(b[0]-a[0],b[1]-a[1]);
+    const penColor=()=>penColorFor(pen,len);
+    const penKind=pen==="glitter"?"glitter":pen==="rainbow"?"rainbow":"ink";
     let seg;
     if(probe){seg={a,b,kind:"ink",color:"#1e3a8a"};}           // Schreibtest: immer gleich, ohne Effekte
-    else if(!guided){seg={a,b,kind:pen==="glitter"?"glitter":"ink",color:penColor()||"#1e3a8a"};}
+    else if(!guided){seg={a,b,kind:penKind,color:penColor()||"#1e3a8a"};}
     else{
       // Nachfahren: Stiftfarbe (Klassik: Grün) auf der Linie, Rot daneben
       const d=distToPolyline(b[0],b[1],strokes);
@@ -1185,7 +1200,7 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
       if(!onTrack&&!offTrackRef.current){haptic("off",hapticsEnabled);offTrackRef.current=true;}
       else if(onTrack&&offTrackRef.current){offTrackRef.current=false;}
       seg=onTrack
-        ?{a,b,kind:pen==="glitter"||d<diff.tolerance*0.35?"glitter":"ink",color:penColor()||"#22c55e"}
+        ?{a,b,kind:pen==="glitter"||d<diff.tolerance*0.35?"glitter":penKind,color:penColor()||"#22c55e"}
         :{a,b,kind:"ink",color:"#f87171"};
     }
     segs.current.push(seg);
@@ -1203,8 +1218,19 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
     e?.preventDefault();if(!isDrawing.current)return;isDrawing.current=false;
     offTrackRef.current=false;
     const stroke=drawn.current[drawn.current.length-1];
-    // Nur angetippt? Zählt nicht als Strich.
-    if(stroke.length<3){undoLastStroke();return;}
+    // Nur angetippt? Zählt nur als Punkt (i-Punkt, Umlaut-Punkte), sonst nicht als Strich.
+    if(stroke.length<3){
+      const p=stroke[0],exp=guided?strokes[strokeIdx.current]:null;
+      const dotOk=guided
+        ?!!exp&&isDotStroke(exp)&&Math.hypot(p[0]-exp[0][0],p[1]-exp[0][1])<Math.max(30,diff.tolerance*2.2)
+        :strokes.some(isDotStroke);
+      if(!dotOk){undoLastStroke();return;}
+      const q=[p[0],p[1]+0.6,p[2]+1];
+      stroke.splice(1,stroke.length-1,q,[p[0],p[1]+1.2,p[2]+2]);
+      const color=probe?"#1e3a8a":penColorFor(pen,4)||(guided?"#22c55e":"#1e3a8a");
+      const seg={a:p,b:q,kind:!probe&&pen==="glitter"?"glitter":"dot",color};
+      segs.current.push(seg);paintSeg(ovRef.current.getContext("2d"),seg);
+    }
     if(guided&&strokeIdx.current<strokes.length){
       const verdict=checkFormation(stroke,strokes[strokeIdx.current],diff.tolerance);
       attempts.current.push({pts:stroke.slice(),accepted:!verdict,verdict:verdict||"ok",expected:strokeIdx.current});
@@ -1349,7 +1375,7 @@ function StarResult({stars,hint,label}){
 // ═══════════════════════════════════════════════════════════════════════════════
 // GUIDED CANVAS  — Phase 1: geführt, Phase 2: frei nachzeichnen, Phase 3: Vergleich
 // ═══════════════════════════════════════════════════════════════════════════════
-function GuidedCanvas({letter, onComplete, onNext=null, onSpeak=()=>{}, onTrial=null, scale=1, W=260, H=310}){
+function GuidedCanvas({letter, onComplete, onNext=null, tools=null, pen="classic", onSpeak=()=>{}, onTrial=null, scale=1, W=260, H=310}){
   const bgRef=useRef(null);
   const ovRef=useRef(null);
   const compareRef=useRef(null);
@@ -1581,6 +1607,14 @@ function GuidedCanvas({letter, onComplete, onNext=null, onSpeak=()=>{}, onTrial=
     const pos=getPos(e);
     if(!strokeStarted.current){
       if(nearStart(pos.x,pos.y)){
+        const tpl=strokes[strokeIdx.current];
+        if(isDotStroke(tpl)){
+          // Punkt (i, ä, ö, ü): einmal antippen reicht
+          const c=tpl[Math.floor(tpl.length/2)];
+          paintInk(ovRef.current.getContext("2d"),c,[c[0],c[1]+0.6],{color:penColorFor(pen,4)||"#4361ee",glitter:pen==="glitter",width:15,alpha:1});
+          finishGuidedStroke();
+          return;
+        }
         strokeStarted.current=true;isDrawing.current=true;currentStrokePts.current=[];
         const sp=strokes[strokeIdx.current][0];lastSnapped.current={x:sp[0],y:sp[1]};
         currentStrokePts.current.push({x:sp[0],y:sp[1]});
@@ -1597,31 +1631,33 @@ function GuidedCanvas({letter, onComplete, onNext=null, onSpeak=()=>{}, onTrial=
     if(s.idx>progressRef.current)progressRef.current=s.idx;
     const sp=s.pt;
     if(lastSnapped.current){
-      ctx.beginPath();ctx.moveTo(lastSnapped.current.x,lastSnapped.current.y);ctx.lineTo(sp[0],sp[1]);
-      ctx.strokeStyle="#4361ee";ctx.lineWidth=11;ctx.lineCap="round";ctx.lineJoin="round";ctx.stroke();
+      const a=[lastSnapped.current.x,lastSnapped.current.y];
+      paintInk(ctx,a,sp,{color:penColorFor(pen,Math.hypot(sp[0]-a[0],sp[1]-a[1]))||"#4361ee",glitter:pen==="glitter",width:11,alpha:1});
       ctx.beginPath();ctx.arc(sp[0],sp[1],9,0,Math.PI*2);ctx.fillStyle="#fbbf2450";ctx.fill();
       ctx.beginPath();ctx.arc(sp[0],sp[1],4,0,Math.PI*2);ctx.fillStyle="#fbbf24";ctx.fill();
     }
     lastSnapped.current={x:sp[0],y:sp[1]};currentStrokePts.current.push({x:sp[0],y:sp[1]});
     drawGuidedTemplate(bgRef.current.getContext("2d"));
     const pts=strokes[strokeIdx.current];
-    if(progressRef.current>=pts.length-3){
-      currentStrokePts.current=[];strokeStarted.current=false;isDrawing.current=false;progressRef.current=0;lastSnapped.current=null;
-      setKick(n=>n+1);sfx("stroke");
-      strokeIdx.current++;
-      if(strokeIdx.current>=strokes.length){
-        setConfetti(true);setTimeout(()=>setConfetti(false),1500);
-        setTimeout(()=>{
-          freePoints.current=[];freeStrokeIdx.current=0;freeStrokePts.current=[];
-          ovRef.current.getContext("2d").clearRect(0,0,W,H);
-          drawFreeTemplate(bgRef.current.getContext("2d"));
-          setPhase("freeTrace");
-          const m=`✏️ Jetzt selbst — Strich 1 von ${strokes.length}!`;setStatusMsg(m);onSpeak(m);
-        },900);
-      } else {
-        const m="👆 Tippe auf den nächsten Punkt!";setStatusMsg(m);onSpeak(m);
-        drawGuidedTemplate(bgRef.current.getContext("2d"));
-      }
+    if(progressRef.current>=pts.length-3)finishGuidedStroke();
+  };
+  // Strich im geführten Teil geschafft → nächster Strich oder ab ins freie Nachfahren
+  const finishGuidedStroke=()=>{
+    currentStrokePts.current=[];strokeStarted.current=false;isDrawing.current=false;progressRef.current=0;lastSnapped.current=null;
+    setKick(n=>n+1);sfx("stroke");
+    strokeIdx.current++;
+    if(strokeIdx.current>=strokes.length){
+      setConfetti(true);setTimeout(()=>setConfetti(false),1500);
+      setTimeout(()=>{
+        freePoints.current=[];freeStrokeIdx.current=0;freeStrokePts.current=[];
+        ovRef.current.getContext("2d").clearRect(0,0,W,H);
+        drawFreeTemplate(bgRef.current.getContext("2d"));
+        setPhase("freeTrace");
+        const m=`✏️ Jetzt selbst — Strich 1 von ${strokes.length}!`;setStatusMsg(m);onSpeak(m);
+      },900);
+    } else {
+      const m=isDotStroke(strokes[strokeIdx.current])?"👆 Jetzt den Punkt antippen!":"👆 Tippe auf den nächsten Punkt!";setStatusMsg(m);onSpeak(m);
+      drawGuidedTemplate(bgRef.current.getContext("2d"));
     }
   };
   const guidedEnd=(e)=>{e?.preventDefault();isDrawing.current=false;};
@@ -1645,14 +1681,24 @@ function GuidedCanvas({letter, onComplete, onNext=null, onSpeak=()=>{}, onTrial=
     const ratio=Math.min(1,minD/TOL);
     const r=Math.round(ratio*239+(1-ratio)*34),g2=Math.round(ratio*68+(1-ratio)*197),b=Math.round(ratio*68+(1-ratio)*94);
     if(freeLastPos.current){
-      ctx.beginPath();ctx.moveTo(freeLastPos.current.x,freeLastPos.current.y);ctx.lineTo(pos.x,pos.y);
-      ctx.strokeStyle=`rgb(${r},${g2},${b})`;ctx.lineWidth=10;ctx.lineCap="round";ctx.lineJoin="round";ctx.stroke();
+      const a=[freeLastPos.current.x,freeLastPos.current.y],near=ratio<0.6;
+      const pc=near?penColorFor(pen,Math.hypot(pos.x-a[0],pos.y-a[1])):null;
+      paintInk(ctx,a,[pos.x,pos.y],{color:pc||`rgb(${r},${g2},${b})`,glitter:pen==="glitter"&&near,width:10,alpha:1});
     }
     freePoints.current.push(pos);freeStrokePts.current.push(pos);freeLastPos.current=pos;
     drawFreeTemplate(bgRef.current.getContext("2d"));
   };
   const freeEnd=(e)=>{
-    e?.preventDefault();isDrawing.current=false;freeLastPos.current=null;freePoints.current.push(null);
+    e?.preventDefault();isDrawing.current=false;freeLastPos.current=null;
+    // Punkt (i, ä, ö, ü): einmal antippen reicht
+    const fp=freeStrokePts.current,tpl=strokes[freeStrokeIdx.current];
+    if(fp.length&&fp.length<3&&tpl&&isDotStroke(tpl)){
+      const p=fp[0],near=distToPolyline(p.x,p.y,strokes)<18;
+      paintInk(ovRef.current.getContext("2d"),[p.x,p.y],[p.x,p.y+0.6],{color:near?(penColorFor(pen,4)||"rgb(34,197,94)"):"rgb(239,68,68)",glitter:pen==="glitter"&&near,width:14,alpha:1});
+      const extra=[{x:p.x,y:p.y+0.6},{x:p.x,y:p.y+1.2}];
+      freePoints.current.push(...extra);fp.push(...extra);
+    }
+    freePoints.current.push(null);
     if(freeStrokePts.current.length<3){freeStrokePts.current=[];return;}
     freeStrokePts.current=[];
     const next=freeStrokeIdx.current+1;
@@ -1713,10 +1759,11 @@ function GuidedCanvas({letter, onComplete, onNext=null, onSpeak=()=>{}, onTrial=
         </FieldFrame>
         {confetti&&<Confetti/>}
       </div>
-      <div style={{display:"flex",gap:10,marginTop:4}}>
+      <div style={{display:"flex",gap:10,marginTop:4,alignItems:"center",flexWrap:"wrap",justifyContent:"center"}}>
         <Btn bg="white" sh="#fca5a5" color="#e11d48" style={{border:"2px solid #fecdd3"}} onClick={()=>{sfx("tap");reset();}}>{phase==="compare"?"🔁 Nochmal":"🗑️ Neu"}</Btn>
         {phase==="freeTrace"&&hasDrawn&&<Btn bg="var(--mint)" sh="var(--mintD)" onClick={finishFree} style={{animation:"glowPulse 1.6s infinite"}}>✓ Fertig</Btn>}
         {phase==="compare"&&onNext&&<Btn bg="var(--coral)" sh="var(--coralD)" data-k="next" onClick={()=>{sfx("pop");onNext();}} style={{minWidth:120,animation:"popIn 0.35s ease-out"}}>Weiter ➜</Btn>}
+        {tools}
       </div>
     </div>
   );
@@ -1927,6 +1974,29 @@ function ProbeTest({wave,chars,difficulty,scale,onSpeak,onLog,onFinish,onExit}){
   );
 }
 
+// Als App auf den Startbildschirm — mit eigenem Knopf, weil Browser ihren Hinweis
+// nach dem Löschen der App oft nicht mehr von selbst zeigen
+function InstallSection(){
+  const inst=useInstall();
+  const [msg,setMsg]=useState(null);
+  const p={fontSize:12,color:"#475569",margin:"0 0 6px",lineHeight:1.5};
+  return(
+    <div style={{marginBottom:14,paddingBottom:14,borderBottom:"1px solid #e2e8f0"}}>
+      <h4 style={{margin:"0 0 6px",fontSize:14,fontWeight:800,color:"#1e3a8a"}}>📲 Als App installieren</h4>
+      {inst.standalone?<p style={p}>✓ Die App ist installiert und läuft im Vollbild.</p>
+      :!inst.secure?<p style={p}>Installieren geht nur, wenn die Seite über <b>https://</b> aufgerufen wird.</p>
+      :inst.canPrompt?<button onClick={async()=>setMsg(await inst.prompt()?"✓ Wird installiert.":"Abgebrochen – du kannst es jederzeit wieder versuchen.")} style={studyBtn("#1e3a8a")}>📲 Jetzt installieren</button>
+      :inst.ios?<p style={p}>In <b>Safari</b> auf das Teilen-Symbol <b>⬆️</b> tippen, dann <b>„Zum Home-Bildschirm“</b>.</p>
+      :<p style={p}>Im Browser-Menü <b>⋮</b> auf <b>„App installieren“</b> oder <b>„Zum Startbildschirm hinzufügen“</b> tippen. Wurde die App gerade gelöscht, die Seite einmal neu laden – dann erscheint hier ein Knopf.</p>}
+      {msg&&<p style={{...p,fontWeight:700}}>{msg}</p>}
+      <p style={{...p,color:"#94a3b8",margin:0}}>
+        {inst.ios?"Auf iPhone und iPad wird beim Löschen der App auch der Fortschritt gelöscht."
+          :"Der Fortschritt ist im Browser gespeichert und bleibt auch erhalten, wenn die App gelöscht und neu installiert wird. Für einen Neuanfang unten „Fortschritt zurücksetzen“ wählen."}
+      </p>
+    </div>
+  );
+}
+
 function ParentZone({settings,onChange,onClose,journal,onStartProbe}){
   const [access,setAccess]=useState(false);
   const [ans,setAns]=useState("");
@@ -2064,6 +2134,8 @@ function ParentZone({settings,onChange,onClose,journal,onStartProbe}){
             </label>
           ))}
         </div>
+
+        <InstallSection/>
 
         <StudySection onStartProbe={onStartProbe}/>
 
@@ -2330,7 +2402,7 @@ function WordPractice({word, settings, pen="classic", onSpeak=()=>{}, onTrial=nu
           <AnimCanvas key={`wanim-${current}-${idx}-${replayKey}`} letter={current} scale={scale}
             onDone={()=>setPhase(settings.allowedModes?.guided?"trace_guided":"trace_free")}/>}
         {phase==="trace_guided"&&
-          <GuidedCanvas key={`wguided-${current}-${idx}-${replayKey}`} letter={current} onComplete={handleLetterDone} onSpeak={onSpeak} scale={scale}
+          <GuidedCanvas key={`wguided-${current}-${idx}-${replayKey}`} letter={current} onComplete={handleLetterDone} onSpeak={onSpeak} scale={scale} pen={pen}
             onTrial={onTrial&&(t=>onTrial(current,t))}/>}
         {phase==="trace_free"&&
           <TraceCanvas key={`wtrace-${current}-${idx}-${replayKey}`} letter={current}
@@ -2351,6 +2423,11 @@ function masteryOf(l,learnedMap,stageMap,memMap){
   if(!((learnedMap[l]||0)>0))return 0;
   if((memMap[l]||0)>0)return 4;
   return Math.min(3,stageMap[l]||1);
+}
+// Begleiter aus dem Speicher: Farbe und Liste der angezogenen Sachen
+function normCompanion(c){
+  if(!c)return null;
+  return{color:c.color||"lila",accs:accList(c.accs??c.acc)};
 }
 // Vorschlag „Weiter geht's": erst neue Zeichen auf dem Lernweg, dann die am wenigsten sicheren
 function nextLetterFor(tab,learnedMap,stageMap,memMap){
@@ -2435,7 +2512,7 @@ function Onboarding({onDone,onSpeak}){
             style={{width:46,height:46,borderRadius:"50%",background:k.c,border:color===k.id?"4px solid var(--ink)":"4px solid white",cursor:"pointer",boxShadow:`0 4px 0 ${k.d}`,transform:color===k.id?"scale(1.12)":"none",transition:"transform .12s"}}/>
         ))}
       </div>
-      <Btn data-k="start" bg="var(--coral)" sh="var(--coralD)" style={{fontSize:20,padding:"14px 34px",borderRadius:22}} onClick={()=>{sfx("fanfare");onDone({color,acc:null});}}>Los geht's 🚀</Btn>
+      <Btn data-k="start" bg="var(--coral)" sh="var(--coralD)" style={{fontSize:20,padding:"14px 34px",borderRadius:22}} onClick={()=>{sfx("fanfare");onDone({color,accs:[]});}}>Los geht's 🚀</Btn>
     </div>
   );
 }
@@ -2501,7 +2578,7 @@ function WorldMap({world,learnedMap,stageMap,memMap,next,onOpen,onBack}){
 // ── Klecks-Zimmer: Farbe, gefundene Sachen und Stifte aussuchen ──
 function KlecksRoom({companion,onChange,unlocks,pen,onPen,onBack,onSpeak}){
   const [kick,setKick]=useState(0);
-  const accs=SURPRISES.filter(x=>x.kind==="acc"),pens=Object.keys(PENS);
+  const accs=SURPRISES.filter(x=>x.kind==="acc"),pens=Object.keys(PENS),worn=accList(companion.accs);
   const tile=(active)=>({background:active?"#fff4c2":"white",border:active?"3px solid #ffb020":"3px solid #eef1f6",borderRadius:18,padding:"8px 4px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2,fontWeight:800,fontSize:12,color:"var(--ink2)"});
   const found=SURPRISES.filter(x=>unlocks.includes(x.id)).length;
   return(
@@ -2522,12 +2599,14 @@ function KlecksRoom({companion,onChange,unlocks,pen,onPen,onBack,onSpeak}){
           </div>
         </div>
         <div className="k-card" style={{padding:14}}>
-          <div style={{fontWeight:900,fontSize:16,marginBottom:10}}>Anziehen</div>
+          <div style={{fontWeight:900,fontSize:16,marginBottom:2}}>Anziehen</div>
+          <div style={{fontSize:13,color:"var(--muted)",marginBottom:10}}>Tippe mehrere Sachen an – Klecks kann sie zusammen tragen. Hut oder Krone: nur eins passt auf den Kopf.</div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
-            <button style={tile(!companion.acc)} onClick={()=>{onChange({...companion,acc:null});sfx("tap");}}><span style={{fontSize:28}}>🚫</span>Nichts</button>
-            {accs.map(x=>{const have=unlocks.includes(x.id);return(
-              <button key={x.id} data-acc={x.id} disabled={!have} style={{...tile(companion.acc===x.id),opacity:have?1:0.55,cursor:have?"pointer":"default"}}
-                onClick={()=>{if(!have)return;onChange({...companion,acc:x.id});setKick(n=>n+1);sfx("pop");}}>
+            <button style={tile(!worn.length)} onClick={()=>{onChange({...companion,accs:[]});sfx("tap");}}><span style={{fontSize:28}}>🚫</span>Nichts</button>
+            {accs.map(x=>{const have=unlocks.includes(x.id),on=worn.includes(x.id);return(
+              <button key={x.id} data-acc={x.id} aria-pressed={on} disabled={!have} style={{...tile(on),opacity:have?1:0.55,cursor:have?"pointer":"default",position:"relative"}}
+                onClick={()=>{if(!have)return;onChange({...companion,accs:toggleAcc(worn,x.id)});setKick(n=>n+1);sfx(on?"tap":"pop");}}>
+                {on&&<span style={{position:"absolute",top:4,right:8,fontSize:14,color:"#17a06c"}}>✓</span>}
                 <span style={{fontSize:28}}>{have?x.emoji:"❓"}</span>{have?x.name:"versteckt"}
               </button>);})}
           </div>
@@ -2549,13 +2628,14 @@ function KlecksRoom({companion,onChange,unlocks,pen,onPen,onBack,onSpeak}){
 // ── Überraschung gefunden / Tagesziel geschafft ──
 function SurpriseModal({item,effects,onUse,onClose,onHome}){
   const s=item.type==="unlock"?item.s:null;
+  const comp=useContext(CompanionCtx);
   const overlay={position:"fixed",inset:0,background:"rgba(20,24,44,0.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2500,backdropFilter:"blur(5px)",padding:16};
   return(
     <div style={overlay} role="dialog" aria-modal="true">
       {effects&&item.type==="goal"&&<StarRain onDone={()=>{}}/>}
       <div className="k-card" style={{padding:"20px 20px 18px",maxWidth:340,width:"100%",textAlign:"center",animation:"popIn 0.4s ease-out",position:"relative"}}>
         <div style={{display:"flex",justifyContent:"center",marginTop:-70}}>
-          <Klecks size={120} mood="cheer" anim="jump" acc={s&&s.kind==="acc"?s.id:undefined}/>
+          <Klecks size={120} mood="cheer" anim="jump" acc={s&&s.kind==="acc"?wearAcc(comp.accs,s.id):undefined}/>
         </div>
         {s?(<>
           <div style={{fontSize:14,fontWeight:900,color:"#e0a100",letterSpacing:1,textTransform:"uppercase",marginTop:4}}>Überraschung!</div>
@@ -2627,7 +2707,7 @@ export default function App(){
   const persisted=useMemo(()=>loadPersisted()||{},[]);
   const startTab=WORLDS[persisted.tab]?persisted.tab:"GROß";
   // Begleiter (Farbe und Zubehör, vom Kind gewählt). Ohne Begleiter: erst Begrüßung
-  const [companion,setCompanion]=useState(()=>persisted.companion||null);
+  const [companion,setCompanion]=useState(()=>normCompanion(persisted.companion));
   const [screen,setScreen]=useState(()=>persisted.companion?"menu":"hello");
   const [tab,setTab]=useState(startTab);
   const [letter,setLetter]=useState(()=>LEARN_PATH[startTab][0]);
@@ -2709,7 +2789,7 @@ export default function App(){
       if(data.unlocks)setUnlocks(data.unlocks);
       if(data.pen)setPen(data.pen);
       if(data.daily)setDaily(data.daily);
-      if(data.companion){setCompanion(data.companion);setScreen(sc=>sc==="hello"?"menu":sc);}
+      if(data.companion){setCompanion(normCompanion(data.companion));setScreen(sc=>sc==="hello"?"menu":sc);}
     });
     return()=>{cancelled=true;};
   },[]);
@@ -2814,14 +2894,15 @@ export default function App(){
     .filter(l=>(learnedMap[l]||0)>0&&Date.now()-lastPracticed[l]>REVIEW_AFTER_MS)
     .sort((a,b)=>lastPracticed[a]-lastPracticed[b]).slice(0,6);
 
-  const comp=companion||{color:"lila",acc:null};
+  const comp=companion||{color:"lila",accs:[]};
+  const inst=useInstall();
   const closeSurprise=()=>setQueue(q=>q.slice(1));
   const wrap=(el)=>(
     <CompanionCtx.Provider value={comp}>
       {el}
       {queue[0]&&screen!=="probe"&&(
         <SurpriseModal key={queue.length} item={queue[0]} effects={settings.rewardVideos!==false&&!reducedMotion()}
-          onUse={(x)=>{sfx("pop");if(x.kind==="acc")setCompanion(c=>({...(c||comp),acc:x.id}));else setPen(x.id);closeSurprise();}}
+          onUse={(x)=>{sfx("pop");if(x.kind==="acc")setCompanion(c=>({...(c||comp),accs:wearAcc((c||comp).accs,x.id)}));else setPen(x.id);closeSurprise();}}
           onClose={closeSurprise} onHome={()=>{closeSurprise();setScreen("menu");}}/>
       )}
       {showUnicorn&&<UnicornRun onDone={()=>setShowUnicorn(false)}/>}
@@ -2939,9 +3020,10 @@ export default function App(){
             ))}
           </div>
 
-          <div style={{display:"flex",gap:8,justifyContent:"center",marginTop:4}}>
+          <div style={{display:"flex",gap:8,justifyContent:"center",marginTop:4,flexWrap:"wrap"}}>
             <button onClick={()=>setShowParent(true)} style={link}>👨‍👩‍👧 Eltern</button>
             <button onClick={()=>setScreen("impressum")} style={link}>📄 Impressum</button>
+            {inst.canPrompt&&!inst.standalone&&<button data-k="install" onClick={()=>inst.prompt()} style={link}>📲 Installieren</button>}
           </div>
         </div>
       </div>
@@ -3065,6 +3147,7 @@ export default function App(){
           ?<AnimCanvas key={`anim-${letter}-${replayKey}`} letter={letter} onDone={()=>setPhase("write")} scale={fs}/>
           :mode==="guided"
             ?<GuidedCanvas key={`guided-${letter}-${replayKey}`} letter={letter} onComplete={handleDone} onNext={goNext} onSpeak={sayIt} scale={fs}
+               pen={penAvailable(pen,unlocks)?pen:"classic"} tools={<PenPicker pen={penAvailable(pen,unlocks)?pen:"classic"} unlocks={unlocks} onPick={setPen}/>}
                onTrial={studyLog&&studyLog({kind:"practice",ch:letter,stage:stageOf(letter)})}/>
             :<TraceCanvas key={`trace-${letter}-${mode}-${replayKey}`} letter={letter} onComplete={handleDone} onNext={goNext}
                difficulty={settings.difficulty} mode={mode} pen={penAvailable(pen,unlocks)?pen:"classic"}

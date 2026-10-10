@@ -34,6 +34,17 @@ auch einfach per Doppelklick im Browser öffnen.
 > Installieren und Offline-Modus gehen nur über **HTTPS**. Ohne HTTPS läuft die
 > App trotzdem, aber nur im Browser-Tab und nur mit Internet.
 
+**Gelöscht und neu installieren:** Browser zeigen ihren Hinweis „App installieren“
+nach dem Löschen oft nicht mehr von selbst. Die App hat deshalb einen eigenen Knopf
+**„📲 Installieren“** (unten auf der Startseite und im Elternbereich unter
+„Als App installieren“), sobald Chrome oder Edge die Installation erlauben. Falls er
+fehlt: Seite einmal neu laden. Der Service Worker holt bei jedem Start die neueste
+Version vom Server, auch wenn der Webserver Dateien lange zwischenspeichert.
+
+**Fortschritt:** Auf Android bleibt er im Browser gespeichert, auch wenn die App
+gelöscht wird. Für einen Neuanfang: Elternbereich → „Fortschritt zurücksetzen“.
+Auf iPhone/iPad löscht das Entfernen der App auch den Fortschritt.
+
 ## Was sich gegenüber der Android-Version ändert
 
 | Funktion | Web-Version |
@@ -57,6 +68,7 @@ geübt wird:
   Buchstaben (c, a, d, g, o, q) oben beginnen und gegen den Uhrzeigersinn.
 - **b und d** verwechselt man nicht mehr: b = erst Strich, dann Bauch;
   d = erst Bauch, dann Strich.
+- **Punkte** (i, j, ä, ö, ü, Ä, Ö, Ü) werden mit einmal Antippen gesetzt.
 - **Ziffern:** 1 ohne Fuß, 4 oben offen, 5 mit dem Hut zuletzt, 3 mit zwei
   runden Bäuchen, 9 = Kreis und Strich.
 
@@ -88,7 +100,7 @@ problematischen weg.
 
 | Befund | Umsetzung in der App |
 |---|---|
-| **Personalisierung und Wahlfreiheit** bei Nebensächlichem (Name, Figur, Farben) steigern Motivation *und* Lernerfolg ([Cordova & Lepper 1996](https://doi.org/10.1037/0022-0663.88.4.715)) | Beim ersten Start sucht das Kind die Farbe von **Klecks** aus, dem Tintenklecks-Begleiter. Stiftfarbe wählbar (🖍️), Klecks im „Klecks-Zimmer“ anziehen. |
+| **Personalisierung und Wahlfreiheit** bei Nebensächlichem (Name, Figur, Farben) steigern Motivation *und* Lernerfolg ([Cordova & Lepper 1996](https://doi.org/10.1037/0022-0663.88.4.715)) | Beim ersten Start sucht das Kind die Farbe von **Klecks** aus, dem Tintenklecks-Begleiter. Stift wählbar (🖍️, in allen Modi: Klassik, Blau, Lila, Türkis, später Glitzer und Regenbogen). Im „Klecks-Zimmer“ kann Klecks mehrere gefundene Sachen gleichzeitig tragen (Hut oder Krone, dazu Schleife, Blume, Brille). |
 | **Lernbegleiter-Figuren** helfen wenig, aber messbar, bei Schulkindern mehr als bei Erwachsenen ([Schroeder, Adesope & Gilbert 2013](https://doi.org/10.2190/EC.49.1.a)) | Klecks gibt Hinweise und Lob in einer Sprechblase (auch vorgelesen) und zeigt mit seiner Mimik, ob es geklappt hat. |
 | **Angekündigte Belohnungen** („Wenn du …, bekommst du …“) verdrängen die Freude an der Sache, **unerwartete** nicht; Lob als Information stärkt sie ([Deci, Koestner & Ryan 1999](https://doi.org/10.1037/0033-2909.125.6.627)) | Die Zufalls-Schatzkiste ist entfernt. Stattdessen werden **Überraschungen gefunden** (Glitzerstift, Regenbogenstift, Schleife, Hut, Krone …), sobald genug Zeichen gut sitzen, ohne Ankündigung und ohne Zufall. Sterne zeigen, *wie genau* geschrieben wurde. |
 | **Lob für den Weg, nicht für die Person** führt dazu, dass Kinder bei Fehlern dranbleiben ([Mueller & Dweck 1998](https://doi.org/10.1037/0022-3514.75.1.33); [Gunderson u. a. 2013](https://doi.org/10.1111/cdev.12064)) | Rückmeldungen wie „Jeden Strich am richtigen Punkt angefangen!“, „Du hast die Richtung verbessert!“, „Du hast nicht aufgegeben – so lernt man!“ statt „Du bist toll!“. |
@@ -161,6 +173,7 @@ schreib-lern-app-web/
 │   ├── App.jsx         die App: Schrift, Schreibfeld, Welten, Lernkarte, Elternbereich
 │   ├── klecks.jsx      der Begleiter Klecks (Figur, Mimik, Sprechblase)
 │   ├── sound.js        kurze Töne, im Browser erzeugt
+│   ├── install.js      Knopf „App installieren“ und Hinweise je nach Gerät
 │   └── research.js     Forschungsmodus: Messung, Warteschlange, Upload
 └── dist/               ← fertige Webseite zum Hochladen
 ```

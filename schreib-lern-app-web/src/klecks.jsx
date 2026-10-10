@@ -19,7 +19,21 @@ export const KLECKS_COLORS = [
 ];
 export const klecksColor = (id) => KLECKS_COLORS.find((k) => k.id === id) || KLECKS_COLORS[0];
 
-export const CompanionCtx = createContext({ color: "lila", acc: null });
+export const CompanionCtx = createContext({ color: "lila", accs: [] });
+
+// Zubehör: mehrere Teile gleichzeitig. Teile am selben Platz (Hut und Krone sitzen
+// beide auf der Spitze) ersetzen sich gegenseitig, alles andere lässt sich kombinieren.
+const ACC_SLOT = { hat: "top", crown: "top", bow: "right", flower: "left", glasses: "face" };
+const ACC_ORDER = ["flower", "bow", "glasses", "hat", "crown"];
+export const accList = (a) => (Array.isArray(a) ? a : a ? [a] : []).filter((id) => ACC_SLOT[id]);
+export function wearAcc(accs, id) {
+  const list = accList(accs).filter((x) => ACC_SLOT[x] !== ACC_SLOT[id]);
+  return [...list, id];
+}
+export function toggleAcc(accs, id) {
+  const list = accList(accs);
+  return list.includes(id) ? list.filter((x) => x !== id) : wearAcc(list, id);
+}
 
 const INK = "#2b2d42";
 
@@ -125,7 +139,7 @@ function Mouth({ mood }) {
 export function Klecks({ size = 96, mood = "happy", color, acc, anim = "bob", style, onClick, title }) {
   const comp = useContext(CompanionCtx);
   const col = klecksColor(color || comp.color);
-  const a = acc === undefined ? comp.acc : acc;
+  const accs = accList(acc === undefined ? comp.accs ?? comp.acc : acc);
   const up = mood === "cheer";
   const animation =
     anim === "bob" ? "kBob 2.8s ease-in-out infinite" : anim === "jump" ? "kJump 0.7s ease-out" : anim === "shake" ? "shake 0.3s ease-in-out 2" : "none";
@@ -162,7 +176,7 @@ export function Klecks({ size = 96, mood = "happy", color, acc, anim = "bob", st
       <ellipse cx="87" cy="92" rx="7" ry="4.5" fill="#ff7aa2" opacity="0.75" />
       <Eyes mood={mood} />
       <Mouth mood={mood} />
-      {a && <Accessory id={a} />}
+      {ACC_ORDER.filter((id) => accs.includes(id)).map((id) => <Accessory key={id} id={id} />)}
     </svg>
   );
 }

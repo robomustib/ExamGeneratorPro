@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
 import { initResearch } from "./research.js";
+import { initInstall } from "./install.js";
 
 // ── Zurück-Taste / Zurück-Geste im Browser ────────────────────────────────────
 // Ohne diese Weiche würde „Zurück" auf dem Handy die ganze Seite verlassen.
@@ -30,11 +31,16 @@ window.addEventListener("pointerdown", armBackTrap, { capture: true });
 // Service Worker funktionieren nur über HTTPS (oder localhost).
 if ("serviceWorker" in navigator && window.isSecureContext && import.meta.env.PROD) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js").catch((e) => {
+    // updateViaCache "none": sw.js immer frisch vom Server holen, auch wenn der
+    // Webserver Dateien lange zwischenspeichert — so kommt jede neue Version an
+    navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" }).catch((e) => {
       console.warn("Service Worker konnte nicht registriert werden", e);
     });
   });
 }
+
+// Eigener Knopf „App installieren" (auch nach dem Löschen und Neuinstallieren)
+initInstall();
 
 // Forschungsmodus: nur aktiv, wenn forschung/config.json auf dem Server ihn einschaltet
 initResearch();

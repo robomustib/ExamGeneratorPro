@@ -3,7 +3,7 @@
 // Strategie „erst Netz, dann Cache": Mit Internet gibt es immer die neueste
 // Version vom Webserver, ohne Internet die zuletzt geladene.
 // ═══════════════════════════════════════════════════════════════════════════════
-const CACHE = "schreiben-lernen-v2";
+const CACHE = "schreiben-lernen-v3";
 const FILES = [
   "./",
   "./index.html",
@@ -16,7 +16,12 @@ const FILES = [
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(FILES)).then(() => self.skipWaiting())
+    // Jede Datei einzeln: fehlt eine (z. B. weil der Server .webmanifest nicht ausliefert),
+    // wird der Service Worker trotzdem installiert
+    caches
+      .open(CACHE)
+      .then((cache) => Promise.all(FILES.map((f) => cache.add(new Request(f, { cache: "reload" })).catch(() => {}))))
+      .then(() => self.skipWaiting())
   );
 });
 
@@ -34,7 +39,8 @@ self.addEventListener("fetch", (event) => {
   if (req.method !== "GET" || new URL(req.url).origin !== self.location.origin) return;
 
   event.respondWith(
-    fetch(req)
+    // „no-cache": beim Server nachfragen, ob es eine neue Version gibt (ohne alles neu zu laden)
+    fetch(req, { cache: "no-cache" })
       .then((res) => {
         if (res.ok) {
           const copy = res.clone();
