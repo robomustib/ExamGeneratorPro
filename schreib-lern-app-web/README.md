@@ -64,17 +64,37 @@ geübt wird:
   stehen im Mittelband („Erdgeschoss"), Unterlängen (g j p q y) reichen in den
   „Keller", Oberlängen (b d f h k l t) bis unter das „Dach".
 - **Runde Formen** sind echte Kreise und Bögen (B, D, P, R, S, a, b, …).
-- **Schreibrichtung:** von oben nach unten, von links nach rechts; runde
-  Buchstaben (c, a, d, g, o, q) oben beginnen und gegen den Uhrzeigersinn.
+- **Schreibrichtung:** Startpunkt, Reihenfolge und Richtung jedes Strichs
+  folgen den Schreibrichtungs-Plakaten von Frau Locke (siehe unten). Runde
+  Buchstaben (c, a, d, g, o, q) beginnen oben und laufen gegen den
+  Uhrzeigersinn; O und o starten etwas rechts von der Spitze.
+- **Spitze Buchstaben von unten:** A und Ä beginnen unten links mit einem
+  Strich nach oben, M und N ebenso. M: hoch, schräg bis zur Grundlinie
+  hinunter, schräg hoch, gerade hinunter. N: hoch, schräg hinunter, hoch.
+- **T** zuerst der Stamm, dann das Dach. **G**: Bogen, kurzer Strich nach
+  rechts, dann hinunter. **ß** beginnt im Keller.
+- **h, n, m, r:** erst der Strich hinunter, dann zurück nach oben und den
+  Bogen. Das Zurückfahren darf das Kind auch weglassen und den Bogen oben
+  neu ansetzen.
+- **Teilstriche in einem Zug:** Die Plakate nummerieren Teilstriche (z. B. L,
+  M, N, V, W, Z, k). Das Kind darf sie einzeln schreiben oder ohne Absetzen in
+  einem Zug. Beides zählt als richtig; falschherum oder am falschen Punkt
+  angefangen wird weiterhin erkannt.
 - **b und d** verwechselt man nicht mehr: b = erst Strich, dann Bauch;
   d = erst Bauch, dann Strich.
 - **Punkte** (i, j, ä, ö, ü, Ä, Ö, Ü) werden mit einmal Antippen gesetzt.
 - **Ziffern:** 1 ohne Fuß, 4 oben offen, 5 mit dem Hut zuletzt, 3 mit zwei
-  runden Bäuchen, 9 = Kreis und Strich.
+  runden Bäuchen, 9 = Kreis und Strich. (Die Plakate zeigen keine Ziffern,
+  deshalb sind sie unverändert.)
 
 Die Strichdaten stehen gesammelt in `src/App.jsx` (Abschnitt „STRICHDATEN")
 und lassen sich dort anpassen, falls eure Schule einzelne Buchstaben anders
 lehrt.
+
+**Vorlage:** Als Orientierung dienten die Plakate „Schreibrichtung“ (bunt) von
+Frau Locke. Sie liegen dem Projekt nicht bei: Ihre Lizenz erlaubt den Einsatz
+im Unterricht, aber keine Weitergabe über Netzwerke oder Clouddienste. Wer sie
+nutzen möchte, lädt sie direkt bei Frau Locke herunter.
 
 ## Was die Forschung sagt – und wie die App es umsetzt
 
@@ -142,6 +162,9 @@ randomisierte Wartekontrollgruppe.
   gleich; sie hängen an den Sternen, nicht an der Lernstufe.
   Der Schreibtest bleibt neutral: ohne Klecks, Töne, Effekte und Rückmeldung.
   Das Design vor Studienbeginn nicht mehr ändern, damit alle Kinder dieselbe App nutzen.
+- Jede Sitzung speichert `app_version`. Ab **2.1** folgen die Strichvorlagen den
+  Schreibrichtungs-Plakaten; die Teilstrich-Nummern (`expected_idx`) sind deshalb nicht
+  mit Daten aus Version 2.0 vergleichbar.
 
 Forschungsdesign, Datenschutzkonzept und Einrichtung stehen im Dokument
 „Forschungsdesign und Datenschutzkonzept: Schreib & Lern“.

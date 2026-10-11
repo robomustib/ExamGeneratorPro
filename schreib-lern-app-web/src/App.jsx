@@ -115,19 +115,22 @@ const STROKES=(()=>{
   const ring=(cx)=>S(arc(cx,MID,R,R,-35,-395));
   // Bauch im Uhrzeigersinn, beginnt am Strich (b, p)
   const belly=(x0)=>S(arc(x0+RX,MID,R,R,180,540));
-  // Bogen für h, n, m, r: löst sich vom Strich, berührt die Mittellinie und geht
-  // rechts senkrecht hinunter (end < 360 ergibt nur die „Schulter" des r)
+  // Bogen für h, n, m, r: wie auf den Schreibrichtungs-Plakaten zuerst am Strich
+  // zurück nach oben, dann der Bogen und rechts senkrecht hinunter (end < 360 ergibt
+  // nur die „Schulter" des r). Das Zurückfahren darf das Kind auch weglassen und den
+  // Bogen oben neu ansetzen — beides wird beim Prüfen angenommen.
   const arch=(x0,w,end=360)=>{
     const ry=17,c=Math.cos(Math.PI/12),rx=w/(1+c);
-    const a=S(arc(x0+rx*c,ML+ry,rx/AX,ry,195,end));
+    const a=S([x0,GL],arc(x0+rx*c,ML+ry,rx/AX,ry,195,end));
     return end===360?[...a,[x0+w,GL]]:a;
   };
 
-  const A_=[S([50,OL],[22,GL]),S([50,OL],[78,GL]),S([31,62],[69,62])];
-  const O_=[S(arc(50,ML,36,36,-90,-450))];
+  // A: erst von unten links hinauf, dann hinunter nach rechts, dann der Querstrich
+  const A_=[S([22,GL],[50,OL]),S([50,OL],[78,GL]),S([31,62],[69,62])];
+  const O_=[S(arc(50,ML,36,36,-65,-425))];
   const U_=[S([24,OL],[24,58],arc(50,58,26/AX,28,180,0),[76,OL])];
   const a_=[ring(46),S([46+RX,ML],[46+RX,GL])];
-  const o_=[S(arc(50,MID,R,R,-90,-450))];
+  const o_=[S(arc(50,MID,R,R,-65,-425))];
   const u_=[S([30,ML],[30,MID],arc(30+RX,MID,R,R,180,0),[30+2*RX,ML]),S([30+2*RX,ML],[30+2*RX,GL])];
 
   return{
@@ -140,26 +143,26 @@ const STROKES=(()=>{
     D:[S([24,OL],[24,GL]),S([24,OL],[40,OL],arc(40,ML,36,36,-90,90),[24,GL])],
     E:[S([26,OL],[26,GL]),S([26,OL],[72,OL]),S([26,ML],[66,ML]),S([26,GL],[72,GL])],
     F:[S([26,OL],[26,GL]),S([26,OL],[72,OL]),S([26,ML],[66,ML])],
-    G:[S(arc(52,ML,36,36,-40,-360),[60,ML])],
+    G:[S(arc(52,ML,36,36,-40,-335)),S([60,54],[82,54]),S([82,54],[82,GL])],   // Bogen, Querstrich, hinunter
     H:[S([24,OL],[24,GL]),S([76,OL],[76,GL]),S([24,ML],[76,ML])],
     I:[S([50,OL],[50,GL])],
     J:[S([62,OL],[62,66],arc(62-18*AX,66,18,20,0,160))],
-    K:[S([26,OL],[26,GL]),S([74,OL],[27,54],[76,GL])],
-    L:[S([28,OL],[28,GL],[74,GL])],
-    M:[S([20,OL],[20,GL]),S([20,OL],[50,62],[80,OL],[80,GL])],
-    N:[S([24,OL],[24,GL]),S([24,OL],[76,GL],[76,OL])],
+    K:[S([26,OL],[26,GL]),S([74,OL],[27,54]),S([27,54],[76,GL])],
+    L:[S([28,OL],[28,GL]),S([28,GL],[74,GL])],
+    M:[S([20,GL],[20,OL]),S([20,OL],[50,GL-3]),S([50,GL-3],[80,OL]),S([80,OL],[80,GL])],   // hinauf, runter, hinauf, runter
+    N:[S([24,GL],[24,OL]),S([24,OL],[76,GL]),S([76,GL],[76,OL])],
     O:O_,
     P:[S([24,OL],[24,GL]),S([24,OL],[42,OL],arc(42,32,20,18,-90,90),[24,ML])],
     Q:[...O_,S([60,68],[82,92])],
-    R:[S([24,OL],[24,GL]),S([24,OL],[42,OL],arc(42,32,20,18,-90,90),[24,ML]),S([40,ML],[76,GL])],
+    R:[S([24,OL],[24,GL]),S([24,OL],[42,OL],arc(42,32,20,18,-90,90),[24,ML]),S([26,ML+1],[76,GL])],
     S:[S(arc(50,32,20,18,-25,-270),arc(50,68,22,18,-90,155))],
-    T:[S([20,OL],[80,OL]),S([50,OL],[50,GL])],
+    T:[S([50,OL],[50,GL]),S([20,OL],[80,OL])],          // erst der Strich, dann das Dach
     U:U_,
-    V:[S([20,OL],[50,GL],[80,OL])],
-    W:[S([12,OL],[31,GL],[50,OL],[69,GL],[88,OL])],
+    V:[S([20,OL],[50,GL]),S([50,GL],[80,OL])],
+    W:[S([12,OL],[31,GL]),S([31,GL],[50,OL]),S([50,OL],[69,GL]),S([69,GL],[88,OL])],
     X:[S([22,OL],[78,GL]),S([78,OL],[22,GL])],
-    Y:[S([22,OL],[50,ML]),S([78,OL],[50,ML],[50,GL])],
-    Z:[S([22,OL],[78,OL],[22,GL],[78,GL])],
+    Y:[S([22,OL],[50,ML]),S([78,OL],[50,ML]),S([50,ML],[50,GL])],
+    Z:[S([22,OL],[78,OL]),S([78,OL],[22,GL]),S([22,GL],[78,GL])],
     "Ä":[...A_,dot(40,CAPDOT),dot(60,CAPDOT)],
     "Ö":[...O_,dot(40,CAPDOT),dot(60,CAPDOT)],
     "Ü":[...U_,dot(38,CAPDOT),dot(62,CAPDOT)],
@@ -175,8 +178,8 @@ const STROKES=(()=>{
     h:[S([28,OL],[28,GL]),arch(28,32)],
     i:[S([50,ML],[50,GL]),dot(50)],
     j:[S([56,ML],[56,106],arc(56-16*AX,106,16,16,0,160)),dot(56)],
-    k:[S([30,OL],[30,GL]),S([64,ML],[31,70],[66,GL])],
-    l:[S([50,OL],[50,GL])],
+    k:[S([30,OL],[30,GL]),S([64,ML],[31,70]),S([31,70],[66,GL])],
+    l:[S([48,OL],[48,74],arc(48+12*AX,74,12,12,180,60))],   // unten mit kleinem Bogen
     m:[S([18,ML],[18,GL]),arch(18,30),arch(48,30)],
     n:[S([30,ML],[30,GL]),arch(30,32)],
     o:o_,
@@ -186,16 +189,17 @@ const STROKES=(()=>{
     s:[S(arc(50,59,13,9,-25,-270),arc(50,77,14.5,9,-90,155))],
     t:[S([46,24],[46,74],arc(46+12*AX,74,12,12,180,60)),S([32,ML],[62,ML])],
     u:u_,
-    v:[S([22,ML],[50,GL],[78,ML])],
-    w:[S([12,ML],[31,GL],[50,ML],[69,GL],[88,ML])],
+    v:[S([22,ML],[50,GL]),S([50,GL],[78,ML])],
+    w:[S([12,ML],[31,GL]),S([31,GL],[50,ML]),S([50,ML],[69,GL]),S([69,GL],[88,ML])],
     x:[S([26,ML],[74,GL]),S([74,ML],[26,GL])],
     y:[S([22,ML],[50,GL]),S([78,ML],[22,UL])],
-    z:[S([26,ML],[74,ML],[26,GL],[74,GL])],
+    z:[S([26,ML],[74,ML]),S([74,ML],[26,GL]),S([26,GL],[74,GL])],
     "ä":[...a_,dot(38),dot(56)],
     "ö":[...o_,dot(42),dot(58)],
     "ü":[...u_,dot(38),dot(56)],
-    "ß":[S([26,GL],[26,30],arc(26+15*AX,30,15,16,180,360),
-           curve(53.5,40,48,47,40,48),curve(60,48,68,56,68,66),curve(68,78,58,GL,46,GL),[38,GL])],
+    // ß: von unten (Unterlänge) hinauf, oberer Bogen bis zur Mitte; dann der untere Bauch
+    "ß":[S([26,GL+16],[26,30],arc(26+15*AX,30,15,16,180,360),curve(53.5,40,48,47,40,48)),
+         S([40,48],curve(60,48,68,56,68,66),curve(68,78,58,GL,46,GL),[38,GL])],
 
     // ── Ziffern ──────────────────────────────────────────────────────────────
     "0":[S(arc(50,ML,24,36,-90,-450))],
@@ -651,8 +655,23 @@ function distToPolyline(px,py,strokes){
 function useStrokes(letter,W,H){
   return useMemo(()=>{
     const raw=STROKES[letter]||STROKES["A"];
-    return raw.map(s=>interpolatePts(s,90).map(p=>toCanvas(p,W,H)));
+    return annotateStrokes(raw.map(s=>interpolatePts(s,90).map(p=>toCanvas(p,W,H))));
   },[letter,W,H]);
+}
+// Teilstriche wie auf den Schreibrichtungs-Plakaten nummeriert:
+//   chained — beginnt dort, wo der vorige aufhört (darf in einem Zug geschrieben werden)
+//   opt     — Anfang, der auf dem vorigen Strich zurückfährt (h, m, n, r); darf entfallen
+function annotateStrokes(list){
+  list.forEach((pts,i)=>{
+    const prev=list[i-1];
+    pts.chained=!!prev&&Math.hypot(prev[prev.length-1][0]-pts[0][0],prev[prev.length-1][1]-pts[0][1])<20;
+    pts.opt=0;
+    if(prev){
+      let k=0;while(k<pts.length&&distToPolyline(pts[k][0],pts[k][1],[prev])<2.5)k++;
+      if(k>3&&k<pts.length-3&&polyLength(pts.slice(0,k))>15)pts.opt=k-1;
+    }
+  });
+  return list;
 }
 
 // ── Schreibfeld-Größe ─────────────────────────────────────────────────────────
@@ -712,6 +731,34 @@ function checkFormation(drawn,tpl,tol){
   if(i0-i1>n*0.25)return "direction";
   if(i0>n*0.35)return "start";
   return null;
+}
+
+// Welche Teilstriche der Vorlage deckt ein gezeichneter Strich ab? Verbundene Teilstriche
+// darf das Kind in einem Zug schreiben oder absetzen; das Zurückfahren auf dem vorigen
+// Strich (h, m, n, r) darf es auch weglassen und den Bogen oben neu ansetzen.
+// Ergebnis: k = Zahl der geschafften Teilstriche, verdict = null oder Formfehler.
+function matchStroke(drawn,strokes,idx,tol){
+  const head=strokes[idx],heads=head.opt?[head,head.slice(head.opt)]:[head];
+  const headVerdicts=heads.map(h=>checkFormation(drawn,h,tol));
+  // Falschherum bleibt falschherum, auch wenn danach weitere Teilstriche folgen
+  if(headVerdicts.every(v=>v==="direction"))return{k:1,verdict:"direction"};
+  const reaches=(tpl)=>{const last=drawn[drawn.length-1],end=tpl[tpl.length-1];
+    return nearestIndex(last,tpl)>=tpl.length*0.8||Math.hypot(last[0]-end[0],last[1]-end[1])<tol*2.5;};
+  let reachK=0,anyOk=false;
+  headVerdicts.forEach((v,i)=>{if(!v){anyOk=true;if(reaches(heads[i]))reachK=1;}});
+  for(let k=2;idx+k<=strokes.length;k++){
+    if(!strokes[idx+k-1].chained)break;
+    const rest=strokes.slice(idx+1,idx+k).flat();
+    heads.forEach(h=>{
+      const tpl=[...h,...rest];
+      if(nearestIndex(drawn[0],tpl)>h.length*0.35)return;   // muss am Anfang des ersten Teilstrichs beginnen
+      if(checkFormation(drawn,tpl,tol))return;
+      anyOk=true;if(reaches(tpl))reachK=Math.max(reachK,k);
+    });
+  }
+  if(reachK)return{k:reachK,verdict:null};
+  if(anyOk)return{k:1,verdict:null};
+  return{k:1,verdict:headVerdicts[0]||"start"};
 }
 
 // Bewertung: Genauigkeit 50 %, Abdeckung der Vorlage 40 %, Längen-Abzug fürs Kritzeln
@@ -976,6 +1023,7 @@ function AnimCanvas({letter, onDone, scale=1, W=260, H=310}){
           strokes.forEach(pts=>{ctx.beginPath();ctx.moveTo(pts[0][0],pts[0][1]);for(let j=1;j<pts.length;j++)ctx.lineTo(pts[j][0],pts[j][1]);ctx.strokeStyle=th.acc;ctx.lineWidth=10;ctx.lineCap="round";ctx.lineJoin="round";ctx.stroke();});
           tmrRef.current=setTimeout(onDone,700);return;
         }
+        if(strokes[si].chained){rafRef.current=requestAnimationFrame(frame);return;}   // ohne Absetzen weiter
         tmrRef.current=setTimeout(()=>{rafRef.current=requestAnimationFrame(frame);},200);return;
       }
       rafRef.current=requestAnimationFrame(frame);
@@ -1250,7 +1298,7 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
       segs.current.push(seg);paintSeg(ovRef.current.getContext("2d"),seg);
     }
     if(guided&&strokeIdx.current<strokes.length){
-      const verdict=checkFormation(stroke,strokes[strokeIdx.current],diff.tolerance);
+      const {k:covered,verdict}=matchStroke(stroke,strokes,strokeIdx.current,diff.tolerance);
       attempts.current.push({pts:stroke.slice(),accepted:!verdict,verdict:verdict||"ok",expected:strokeIdx.current});
       if(verdict){
         formationErrors.current++;
@@ -1259,7 +1307,7 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
         setTimeout(startPulse,80);
         return;
       }
-      strokeIdx.current++;
+      strokeIdx.current+=covered;
       haptic("tick",hapticsEnabled);sfx("stroke");
       drawTemplate(bgRef.current.getContext("2d"));
       setKick(n=>n+1);
@@ -1617,10 +1665,17 @@ function GuidedCanvas({letter, onComplete, onNext=null, tools=null, pen="classic
   };
 
   // ── Phase 1: guided (snap to rail) ───────────────────────────────────────────
-  const nearStart=(px,py)=>{const si=strokeIdx.current;if(si>=strokes.length)return false;return Math.hypot(px-strokes[si][0][0],py-strokes[si][0][1])<28;};
+  const nearStart=(px,py)=>{
+    const si=strokeIdx.current;if(si>=strokes.length)return false;const s=strokes[si];
+    return Math.hypot(px-s[0][0],py-s[0][1])<28||(s.opt>0&&Math.hypot(px-s[s.opt][0],py-s[s.opt][1])<28);
+  };
   const snap=(px,py)=>{
     const si=strokeIdx.current;if(si>=strokes.length)return null;
-    const pts=strokes[si];const from=Math.max(0,progressRef.current-1),to=Math.min(pts.length-1,progressRef.current+6);
+    const pts=strokes[si],p0=progressRef.current,from=Math.max(0,p0-1);
+    // Fenster nach Weglänge statt Punktzahl: kurze Striche haben dicht liegende Punkte,
+    // sonst hängt der Punkt bei schnellem Finger hinterher (und beim Zurückfahren fest)
+    let to=p0,ahead=0;
+    while(to<pts.length-1&&(to-p0<6||ahead<28)){ahead+=Math.hypot(pts[to+1][0]-pts[to][0],pts[to+1][1]-pts[to][1]);to++;}
     let best=null,bestD=Infinity;
     for(let i=from;i<=to;i++){const d=Math.hypot(px-pts[i][0],py-pts[i][1]);if(d<bestD){bestD=d;best=i;}}
     return best!==null?{idx:best,pt:pts[best]}:null;
@@ -1640,7 +1695,10 @@ function GuidedCanvas({letter, onComplete, onNext=null, tools=null, pen="classic
           return;
         }
         strokeStarted.current=true;isDrawing.current=true;currentStrokePts.current=[];
-        const sp=strokes[strokeIdx.current][0];lastSnapped.current={x:sp[0],y:sp[1]};
+        // h, m, n, r: Bogen darf auch oben neu angesetzt werden
+        const at=tpl.opt>0&&Math.hypot(pos.x-tpl[tpl.opt][0],pos.y-tpl[tpl.opt][1])<Math.hypot(pos.x-tpl[0][0],pos.y-tpl[0][1])?tpl.opt:0;
+        progressRef.current=at;
+        const sp=tpl[at];lastSnapped.current={x:sp[0],y:sp[1]};
         currentStrokePts.current.push({x:sp[0],y:sp[1]});
         const m=`Strich ${strokeIdx.current+1} von ${strokes.length} – zieh entlang!`;setStatusMsg(m);onSpeak(m);
         drawGuidedTemplate(bgRef.current.getContext("2d"));
@@ -1663,7 +1721,16 @@ function GuidedCanvas({letter, onComplete, onNext=null, tools=null, pen="classic
     lastSnapped.current={x:sp[0],y:sp[1]};currentStrokePts.current.push({x:sp[0],y:sp[1]});
     drawGuidedTemplate(bgRef.current.getContext("2d"));
     const pts=strokes[strokeIdx.current];
-    if(progressRef.current>=pts.length-3)finishGuidedStroke();
+    if(progressRef.current>=pts.length-3){
+      const nx=strokes[strokeIdx.current+1];
+      if(nx&&nx.chained&&!isDotStroke(nx)){
+        // Nächster Teilstrich beginnt hier: ohne Absetzen weiterschreiben
+        strokeIdx.current++;progressRef.current=0;lastSnapped.current={x:nx[0][0],y:nx[0][1]};
+        setKick(n=>n+1);sfx("stroke");
+        setStatusMsg(`Weiter ohne abzusetzen – Strich ${strokeIdx.current+1} von ${strokes.length}!`);
+        drawGuidedTemplate(bgRef.current.getContext("2d"));
+      } else finishGuidedStroke();
+    }
   };
   // Strich im geführten Teil geschafft → nächster Strich oder ab ins freie Nachfahren
   const finishGuidedStroke=()=>{
@@ -1673,6 +1740,7 @@ function GuidedCanvas({letter, onComplete, onNext=null, tools=null, pen="classic
     if(strokeIdx.current>=strokes.length){
       setConfetti(true);setTimeout(()=>setConfetti(false),1500);
       setTimeout(()=>{
+        if(!ovRef.current||!bgRef.current)return;   // Kind hat die Übung schon verlassen
         freePoints.current=[];freeStrokeIdx.current=0;freeStrokePts.current=[];
         ovRef.current.getContext("2d").clearRect(0,0,W,H);
         drawFreeTemplate(bgRef.current.getContext("2d"));
@@ -1724,8 +1792,9 @@ function GuidedCanvas({letter, onComplete, onNext=null, tools=null, pen="classic
     }
     freePoints.current.push(null);
     if(freeStrokePts.current.length<3){freeStrokePts.current=[];return;}
+    const {k:covered}=matchStroke(freeStrokePts.current.map(p=>[p.x,p.y]),strokes,freeStrokeIdx.current,18);
     freeStrokePts.current=[];
-    const next=freeStrokeIdx.current+1;
+    const next=freeStrokeIdx.current+covered;
     if(next<strokes.length){
       sfx("stroke");setKick(n=>n+1);
       freeStrokeIdx.current=next;

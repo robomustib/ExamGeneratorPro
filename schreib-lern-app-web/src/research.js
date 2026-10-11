@@ -11,7 +11,7 @@ import { useSyncExternalStore } from "react";
 
 const CONFIG_URL = "./forschung/config.json";
 const STATE_KEY = "slk_research_v1";
-const APP_VERSION = "2.0";
+const APP_VERSION = "2.1";   // 2.1: Strichvorlagen nach den Schreibrichtungs-Plakaten (andere Teilstrich-Nummern)
 const MAX_BATCH = 40;
 const MAX_QUEUE = 3000;
 
