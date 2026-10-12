@@ -68,6 +68,9 @@ const ASPECT = 1.3;          // so viel schmaler/breiter (im Verhältnis zur Hö
 // Viertel einer Zeile: Ein „p“ eine Zone tiefer als „P“ oder ein kleines „o“ statt „O“
 // bleibt so ein Fehler.
 const MAXDY = 30;
+const LIM = { scale: SCALE, maxDy: MAXDY };
+// Nur zum Erkennen „Form stimmt, aber Größe oder Lage auf den Linien nicht“
+const FREE = { scale: [0.35, 2.8], maxDy: 400 };
 
 export const transformStrokes = (strokes, { sx, sy, tx, ty }) =>
   strokes.map((s) => s.map(([x, y]) => [sx * x + tx, sy * y + ty]));
@@ -116,21 +119,21 @@ function nearest(A, B) {
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 // Lage und Größe in den erlaubten Grenzen halten (cy: Mitte der Vorlage in der Höhe)
-function limit({ sx, sy, tx, ty }, cy) {
-  const s = clamp(Math.sqrt(Math.max(1e-6, sx) * Math.max(1e-6, sy)), SCALE[0], SCALE[1]);
+function limit({ sx, sy, tx, ty }, cy, lim = LIM) {
+  const s = clamp(Math.sqrt(Math.max(1e-6, sx) * Math.max(1e-6, sy)), lim.scale[0], lim.scale[1]);
   const r = clamp(Math.sqrt(Math.max(1e-6, sx) / Math.max(1e-6, sy)), 1 / Math.sqrt(ASPECT), Math.sqrt(ASPECT));
   const f = { sx: s * r, sy: s / r, tx, ty };
   const dy = f.sy * cy + f.ty - cy;
-  if (Math.abs(dy) > MAXDY) f.ty -= dy - Math.sign(dy) * MAXDY;
+  if (Math.abs(dy) > lim.maxDy) f.ty -= dy - Math.sign(dy) * lim.maxDy;
   return f;
 }
 
 // Vorlage an die Schrift anlegen: Schritt für Schritt die nächsten Punkte zuordnen (in
 // beide Richtungen, damit die Vorlage weder schrumpft noch Teile übersieht) und Lage und
 // Größe nach der Methode der kleinsten Quadrate anpassen.
-function fit(D, P, start, iters = 14) {
+function fit(D, P, start, lim = LIM, iters = 14) {
   const cy = P.reduce((m, p) => m + p[1], 0) / P.length;
-  let f = limit(start, cy);
+  let f = limit(start, cy, lim);
   for (let it = 0; it < iters; it++) {
     const Pt = P.map(([x, y]) => [f.sx * x + f.tx, f.sy * y + f.ty]);
     const pairs = [];
@@ -150,8 +153,8 @@ function fit(D, P, start, iters = 14) {
     // Einheitliche Größe als Rückfall, wenn eine Richtung kaum Ausdehnung hat (l, i, 1)
     const su = (xq + yq) / Math.max(1e-6, xx + yy);
     let sx = xx > 40 * n ? xq / xx : su, sy = yy > 40 * n ? yq / yy : su;
-    const g = limit({ sx, sy, tx: 0, ty: 0 }, 0);
-    const next = limit({ sx: g.sx, sy: g.sy, tx: qx - g.sx * px, ty: qy - g.sy * py }, cy);
+    const g = limit({ sx, sy, tx: 0, ty: 0 }, 0, lim);
+    const next = limit({ sx: g.sx, sy: g.sy, tx: qx - g.sx * px, ty: qy - g.sy * py }, cy, lim);
     const moved = Math.abs(next.tx - f.tx) + Math.abs(next.ty - f.ty) + 100 * (Math.abs(next.sx - f.sx) + Math.abs(next.sy - f.sy));
     f = next;
     if (moved < 0.3) break;
@@ -179,16 +182,19 @@ function compare(D, tpl, T, drawnLen) {
   const P = resample(tpl);
   const split = (A) => [A.filter((p) => !p[5]), A.filter((p) => p[5])];
   const [Pl, Pd] = split(P), [Dl, Dd] = split(D);
-  let acc = 0;
+  let acc = 0, run = 0, longRun = 0;
   const own = {};                                                   // Treffer je gezeichnetem Strich
-  for (const p of D) {
+  D.forEach((p, i) => {
     const d = p[5] ? closest(p, Pd) : closest(p, Pl);
     const c = p[5] ? (d <= T * 1.6 ? 1 : 0) : d <= T * 0.4 ? 1 : d <= T ? 1 - (d - T * 0.4) / (T * 0.6) : 0;
     acc += c;
     const o = (own[p[2]] ||= [0, 0, p[5]]); o[0] += c; o[1]++;
-  }
+    // Längstes Stück ohne jeden Treffer (z. B. die Oberlänge, wenn „h“ statt „n“ geschrieben ist)
+    run = !p[5] && !c && i && D[i - 1][2] === p[2] ? run + 1 : !p[5] && !c ? 1 : 0;
+    longRun = Math.max(longRun, run);
+  });
   const accuracy = acc / D.length;
-  const extra = Object.values(own).some(([c, n, dot]) => (dot || n >= 8) && c / n < 0.35);
+  const extra = Object.values(own).some(([c, n, dot]) => (dot || n >= 8) && c / n < 0.35) || longRun * STEP >= 45;
   const n = tpl.length, hit = new Array(n).fill(0), all = new Array(n).fill(0);
   for (const p of P) {
     all[p[2]]++;
@@ -202,7 +208,7 @@ function compare(D, tpl, T, drawnLen) {
   return { raw: accuracy * coverage * (1 - lengthPenalty * 0.3), accuracy, coverage, parts, extra };
 }
 
-function bestFit(drawnStrokes, D, tplStrokes, TOL) {
+function bestFit(drawnStrokes, D, tplStrokes, TOL, lim = LIM) {
   const P = resample(tplStrokes);
   const drawnLen = drawnStrokes.reduce((s, st) => s + polyLength(st), 0);
   const c = (A) => A.reduce((m, p) => [m[0] + p[0] / A.length, m[1] + p[1] / A.length], [0, 0]);
@@ -217,7 +223,7 @@ function bestFit(drawnStrokes, D, tplStrokes, TOL) {
   ];
   let best = null;
   for (const st of starts) {
-    const f = fit(D, P, st);
+    const f = fit(D, P, st, lim);
     const tpl = transformStrokes(tplStrokes, f);
     const T = TOL * clamp(Math.sqrt(Math.sqrt(f.sx * f.sy)), 0.8, 1.2);
     const sc = compare(D, tpl, T, drawnLen);
@@ -228,7 +234,8 @@ function bestFit(drawnStrokes, D, tplStrokes, TOL) {
 
 // Ergebnis: raw (0–1), accuracy, coverage, tpl (angelegte Vorlage zum Anzeigen), fit
 // (Verschiebung und Größe), missing ("part" oder "dots" fehlen), extra (ein Strich zu
-// viel), size ("small"/"big": viel kleiner oder größer als die Vorlage, z. B. „o“ statt „O“)
+// viel), size (Form stimmt, aber "small"/"big": viel kleiner/größer, z. B. „o“ statt „O“,
+// oder "high"/"low": auf der falschen Zeile, z. B. „p“ statt „P“)
 // und mirrored (Buchstabe deutlich besser gespiegelt)
 export function scoreFree(drawnStrokes, tplStrokes, TOL) {
   const D = resample(drawnStrokes.map((s) => s.map((p) => [p[0], p[1]])));
@@ -237,10 +244,20 @@ export function scoreFree(drawnStrokes, tplStrokes, TOL) {
   const dots = tplStrokes.map((s) => polyLength(s) < DOT);
   const missing = best.parts.some((v, i) => !dots[i] && v < 0.7) ? "part"
     : best.parts.some((v, i) => dots[i] && v < 0.5) ? "dots" : null;
-  // Größe: Höhe der Schrift im Vergleich zur Vorlage (ohne Punkte)
+  // Größe und Lage: Passt die Form sehr gut, sobald Größe und Höhe frei sind, dann ist es
+  // der richtige Buchstabe, nur zu klein, zu groß oder auf der falschen Zeile (o statt O, p statt P)
+  let size = null;
   const hd = bbox(D.filter((p) => !p[5])), ht = bbox(tplStrokes.filter((_, i) => !dots[i]).flat());
-  const h = (hd.y1 - hd.y0) / Math.max(1, ht.y1 - ht.y0);
-  const size = D.some((p) => !p[5]) ? (h < 0.6 ? "small" : h > 1.6 ? "big" : null) : null;
+  const h = D.some((p) => !p[5]) ? (hd.y1 - hd.y0) / Math.max(1, ht.y1 - ht.y0) : 1;
+  const oddHeight = h < 0.65 || h > 1.55;
+  if (best.raw < 0.8 || oddHeight) {
+    const free = bestFit(drawnStrokes, D, tplStrokes, TOL, FREE);
+    if (free.raw >= 0.8 && (free.raw > best.raw + 0.15 || oddHeight)) {
+      const f = free.fit, sc = Math.sqrt(f.sx * f.sy);
+      const cy = tplStrokes.flat().reduce((m, p, _, a) => m + p[1] / a.length, 0);
+      size = sc < 0.82 ? "small" : sc > 1.22 ? "big" : f.sy * cy + f.ty < cy ? "high" : "low";
+    }
+  }
   // Gespiegelt? Nur bei Zeichen, die gespiegelt anders aussehen
   const m = mirrorStrokes(tplStrokes);
   const symmetric = m.flat().every((p) => distToPolyline(p[0], p[1], tplStrokes) < TOL * 0.6);

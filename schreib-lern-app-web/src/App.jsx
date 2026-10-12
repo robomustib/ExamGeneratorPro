@@ -1307,10 +1307,10 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
     let note=null;
     if(mirrored)note="Gespiegelt! Schau, in welche Richtung er zeigt.";
     else if(!guided&&sc.missing==="dots")note="Die Punkte nicht vergessen!";
+    else if(!guided&&sc.size)note={small:"Schreib ihn so groß wie die Vorlage!",big:"Etwas kleiner – so groß wie die Vorlage!",
+      high:"Er sitzt zu hoch. Schau auf die Linien!",low:"Er sitzt zu tief. Schau auf die Linien!"}[sc.size];
     else if(!guided&&sc.missing)note="Da fehlt ein Teil. Grün zeigt dir, welcher.";
     else if(!guided&&sc.extra)note="Ein Strich zu viel. Grün zeigt, wie es geht.";
-    else if(!guided&&sc.size==="small")note="Schreib ihn so groß wie die Vorlage!";
-    else if(!guided&&sc.size==="big")note="Etwas kleiner – so groß wie die Vorlage!";
     else if(formationErrors.current>=2)note="Tipp: Immer beim gelben Punkt anfangen.";
     const praise=processPraise({stars:s,mode,formationErrors:formationErrors.current,tries:tries.current});
     clearTimeout(coachTimer.current);setCoach(null);

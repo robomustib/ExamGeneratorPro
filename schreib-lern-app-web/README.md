@@ -107,10 +107,13 @@ nutzen möchte, lädt sie direkt bei Frau Locke herunter.
   verschoben, in der Höhe bis etwa ein Viertel Zeile, 72–140 % groß, Breite leicht
   anders) und vergleicht erst dann. Eine Stelle gilt nur als getroffen, wenn die Linie
   dort in dieselbe Richtung läuft wie die Vorlage; Gekritzel bekommt so keine Sterne.
-- **Höchstens zwei Sterne** mit einem Hinweis von Klecks gibt es, wenn ein Teil fehlt, die
-  Punkte fehlen (i, j, ä, ö, ü), ein Strich zu viel ist, der Buchstabe gespiegelt ist oder
-  viel kleiner bzw. größer als die Vorlage (z. B. „o“ statt „O“). Wo nur die Zeile den
-  Unterschied macht (p und P), bleibt ein großer Versatz in der Höhe ein Fehler.
+- **Höchstens zwei Sterne** mit einem passenden Hinweis von Klecks gibt es, wenn
+  - der Buchstabe gespiegelt ist („Gespiegelt!“),
+  - die Punkte fehlen (i, j, ä, ö, ü),
+  - die Form stimmt, aber der Buchstabe viel zu klein oder zu groß ist (z. B. „o“ statt „O“)
+    oder auf der falschen Zeile sitzt (z. B. „p“ statt „P“),
+  - ein Teil fehlt (z. B. „F“ statt „E“) oder etwas zu viel ist (z. B. „E“ statt „F“,
+    „h“ statt „n“).
 - **Anzeige:** Die grüne Vorlage liegt im Ergebnis dort, wo das Kind geschrieben hat. Die
   Sterne stehen unter dem Schreibfeld zwischen „Nochmal“ und „Weiter“; das Feld und seine
   Linien bleiben unverändert und nichts von der Schrift wird verdeckt.
