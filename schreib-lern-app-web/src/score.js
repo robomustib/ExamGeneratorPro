@@ -252,10 +252,14 @@ export function scoreFree(drawnStrokes, tplStrokes, TOL) {
   const oddHeight = h < 0.65 || h > 1.55;
   if (best.raw < 0.8 || oddHeight) {
     const free = bestFit(drawnStrokes, D, tplStrokes, TOL, FREE);
-    if (free.raw >= 0.8 && (free.raw > best.raw + 0.15 || oddHeight)) {
-      const f = free.fit, sc = Math.sqrt(f.sx * f.sy);
+    // Nur wenn die freie Anpassung besser passt und dafür Größe oder Lage wirklich ändert
+    // (bei „h“ statt „n“ bleibt sie gleich: dann ist es kein Größenfehler)
+    const f = free.fit, sc = Math.sqrt(f.sx * f.sy), gain = free.raw - best.raw;
+    if (free.raw >= 0.8 && (sc < 0.82 || sc > 1.22) && (gain > 0.08 || (oddHeight && gain > 0.02))) {
+      size = sc < 0.82 ? "small" : "big";
+    } else if (free.raw >= 0.8 && gain > 0.15) {
       const cy = tplStrokes.flat().reduce((m, p, _, a) => m + p[1] / a.length, 0);
-      size = sc < 0.82 ? "small" : sc > 1.22 ? "big" : f.sy * cy + f.ty < cy ? "high" : "low";
+      size = f.sy * cy + f.ty < cy ? "high" : "low";
     }
   }
   // Gespiegelt? Nur bei Zeichen, die gespiegelt anders aussehen
