@@ -96,6 +96,26 @@ Frau Locke. Sie liegen dem Projekt nicht bei: Ihre Lizenz erlaubt den Einsatz
 im Unterricht, aber keine Weitergabe über Netzwerke oder Clouddienste. Wer sie
 nutzen möchte, lädt sie direkt bei Frau Locke herunter.
 
+## Bewertung: so entstehen die Sterne
+
+- **Nachfahren:** gemessen direkt an der Vorlage im Feld: Wie nah liegt die Schrift an
+  der Linie, wie viel der Vorlage ist abgefahren? Startpunkt und Richtung jedes Strichs
+  prüft die App schon beim Schreiben.
+- **Abschreiben, Aus dem Kopf (und Schreibtest der Studie):** Ohne Vorlage im Feld
+  schreibt kaum ein Kind an genau derselben Stelle. Bewertet wird deshalb die **Form**:
+  Die App legt die Vorlage zuerst an den Buchstaben des Kindes an (seitlich beliebig
+  verschoben, in der Höhe bis etwa ein Viertel Zeile, 72–140 % groß, Breite leicht
+  anders) und vergleicht erst dann. Eine Stelle gilt nur als getroffen, wenn die Linie
+  dort in dieselbe Richtung läuft wie die Vorlage; Gekritzel bekommt so keine Sterne.
+- **Höchstens zwei Sterne** mit einem Hinweis von Klecks gibt es, wenn ein Teil fehlt, die
+  Punkte fehlen (i, j, ä, ö, ü), ein Strich zu viel ist, der Buchstabe gespiegelt ist oder
+  viel kleiner bzw. größer als die Vorlage (z. B. „o“ statt „O“). Wo nur die Zeile den
+  Unterschied macht (p und P), bleibt ein großer Versatz in der Höhe ein Fehler.
+- **Anzeige:** Die grüne Vorlage liegt im Ergebnis dort, wo das Kind geschrieben hat. Die
+  Sterne stehen unter dem Schreibfeld zwischen „Nochmal“ und „Weiter“; das Feld und seine
+  Linien bleiben unverändert und nichts von der Schrift wird verdeckt.
+- Code: `src/score.js`.
+
 ## Was die Forschung sagt – und wie die App es umsetzt
 
 | Befund | Umsetzung in der App |
@@ -164,7 +184,10 @@ randomisierte Wartekontrollgruppe.
   Das Design vor Studienbeginn nicht mehr ändern, damit alle Kinder dieselbe App nutzen.
 - Jede Sitzung speichert `app_version`. Ab **2.1** folgen die Strichvorlagen den
   Schreibrichtungs-Plakaten; die Teilstrich-Nummern (`expected_idx`) sind deshalb nicht
-  mit Daten aus Version 2.0 vergleichbar.
+  mit Daten aus Version 2.0 vergleichbar. Ebenfalls ab 2.1 werden `accuracy`, `coverage`,
+  `score_raw` und `stars` beim freien Schreiben (Abschreiben, Aus dem Kopf, Schreibtest)
+  nach dem Anlegen der Vorlage berechnet (unabhängig von Lage und Größe, mit
+  Richtungsvergleich, siehe „Bewertung“); auch diese Werte nicht mit 2.0 vergleichen.
 
 Forschungsdesign, Datenschutzkonzept und Einrichtung stehen im Dokument
 „Forschungsdesign und Datenschutzkonzept: Schreib & Lern“.
@@ -204,6 +227,7 @@ schreib-lern-app-web/
 │   ├── sound.js        kurze Töne, im Browser erzeugt
 │   ├── install.js      Knopf „App installieren“ und Hinweise je nach Gerät
 │   ├── icons.jsx       einheitliche Symbole, Welt-Bilder, Schatztruhe
+│   ├── score.js        Bewertung: Nachfahren und frei Geschriebenes (Form statt Stelle)
 │   └── research.js     Forschungsmodus: Messung, Warteschlange, Upload
 └── dist/               ← fertige Webseite zum Hochladen
 ```

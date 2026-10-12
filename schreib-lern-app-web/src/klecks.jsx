@@ -205,7 +205,9 @@ const TONES = {
   praise: { bg: "#e9fbf2", border: "#34d399", color: "#0f6b47" },
   think: { bg: "#f3edff", border: "#b79bff", color: "#4c2a9e" },
 };
-export function KlecksBubble({ text, mood = "happy", tone = "info", size = 46, maxWidth = 420, anim, kick = 0, onKlecks }) {
+// minH: feste Mindesthöhe (über dem Schreibfeld zwei Zeilen), damit das Feld darunter nicht
+// verrutscht, wenn ein längerer Satz kommt
+export function KlecksBubble({ text, mood = "happy", tone = "info", size = 46, maxWidth = 420, anim, kick = 0, onKlecks, minH = 40 }) {
   const t = TONES[tone] || TONES.info;
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", maxWidth }}>
@@ -225,7 +227,7 @@ export function KlecksBubble({ text, mood = "happy", tone = "info", size = 46, m
           fontSize: 15,
           fontWeight: 800,
           lineHeight: 1.25,
-          minHeight: 40,
+          minHeight: minH,
           display: "flex",
           alignItems: "center",
           animation: "popIn 0.3s ease-out",

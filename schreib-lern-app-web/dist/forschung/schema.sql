@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS sl_trials (
   niv_per_stroke  FLOAT NULL,                            -- Geschwindigkeitsgipfel pro Strich
   accuracy        FLOAT NULL,
   coverage        FLOAT NULL,
-  score_raw       FLOAT NULL,                            -- 0 bis 0,9
+  score_raw       FLOAT NULL,                            -- Nachfahren 0 bis 0,9; frei geschrieben ab 2.1: 0 bis 1
   stars           TINYINT UNSIGNED NULL,
   mirrored        TINYINT  NULL,
   KEY idx_trials_pid (pid, kind, wave),

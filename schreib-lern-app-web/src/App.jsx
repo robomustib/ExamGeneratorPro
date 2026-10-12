@@ -4,6 +4,7 @@ import { Klecks, KlecksBubble, CompanionCtx, KLECKS_COLORS, accList, wearAcc, to
 import { sfx, setSoundOn } from "./sound.js";
 import { useInstall } from "./install.js";
 import { Icon, Star, WorldArt, ChestArt } from "./icons.jsx";
+import { polyLength, distToPolyline, bbox, scoreDrawing, scoreFree, freeStars } from "./score.js";
 // Schrift „Nunito" (SIL Open Font License) — wird in die App eingebettet, kein Google-Server
 import nunito700 from "@fontsource/nunito/files/nunito-latin-700-normal.woff2";
 import nunito800 from "@fontsource/nunito/files/nunito-latin-800-normal.woff2";
@@ -638,20 +639,6 @@ function interpolatePts(stroke,steps=90){
   return result;
 }
 function toCanvas(p,W,H){return[p[0]/100*W,p[1]/130*H];}
-// ─── Accurate point-to-polyline distance (uses segment math, not point sampling) ──
-function distToPolyline(px,py,strokes){
-  let minD=Infinity;
-  for(const s of strokes){
-    for(let i=1;i<s.length;i++){
-      const ax=s[i-1][0],ay=s[i-1][1],bx=s[i][0],by=s[i][1];
-      const dx=bx-ax,dy=by-ay,len2=dx*dx+dy*dy;
-      if(len2===0){minD=Math.min(minD,Math.hypot(px-ax,py-ay));continue;}
-      const t=Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/len2));
-      minD=Math.min(minD,Math.hypot(px-(ax+t*dx),py-(ay+t*dy)));
-    }
-  }
-  return minD;
-}
 function useStrokes(letter,W,H){
   return useMemo(()=>{
     const raw=STROKES[letter]||STROKES["A"];
@@ -694,7 +681,6 @@ function useCanvasScale(refs,k){
 }
 
 // ── Geometrie für Rückmeldungen ───────────────────────────────────────────────
-function polyLength(p){let L=0;for(let i=1;i<p.length;i++)L+=Math.hypot(p[i][0]-p[i-1][0],p[i][1]-p[i-1][1]);return L;}
 function nearestIndex(pt,poly){
   let best=0,bd=Infinity;
   poly.forEach((q,i)=>{const d=Math.hypot(pt[0]-q[0],pt[1]-q[1]);if(d<bd){bd=d;best=i;}});
@@ -703,10 +689,6 @@ function nearestIndex(pt,poly){
 // Vorlagen-Strich, der nur ein Punkt ist (i-Punkt, Umlaut-Punkte): einmal antippen reicht
 const isDotStroke=(pts)=>pts.length>0&&polyLength(pts)<25;
 function signedArea(p){let a=0;for(let i=0;i<p.length;i++){const[x1,y1]=p[i],[x2,y2]=p[(i+1)%p.length];a+=x1*y2-x2*y1;}return a/2;}
-function bbox(pts){
-  const xs=pts.map(p=>p[0]),ys=pts.map(p=>p[1]);
-  return{x0:Math.min(...xs),x1:Math.max(...xs),y0:Math.min(...ys),y1:Math.max(...ys)};
-}
 
 // Prüft Startpunkt und Richtung eines Strichs gegen die Vorlage.
 // Ergebnis: null (passt), "start" (woanders angefangen) oder "direction" (falschherum).
@@ -761,29 +743,7 @@ function matchStroke(drawn,strokes,idx,tol){
   return{k:1,verdict:headVerdicts[0]||"start"};
 }
 
-// Bewertung: Genauigkeit 50 %, Abdeckung der Vorlage 40 %, Längen-Abzug fürs Kritzeln
-function scoreDrawing(drawnStrokes,tpl,TOL){
-  const pts=drawnStrokes.flat();if(pts.length<4)return{raw:0,accuracy:0,coverage:0};
-  let acc=0;
-  for(const p of pts){
-    const d=distToPolyline(p[0],p[1],tpl);
-    if(d<=TOL*0.5)acc+=1;else if(d<=TOL)acc+=1-(d-TOL*0.5)/(TOL*0.5);
-  }
-  const accuracy=acc/pts.length;
-  const tplPts=tpl.flat();let covered=0;
-  for(const t of tplPts){if(pts.some(p=>Math.hypot(p[0]-t[0],p[1]-t[1])<TOL*1.4))covered++;}
-  const coverage=covered/tplPts.length;
-  const drawnLen=drawnStrokes.reduce((s,st)=>s+polyLength(st),0);
-  const ratio=drawnLen/Math.max(1,tpl.reduce((s,st)=>s+polyLength(st),0));
-  const lengthPenalty=ratio>2?Math.min(1,(ratio-2)/3):0;
-  return{raw:(accuracy*0.5+coverage*0.4)*(1-lengthPenalty*0.1),accuracy,coverage};
-}
-const shiftStrokes=(strokes,dx)=>strokes.map(s=>s.map(([x,y])=>[x+dx,y]));
-// Spiegelbild um die senkrechte Mittelachse (typisch bei J, Z, 3, 7, 9 …)
-function mirrorStrokes(strokes){
-  const b=bbox(strokes.flat()),cx=(b.x0+b.x1)/2;
-  return strokes.map(s=>s.map(([x,y])=>[2*cx-x,y]));
-}
+// Bewertung: siehe score.js (Nachfahren: scoreDrawing, frei geschrieben: scoreFree)
 
 // Vorlage mit Startpunkten, Nummern und Richtungspfeilen (zum Einprägen)
 function drawModel(ctx,strokes,{color="#4361ee",width=9,alpha=1,numbers=true,arrows=true,font=12}={}){
@@ -1165,6 +1125,9 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
     if(speakIt)onSpeak(text);
   },[onSpeak]);
 
+  // Wartezeit beim Aus-dem-Kopf-Schreiben: aktuelle Vorgabe und die des laufenden Versuchs
+  const delayNow=useRef(memoryDelay);delayNow.current=memoryDelay;
+  const trialDelay=useRef(memoryDelay);
   // Versuch an den Forschungsmodus melden (einmal pro Versuch)
   const report=(completed,extra={})=>{
     if(!onTrialRef.current||reported.current||onsetRef.current==null)return;
@@ -1172,7 +1135,7 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
     reported.current=true;
     const m=trialMetrics({attempts:attempts.current,onset:onsetRef.current,W,H});
     onTrialRef.current({...m,onset:onsetRef.current,completed:completed?1:0,mode,
-      memory_delay_s:mode==="memory"?memoryDelay:null,...extra});
+      memory_delay_s:mode==="memory"?trialDelay.current:null,...extra});
   };
 
   const reset=useCallback(()=>{
@@ -1192,21 +1155,24 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
   useEffect(()=>{if(bgRef.current)drawTemplate(bgRef.current.getContext("2d"));},[memPhase]);
   useEffect(()=>()=>{clearTimeout(coachTimer.current);report(false);},[]);
 
-  // Aus-dem-Kopf: zeigen → warten (Countdown) → schreiben
+  // Aus-dem-Kopf: zeigen → warten (Countdown) → schreiben.
+  // Nach einem Erfolg wird die Wartezeit fürs nächste Mal länger; der gerade fertige Versuch
+  // startet davon nicht neu (sonst überdeckt die Vorlage den Vergleich mit der Schrift).
   useEffect(()=>{
     if(mode!=="memory"){setMemPhase("write");return;}
+    const delay=trialDelay.current=delayNow.current;
     setMemPhase("show");
     const timers=[];
     const write=()=>{setMemPhase("write");markOnset();onSpeak("Jetzt du! Schreib ihn aus dem Kopf.");};
     timers.push(setTimeout(()=>{
-      if(memoryDelay<=0){write();return;}
-      setMemPhase("wait");setCountdown(memoryDelay);
-      for(let i=1;i<=memoryDelay;i++)timers.push(setTimeout(()=>{
-        if(i===memoryDelay)write();else setCountdown(memoryDelay-i);
+      if(delay<=0){write();return;}
+      setMemPhase("wait");setCountdown(delay);
+      for(let i=1;i<=delay;i++)timers.push(setTimeout(()=>{
+        if(i===delay)write();else setCountdown(delay-i);
       },i*1000));
     },2600));
     return()=>timers.forEach(clearTimeout);
-  },[letter,mode,memoryDelay,round]);
+  },[letter,mode,round]);
 
   // ── Hilfe-Knopf nach 4 s ohne Zeichnen ──
   const resetIdleTimer=useCallback(()=>{
@@ -1318,22 +1284,11 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
 
   const checkScore=()=>{
     const TOL=diff.tolerance*(guided?1:1.3);
-    let tpl=strokes,mirrored=false;
-    if(!guided){
-      // Frei geschrieben: Position darf seitlich abweichen — Vorlage zur Schrift schieben
-      const d=bbox(drawn.current.flat()),t=bbox(strokes.flat());
-      const dx=Math.max(-W*0.3,Math.min(W*0.3,(d.x0+d.x1)/2-(t.x0+t.x1)/2));
-      tpl=shiftStrokes(strokes,dx);
-    }
-    const sc=scoreDrawing(drawn.current,tpl,TOL),raw=sc.raw;
-    if(!guided){
-      // Gespiegelt? Nur bei Zeichen, die gespiegelt anders aussehen
-      const m=mirrorStrokes(tpl);
-      const symmetric=m.flat().every(p=>distToPolyline(p[0],p[1],tpl)<TOL*0.6);
-      if(!symmetric){const rawM=scoreDrawing(drawn.current,m,TOL).raw;mirrored=rawM>raw+0.12&&rawM>0.45;}
-    }
-    let s=Math.max(1,Math.min(5,Math.round(raw*5)));
-    if(mirrored)s=Math.min(s,2);
+    // Nachfahren: direkt an der Vorlage im Feld messen. Frei geschrieben: Es zählt die Form —
+    // die Vorlage wird an die Schrift angelegt (Stelle und Größe in Grenzen egal).
+    const sc=guided?scoreDrawing(drawn.current,strokes,TOL):scoreFree(drawn.current,strokes,TOL);
+    const raw=sc.raw,tpl=guided?strokes:sc.tpl,mirrored=!guided&&sc.mirrored;
+    const s=guided?Math.max(1,Math.min(5,Math.round(raw*5))):freeStars(sc);
     report(true,{accuracy:+sc.accuracy.toFixed(3),coverage:+sc.coverage.toFixed(3),score_raw:+raw.toFixed(3),stars:s,mirrored:guided?null:mirrored?1:0});
     if(probe){
       // Schreibtest: keine Bewertung zeigen, direkt weiter
@@ -1343,13 +1298,19 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
       return;
     }
     if(!guided){
-      // Vergleich zeigen: Vorlage hinter die Schrift des Kindes legen
+      // Vergleich zeigen: Vorlage hinter die Schrift des Kindes legen — dort, wo das Kind
+      // geschrieben hat, damit es sieht, wie gut die Form passt
       const ctx=bgRef.current.getContext("2d");
       ctx.clearRect(0,0,W,H);drawRules(ctx);
       drawModel(ctx,tpl,{color:"#22c55e",width:16,alpha:0.35,numbers:false,arrows:false});
     }
     let note=null;
     if(mirrored)note="Gespiegelt! Schau, in welche Richtung er zeigt.";
+    else if(!guided&&sc.missing==="dots")note="Die Punkte nicht vergessen!";
+    else if(!guided&&sc.missing)note="Da fehlt ein Teil. Grün zeigt dir, welcher.";
+    else if(!guided&&sc.extra)note="Ein Strich zu viel. Grün zeigt, wie es geht.";
+    else if(!guided&&sc.size==="small")note="Schreib ihn so groß wie die Vorlage!";
+    else if(!guided&&sc.size==="big")note="Etwas kleiner – so groß wie die Vorlage!";
     else if(formationErrors.current>=2)note="Tipp: Immer beim gelben Punkt anfangen.";
     const praise=processPraise({stars:s,mode,formationErrors:formationErrors.current,tries:tries.current});
     clearTimeout(coachTimer.current);setCoach(null);
@@ -1383,10 +1344,10 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
         ?<div style={{fontSize:15,color:"#334155",background:"white",borderRadius:16,padding:"8px 18px",border:"3px solid #ccfbf1",fontWeight:800,textAlign:"center"}}>{hint}</div>
         :mode==="copy"
           ?<div style={{display:"flex",alignItems:"center",gap:8,width:"100%",maxWidth:W*scale+22}}>
-             <div style={{flex:1,minWidth:0}}><KlecksBubble {...bubble} kick={kick}/></div>
+             <div style={{flex:1,minWidth:0}}><KlecksBubble {...bubble} kick={kick} minH={58}/></div>
              <ModelCard letter={letter} W={96} H={114}/>
            </div>
-          :<KlecksBubble {...bubble} kick={kick} maxWidth={W*scale+22}/>}
+          :<KlecksBubble {...bubble} kick={kick} minH={58} maxWidth={W*scale+22}/>}
       <div style={{position:"relative"}}>
         <FieldFrame W={W} H={H} scale={scale}>
             <canvas ref={bgRef} width={W*k} height={H*k} style={{position:"absolute",inset:0,width:"100%",height:"100%"}}/>
@@ -1399,13 +1360,14 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
               </div>
             )}
             {done&&probe&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",animation:"popIn 0.3s ease-out",pointerEvents:"none"}}><div style={{width:96,height:96,borderRadius:"50%",background:"#14b8a6",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="check" size={60} color="white" stroke={3.4}/></div></div>}
-            {done&&result&&!probe&&<StarResult stars={result.stars} hint={!guided?"Grün = so sieht die Vorlage aus":null}/>}
         </FieldFrame>
         {confetti&&<Confetti/>}
       </div>
       <div style={{display:"flex",gap:10,marginTop:4,flexWrap:"wrap",justifyContent:"center",alignItems:"center"}}>
         {probe&&!done&&<Btn bg="white" sh="#cbd5e1" color="#64748b" style={{border:"2px solid #cbd5e1"}} onClick={()=>{report(false,{skipped:1});setDone(true);onComplete(0,{mode,skipped:true});}}>Weiß ich nicht</Btn>}
-        {!(done&&probe)&&<Btn data-k="redo" bg="white" sh="#d5dbe7" color="var(--ink2)" style={{border:"2px solid #e3e8f2"}} onClick={()=>{sfx("tap");mode==="memory"?setRound(r=>r+1):reset();}}><Icon name="redo" size={20}/>{done?"Nochmal":"Neu"}</Btn>}
+        {!done&&<Btn data-k="redo" bg="white" sh="#d5dbe7" color="var(--ink2)" style={{border:"2px solid #e3e8f2"}} onClick={()=>{sfx("tap");mode==="memory"?setRound(r=>r+1):reset();}}><Icon name="redo" size={20}/>Neu</Btn>}
+        {done&&!probe&&<RedoIconBtn onClick={()=>{sfx("tap");mode==="memory"?setRound(r=>r+1):reset();}}/>}
+        {done&&result&&!probe&&<StarResult stars={result.stars} caption={!guided?"Grün = Vorlage":null}/>}
         {hasLines&&!done&&<Btn data-k="done" bg="var(--mint)" sh="var(--mintD)" onClick={checkScore} style={{fontSize:17,padding:"11px 20px",animation:allStrokesDone?"glowPulse 1.6s infinite":"none"}}><Icon name="check" size={22} stroke={3.2}/>Fertig</Btn>}
         {done&&!probe&&onNext&&<Btn bg="var(--coral)" sh="var(--coralD)" data-k="next" onClick={()=>{sfx("pop");onNext();}} style={{minWidth:130,fontSize:17,padding:"11px 20px",animation:"popIn 0.35s ease-out"}}>Weiter<Icon name="next" size={22} stroke={3.2}/></Btn>}
         {showHintBtn&&!done&&!hasLines&&guided&&(
@@ -1419,30 +1381,37 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
             Fertig?
           </Btn>
         )}
-        {!probe&&tools}
+        {!probe&&!done&&tools}
       </div>
     </div>
   );
 }
 
-// Ergebnis im Schreibfeld: Sterne erscheinen nacheinander
-// Ergebnis im Schreibfeld: drei Sterne erscheinen nacheinander (wie am Ende eines Levels)
-function StarResult({stars,hint,label}){
+// Ergebnis in der Knopfzeile unter dem Schreibfeld: drei Sterne erscheinen nacheinander
+// (wie am Ende eines Levels). Bewusst nicht im Feld: Die Schrift des Kindes und die Linien
+// bleiben ganz sichtbar und nichts verrutscht (auch Unterlängen wie bei g, j, p, q, y).
+// Zwischen „Nochmal“ und „Weiter“, damit „Weiter“ auch auf kleinen Bildschirmen sichtbar bleibt.
+function StarResult({stars,caption}){
   const n=stars3(stars);
   return(
-    <div data-stars={stars} data-stars3={n} style={{position:"absolute",left:0,right:0,bottom:0,background:"#ffffffee",display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"12px 8px 14px",borderTop:"3px solid #ffe7a3",animation:"slideUp 0.3s ease-out"}}>
-      <div style={{display:"flex",gap:6,alignItems:"flex-end"}}>
+    <div data-stars={stars} data-stars3={n} role="img" aria-label={`${n} von 3 Sternen`}
+      style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,animation:"slideUp 0.3s ease-out"}}>
+      <div style={{display:"flex",gap:3,alignItems:"flex-end"}}>
         {[1,2,3].map(i=>(
-          <div key={i} style={{transform:i===2?"translateY(-8px)":"none"}}>
-            <Star size={i===2?54:44} on={i<=n} style={{animation:i<=n?`kStarPop 0.45s ease-out ${i*0.18}s both`:"none"}}/>
+          <div key={i} style={{transform:i===2?"translateY(-5px)":"none"}}>
+            <Star size={i===2?40:32} on={i<=n} style={{animation:i<=n?`kStarPop 0.45s ease-out ${i*0.18}s both`:"none"}}/>
           </div>
         ))}
       </div>
-      <div style={{fontSize:19,color:"var(--ink)",fontWeight:900}}>{label||PRAISE[stars]}</div>
-      {hint&&<div style={{fontSize:11,color:"#16a34a",fontWeight:800}}>{hint}</div>}
+      {caption&&<div style={{fontSize:11,color:"#16a34a",fontWeight:800,lineHeight:1.2,whiteSpace:"nowrap"}}>{caption}</div>}
     </div>
   );
 }
+// „Nochmal“ nach dem Ergebnis: nur das Symbol, damit Sterne und „Weiter“ daneben passen
+const RedoIconBtn=({onClick})=>(
+  <Btn data-k="redo" bg="white" sh="#d5dbe7" color="var(--ink2)" aria-label="Nochmal" title="Nochmal"
+    style={{border:"2px solid #e3e8f2",width:52,height:52,padding:0,borderRadius:16}} onClick={onClick}><Icon name="redo" size={24}/></Btn>
+);
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // GUIDED CANVAS  — Phase 1: geführt, Phase 2: frei nachzeichnen, Phase 3: Vergleich
@@ -1483,7 +1452,7 @@ function GuidedCanvas({letter, onComplete, onNext=null, tools=null, pen="classic
   const [kick,setKick]=useState(0);
   const [confetti,setConfetti]=useState(false);
   const [hasDrawn,setHasDrawn]=useState(false);
-  const [scoreInfo,setScoreInfo]=useState({score:0,label:"",color:"#374151"});
+  const [scoreInfo,setScoreInfo]=useState({score:0});
 
   const strokes=useStrokes(letter,W,H);
 
@@ -1643,7 +1612,7 @@ function GuidedCanvas({letter, onComplete, onNext=null, tools=null, pen="classic
     strokeIdx.current=0;progressRef.current=0;
     isDrawing.current=false;strokeStarted.current=false;lastSnapped.current=null;currentStrokePts.current=[];
     freeLastPos.current=null;freePoints.current=[];freeStrokeIdx.current=0;freeStrokePts.current=[];
-    setPhase("guided");setConfetti(false);setHasDrawn(false);setScoreInfo({score:0,label:"",color:"#374151"});
+    setPhase("guided");setConfetti(false);setHasDrawn(false);setScoreInfo({score:0});
     setStatusMsg("Leg den Finger auf den orangen Punkt!");
     const bg=bgRef.current;const ov=ovRef.current;if(!bg||!ov)return;
     ov.getContext("2d").clearRect(0,0,W,H);drawGuidedTemplate(bg.getContext("2d"));
@@ -1808,10 +1777,8 @@ function GuidedCanvas({letter, onComplete, onNext=null, tools=null, pen="classic
 
   const finishFree=()=>{
     const pct=calcScore(),stars=Math.max(1,Math.round(pct/20));
-    const label=pct>=90?"Super genau!":pct>=70?"Sehr schön!":pct>=50?"Gut geschrieben!":"Weiter so!";
-    const color=pct>=90?"#16a34a":pct>=70?"#4361ee":pct>=50?"#f59e0b":"#f97316";
     const praise=stars>=3?"Erst mit Hilfe, dann ganz allein nachgefahren!":processPraise({stars,mode:"guided"});
-    setScoreInfo({score:pct,label,color,praise,stars});setPhase("compare");
+    setScoreInfo({score:pct,praise,stars});setPhase("compare");
     sfx(stars>=4?"fanfare":stars>=3?"done":"soft");
     setTimeout(()=>onSpeak(praise),500);
     reportG(true,{score_raw:pct/100,stars,n_strokes:strokes.length});
@@ -1823,7 +1790,7 @@ function GuidedCanvas({letter, onComplete, onNext=null, tools=null, pen="classic
     :{text:statusMsg,mood:"happy",tone:"info"};
   return(
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:10}}>
-      <KlecksBubble {...bubble} kick={kick} maxWidth={W*scale+22}/>
+      <KlecksBubble {...bubble} kick={kick} minH={58} maxWidth={W*scale+22}/>
       <div style={{position:"relative"}}>
         <FieldFrame W={W} H={H} scale={scale}>
             <canvas ref={bgRef} width={W*k} height={H*k} style={{position:"absolute",inset:0,width:"100%",height:"100%"}}/>
@@ -1841,22 +1808,18 @@ function GuidedCanvas({letter, onComplete, onNext=null, tools=null, pen="classic
             {phase==="compare"&&(
               <div style={{position:"absolute",inset:0,overflow:"hidden",background:"#f8fafc"}}>
                 <canvas ref={compareRef} width={W*k} height={H*k} style={{display:"block",width:"100%",height:"100%"}}/>
-                <div style={{position:"absolute",top:0,left:0,right:0,display:"flex",justifyContent:"center",gap:10,padding:"5px 8px",background:"rgba(255,255,255,0.92)",borderBottom:"1px solid #e2e8f0",fontSize:11,fontWeight:800}}>
-                  <span style={{display:"flex",alignItems:"center",gap:3}}><span style={{width:14,height:5,borderRadius:3,background:"rgba(180,180,200,0.7)",display:"inline-block"}}/>Vorlage</span>
-                  <span style={{display:"flex",alignItems:"center",gap:3}}><span style={{width:14,height:5,borderRadius:3,background:"#22c55e",display:"inline-block"}}/>Genau</span>
-                  <span style={{display:"flex",alignItems:"center",gap:3}}><span style={{width:14,height:5,borderRadius:3,background:"#ef4444",display:"inline-block"}}/>Abweichung</span>
-                </div>
-                <StarResult stars={scoreInfo.stars} label={scoreInfo.label}/>
               </div>
             )}
         </FieldFrame>
         {confetti&&<Confetti/>}
       </div>
       <div style={{display:"flex",gap:10,marginTop:4,alignItems:"center",flexWrap:"wrap",justifyContent:"center"}}>
-        <Btn data-k="redo" bg="white" sh="#d5dbe7" color="var(--ink2)" style={{border:"2px solid #e3e8f2"}} onClick={()=>{sfx("tap");reset();}}><Icon name="redo" size={20}/>{phase==="compare"?"Nochmal":"Neu"}</Btn>
+        {phase!=="compare"&&<Btn data-k="redo" bg="white" sh="#d5dbe7" color="var(--ink2)" style={{border:"2px solid #e3e8f2"}} onClick={()=>{sfx("tap");reset();}}><Icon name="redo" size={20}/>Neu</Btn>}
+        {phase==="compare"&&<RedoIconBtn onClick={()=>{sfx("tap");reset();}}/>}
+        {phase==="compare"&&<StarResult stars={scoreInfo.stars} caption="Grün = genau, Rot = daneben"/>}
         {phase==="freeTrace"&&hasDrawn&&<Btn data-k="done" bg="var(--mint)" sh="var(--mintD)" onClick={finishFree} style={{fontSize:17,padding:"11px 20px",animation:"glowPulse 1.6s infinite"}}><Icon name="check" size={22} stroke={3.2}/>Fertig</Btn>}
         {phase==="compare"&&onNext&&<Btn bg="var(--coral)" sh="var(--coralD)" data-k="next" onClick={()=>{sfx("pop");onNext();}} style={{minWidth:130,fontSize:17,padding:"11px 20px",animation:"popIn 0.35s ease-out"}}>Weiter<Icon name="next" size={22} stroke={3.2}/></Btn>}
-        {tools}
+        {phase!=="compare"&&tools}
       </div>
     </div>
   );
