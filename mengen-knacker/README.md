@@ -1,6 +1,6 @@
-# Blitz-Mengen-Knacker 2.0
+# Blitz-Mengen-Knacker 2.3
 
-Ein Lernspiel für Kinder von 5 bis 7 Jahren, die Mengen bis 10 auf einen Blick erfassen lernen sollen, statt jedes Ding einzeln abzuzählen.
+Ein Lernspiel für Kinder von 5 bis 7 Jahren, die Mengen bis 10 auf einen Blick erfassen lernen sollen, statt jedes Ding einzeln abzuzählen. Wer das sicher kann, rechnet danach in der Rechen-Stufe Plus und Minus bis 20, ebenfalls ohne Abzählen.
 Alle Daten bleiben im Browser des Geräts (localStorage). Es wird nichts verschickt.
 
 ## Was drin ist (7 Dateien)
@@ -19,6 +19,7 @@ Installieren und Offline-Modus gehen nur, wenn der Webserver HTTPS hat. Alle 7 D
 | Wer hat mehr? | Ziffern, Punktmengen und gemischt vergleichen | sofort |
 | Zahlenstrahl | „Wo wohnt die 7?“ auf dem Strahl 0–10 antippen | ab 20 Sternen |
 | Wie viele fehlen? | Zehner- bzw. Fünferpartner im Zehnerfeld | ab 45 Sternen, nur Lernstufe 2 |
+| Rechnen | Plus und Minus bis 10, dann bis 20 mit Zehnerübergang | ab Rechen-Reife (siehe unten) |
 
 Das Kind kann eine gemischte Runde („Los geht’s!“) oder ein einzelnes Spiel wählen. Aufgaben werden vorgelesen (Web Speech API, deutsche Stimme), damit Kinder ohne Lesekenntnisse allein spielen können.
 
@@ -36,7 +37,7 @@ Das Kind kann eine gemischte Runde („Los geht’s!“) oder ein einzelnes Spie
 5. Fehler werden erklärt und die Menge kommt zwei Aufgaben später noch einmal. Nach zwei Fehlern in Folge kommen leichtere Aufgaben. Bei häufigem Raten sind die Tasten kurz gesperrt. Jede Runde endet mit einer lösbaren Aufgabe.
 6. Dem Kind wird kein Countdown gezeigt und es gibt kein „Zeit vorbei“.
 
-Im **Eltern-Bereich** (Startbildschirm → „Für Eltern“, kleine Rechenaufgabe als Sperre) gibt es Übungstage, den Verlauf pro Runde, ein Mengen-Profil mit Reaktionszeit pro Menge, die „Zähl-Steigung“ ab 4 Dingen, häufige Verwechslungen, Empfehlungen für zu Hause sowie alle Einstellungen.
+Im **Eltern-Bereich** (Startbildschirm → „Für Eltern“, kleine Rechenaufgabe als Sperre) gibt es Übungstage, den Verlauf pro Runde, ein Mengen-Profil mit Reaktionszeit pro Menge, die „Zähl-Steigung“ ab 4 Dingen, häufige Verwechslungen, Empfehlungen für zu Hause sowie alle Einstellungen. Der Reiter „Rechnen“ zeigt den Weg zur Rechen-Reife, die Phase und den Stand jeder Aufgabenart, die Zähl-Steigung beim Rechnen und passende Ideen für zu Hause.
 
 ## Forschungsgrundlage (Auswahl)
 
@@ -51,6 +52,18 @@ Im **Eltern-Bereich** (Startbildschirm → „Für Eltern“, kleine Rechenaufga
 - Wilson, Shenhav, Straccia & Cohen (2019). The Eighty Five Percent Rule for optimal learning. *Nature Communications.* https://doi.org/10.1038/s41467-019-12552-4
 - Benavides-Varela et al. (2020). Metaanalyse digitaler Förderung bei Rechenschwierigkeiten (ES = 0,55). *Computers & Education.*
 - Ramirez, Gunderson, Levine & Beilock (2013). Mathe-Angst schon in Klasse 1–2. *Journal of Cognition and Development.*
+
+## Rechen-Stufe (Klasse 1)
+
+Rechnen ohne Abzählen baut auf zwei Fähigkeiten auf: Mengen bis 10 auf einen Blick erkennen und Mengen zerlegen. Die Rechen-Stufe schaltet sich deshalb am Ende einer Runde von selbst frei, sobald mindestens 8 der Mengen 1–10 im Blitzblick blitzschnell erkannt werden (keine unsicher) und „Wie viele fehlen bis 10?“ in den letzten 15 Aufgaben zu mindestens 80 % gelingt. Eltern können sie im Reiter „Rechnen“ auch vorher freischalten.
+
+- **Aufgabenarten nach Rechenweg:** Plus 1, Plus 2, Verdoppeln, Fast verdoppeln, Zehnerpartner, Kraft der 5; Minus 1, Minus 2, Halbieren, Von 10 weg, Mit der 5, Ergänzen; bis 20: Zehn und Einer, Analogieaufgaben, Verdoppeln bis 20, Plus 9, Zehnerübergang plus und minus. Jede Aufgabenart hat eine eigene Erklärung (z. B. „8 + 2 = 10, dann noch 3: 13“) und die passenden Rahmen im Bild.
+- **Stufen:** Plus bis 10 → Plus und Minus bis 10 (wenn 4 von 6 Plus-Arten im Kopf gelingen, frühestens nach 60 Aufgaben) → bis 20 (wenn 9 von 12 Aufgabenarten im Kopf gelingen, frühestens nach 200 Aufgaben). Dazu müssen zuletzt mindestens 80 % stimmen. Ältere Aufgaben kommen zur Wiederholung immer wieder dran, und Rechenblöcke wechseln sich in „Los geht’s!“ mit Mengen-Spielen ab.
+- **Vom Bild in den Kopf (Vierphasenmodell):** Für jede Aufgabenart gibt es drei Phasen. Zuerst bleiben Aufgabe und Plättchenbild stehen (rot = erste Zahl, blau = zweite, bei Minus durchgestrichen). Dann ist das Bild 3 Sekunden zu sehen und wird zugedeckt. Am Ende stehen nur noch die Zahlen da. Drei schnelle richtige Antworten bringen eine Phase weiter, ein Fehler oder zwei gezählte Antworten eine zurück. Bis 10 gibt es ein Zehnerfeld, Würfelpaare und Fingerbilder, bis 20 zwei Zehnerfelder untereinander und ein Tastenfeld 1–20 in derselben Anordnung.
+- **Reaktionszeit:** Mit Bild gilt eine Antwort als blitzschnell, wenn das Ergebnis strukturiert gesehen wurde. Ohne Bild heißt blitzschnell: abgerufen oder abgeleitet. „Gezählt“ heißt richtig, aber so langsam wie beim Weiterzählen, also abhängig von der kleineren Zahl (MIN-Modell). Dann zeigt das Spiel den kürzeren Rechenweg. Im Eltern-Bereich zeigt die „Zähl-Steigung“ (Sekunden pro Schritt der kleineren Zahl), ob noch weitergezählt wird.
+- **Studie:** Während der Studienteilnahme bleibt die Rechen-Stufe aus, damit die Studie nur das Erfassen von Mengen misst.
+
+Grundlagen: Wartha & Schulz (2012), Vierphasenmodell; PIKAS/DZLM, Nicht-zählendes Rechnen; Gaidoschik (2012), *Journal für Mathematik-Didaktik 33*; Baroody, Eiland, Purpura & Reid (2013), *American Educational Research Journal*; Groen & Parkman (1972), *Psychological Review 79*; Siegler (1987), *Journal of Experimental Psychology: General 116*; Rohrer, Dedrick, Hartwig & Cheung (2020), *Journal of Educational Psychology*; Lehrerfortbildung Baden-Württemberg, Lernband 1.7. Die Schwellen und Zeitgrenzen sind fachlich begründet, aber nicht empirisch geeicht.
 
 Das Spiel ersetzt keine Diagnose. Wenn nach 6–8 Wochen regelmäßigen Übens kaum Fortschritte sichtbar sind, lohnt ein Gespräch mit der Lehrkraft.
 
@@ -71,4 +84,4 @@ Erfasst werden keine Namen, E-Mail-Adressen, Geburtsdaten, IP-Adressen oder Ger�
 
 ## Für Entwickler
 
-In der Browser-Konsole ist `window.BlitzMengen` verfügbar (Daten, Aufgabenbank, Klassifikation, Profil), z. B. `BlitzMengen.profileNumbers()`.
+In der Browser-Konsole ist `window.BlitzMengen` verfügbar (Daten, Aufgabenbank, Klassifikation, Profil), z. B. `BlitzMengen.profileNumbers()` oder `BlitzMengen.calc.ready()`.

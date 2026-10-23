@@ -476,6 +476,38 @@ select { font: inherit; font-size: 16px; padding: 9px 10px; border-radius: 12px;
 .info-sec h4 { margin: 0; font-size: 16px; }
 .info-sec p { margin: 0; font-size: 15px; color: var(--ink-soft); max-width: 72ch; }
 .ok-note { color: var(--leaf-deep); font-weight: 700; margin: 0; }
+
+/* ---------- Rechnen ---------- */
+.calc { display: grid; }
+.eq { font-family: var(--font-display); font-weight: 600; font-size: clamp(38px, 10.5vw, 58px); line-height: 1.1; text-align: center; padding: 10px 12px 2px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.eq.solo { font-size: clamp(52px, 15vw, 100px); padding-block: clamp(20px, 6dvh, 52px); }
+.eq .op { color: var(--ink-soft); padding-inline: .14em; }
+.eq .a { color: var(--red); }
+.eq .b.plus { color: var(--blue); }
+.eq .q { display: inline-block; min-width: 1.25em; padding: 0 .12em; border-radius: 14px; background: var(--sun-wash); border: 3px dashed var(--sun); }
+.eq .q.done { border-style: solid; border-color: var(--leaf); background: var(--leaf-wash); animation: pop2 .35s cubic-bezier(.2, 1.6, .5, 1); }
+@keyframes pop2 { from { transform: scale(.6); } to { transform: none; } }
+.calc-pic { position: relative; overflow: hidden; }
+.calc-pic .pic { max-height: max(150px, calc(100dvh - 520px)); }
+.calc.k20 .calc-pic .pic { max-height: max(128px, calc(100dvh - 620px)); }
+.chip-off { opacity: .3; }
+.x-mark { stroke: var(--ink); stroke-width: 5; stroke-linecap: round; opacity: .75; }
+.die.da { stroke: var(--red); } .die.db { stroke: var(--blue); }
+.toast.low { top: auto; bottom: 12px; }
+.keypad.k20 { gap: 7px 8px; }
+.keypad.k20 .key { height: clamp(40px, min(11vw, 6.4dvh), 68px); font-size: clamp(20px, 5.8vw, 30px); border-radius: 14px; }
+.keypad.k20 .key:nth-child(n+11):nth-child(-n+15) { margin-top: 6px; }
+.tile.wide { grid-column: 1 / -1; grid-template-columns: auto minmax(0, 1fr); justify-items: start; align-items: center; text-align: left; gap: 14px; padding: 12px 16px; }
+.tile.wide .tw { display: grid; gap: 4px; width: 100%; min-width: 0; }
+.tile.wide b { font-family: var(--font-display); font-size: 22px; font-weight: 600; }
+.tile.wide small { font-size: 14px; color: var(--ink-soft); }
+.tile.wide .pbar { display: block; width: 100%; max-width: 260px; }
+.ready { display: grid; gap: 14px; }
+.ready-row { display: grid; gap: 4px; font-size: 15px; }
+.ready-row .meter { width: min(240px, 55%); }
+.phase { display: inline-flex; gap: 3px; vertical-align: middle; margin-right: 6px; }
+.phase i { width: 14px; height: 8px; border-radius: 3px; background: var(--line); }
+.phase i.on { background: var(--s1); }
 </style>
 <style id="fonts">
 /* Andika (SIL) und Fredoka, beide unter SIL Open Font License 1.1, Latin-Teilmenge eingebettet */
@@ -597,6 +629,7 @@ select { font: inherit; font-size: 16px; padding: 9px 10px; border-radius: 12px;
     <div class="tabs" role="tablist" id="tabs">
       <button class="tab-btn" role="tab" data-tab="overview" aria-selected="true">Übersicht</button>
       <button class="tab-btn" role="tab" data-tab="numbers" aria-selected="false">Mengen-Profil</button>
+      <button class="tab-btn" role="tab" data-tab="calc" aria-selected="false">Rechnen</button>
       <button class="tab-btn" role="tab" data-tab="settings" aria-selected="false">Einstellungen</button>
       <button class="tab-btn" role="tab" data-tab="research" aria-selected="false">Forschung &amp; Tipps</button>
       <button class="tab-btn" role="tab" data-tab="study" aria-selected="false">Studie</button>
@@ -648,8 +681,8 @@ function weightedPick(items, w) {
   for (let i = 0; i < items.length; i++) { r -= w[i]; if (r <= 0) return items[i]; }
   return items[items.length - 1];
 }
-const WORD = ['null', 'eins', 'zwei', 'drei', 'vier', 'fünf', 'sechs', 'sieben', 'acht', 'neun', 'zehn'];
-const NAME = ['Null', 'Eins', 'Zwei', 'Drei', 'Vier', 'Fünf', 'Sechs', 'Sieben', 'Acht', 'Neun', 'Zehn'];
+const WORD = ['null', 'eins', 'zwei', 'drei', 'vier', 'fünf', 'sechs', 'sieben', 'acht', 'neun', 'zehn', 'elf', 'zwölf', 'dreizehn', 'vierzehn', 'fünfzehn', 'sechzehn', 'siebzehn', 'achtzehn', 'neunzehn', 'zwanzig'];
+const NAME = ['Null', 'Eins', 'Zwei', 'Drei', 'Vier', 'Fünf', 'Sechs', 'Sieben', 'Acht', 'Neun', 'Zehn', 'Elf', 'Zwölf', 'Dreizehn', 'Vierzehn', 'Fünfzehn', 'Sechzehn', 'Siebzehn', 'Achtzehn', 'Neunzehn', 'Zwanzig'];
 
 /* =========================================================
    Icons
@@ -695,6 +728,7 @@ const GAME_ICON = {
   compare: `<svg class="gi" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 8v44M18 56h28M10 22l22-6 22 6" class="gi-stroke"/><path d="M3 34h18l-9-12z" class="gi-pan"/><path d="M43 30h18l-9-12z" class="gi-pan"/>${chip(8, 29, 4.5, 'r')}${chip(16, 29, 4.5, 'r')}${chip(12, 23, 4.5, 'r')}${chip(52, 25, 4.5, 'r')}</svg>`,
   line: '<svg class="gi" viewBox="0 0 64 64" aria-hidden="true"><path d="M5 44h54M5 36v16M32 36v16M59 36v16M18.5 40v8M45.5 40v8" class="gi-stroke"/><ellipse cx="45.5" cy="27" rx="10" ry="8" class="frog-body"/><circle cx="41" cy="20" r="4" class="frog-eye"/><circle cx="50" cy="20" r="4" class="frog-eye"/><circle cx="41" cy="20" r="1.6" class="frog-pupil"/><circle cx="50" cy="20" r="1.6" class="frog-pupil"/></svg>',
   partner: `<svg class="gi" viewBox="0 0 64 64" aria-hidden="true"><rect x="3" y="20" width="58" height="24" rx="6" class="gi-card"/>${chip(12, 32, 5.5, 'r')}${chip(23, 32, 5.5, 'r')}${chip(34, 32, 5.5, 'r')}<circle cx="45" cy="32" r="4.6" class="ghost"/><circle cx="55" cy="32" r="4.6" class="ghost"/></svg>`,
+  calc: `<svg class="gi" viewBox="0 0 64 64" aria-hidden="true"><rect x="3" y="14" width="58" height="36" rx="10" class="gi-card"/>${chip(16, 32, 8, 'r')}<path d="M32 25v14M25 32h14" class="gi-stroke"/>${chip(48, 32, 8, 'b')}</svg>`,
 };
 const GAME = {
   blitz: { name: 'Blitzblick', intro: 'Schau genau hin! Wie viele sind es? Tippe die Zahl, sobald du es weißt.' },
@@ -702,6 +736,7 @@ const GAME = {
   compare: { name: 'Wer hat mehr?', intro: 'Tippe auf die Seite, die mehr hat.' },
   line: { name: 'Zahlenstrahl', intro: 'Wo wohnt die Zahl? Tippe auf die richtige Stelle. Die Fünf hilft dir!' },
   partner: { name: 'Wie viele fehlen?', intro: 'Wie viele Plätze sind noch frei?' },
+  calc: { name: 'Rechnen', intro: 'Rechne! Tippe das Ergebnis.' },
 };
 const REP_NAME = { tenframe: 'Zehnerfeld', dice: 'Würfelbilder', fingers: 'Fingerbilder', ladybug: 'Marienkäfer', fruit: 'Äpfel', cloud: 'Punktewolke' };
 
@@ -709,10 +744,10 @@ const REP_NAME = { tenframe: 'Zehnerfeld', dice: 'Würfelbilder', fingers: 'Fing
    Speicher
    ========================================================= */
 const STORE_KEY = 'blitz-mengen-knacker.v2';
-const APP_VERSION = '2.2.1';
+const APP_VERSION = '2.3.0';
 const STUDY_API = 'api/study.php';
 const ONLINE_OK = /^https?:$/.test(location.protocol);
-const TASKS = ['blitz', 'match', 'compare', 'line', 'partner'];
+const TASKS = ['blitz', 'match', 'compare', 'line', 'partner', 'calc'];
 const REPS = ['tenframe', 'dice', 'fingers', 'ladybug', 'fruit', 'cloud'];
 const UNLOCK = { line: 20, partner: 45 };
 // Zeigezeiten (Sekunden). Start bei 4 s; kürzer erst nach 3 sicheren schnellen Treffern in Folge.
@@ -725,15 +760,16 @@ function freshData() {
     v: 2, name: '', created: now(), startProfile: 'school',
     settings: {
       max: 10, stage: 1, len: 12, target: 0.8, sound: true, speech: true, timer: false,
-      expoMode: 'auto', expoFixed: 4.0,
-      tasks: { blitz: true, match: true, compare: true, line: true, partner: true },
+      expoMode: 'auto', expoFixed: 4.0, calcLevel: 'auto',
+      tasks: { blitz: true, match: true, compare: true, line: true, partner: true, calc: true },
       reps: { tenframe: true, dice: true, fingers: true, ladybug: true, fruit: true, cloud: true },
     },
     stars: 0,
-    unlocked: { blitz: true, match: true, compare: true, line: false, partner: false },
-    theta: { blitz: -0.5, match: -0.5, compare: -0.5, line: -0.5, partner: -0.5 },
-    nTask: { blitz: 0, match: 0, compare: 0, line: 0, partner: 0 },
+    unlocked: { blitz: true, match: true, compare: true, line: false, partner: false, calc: false },
+    theta: { blitz: -0.5, match: -0.5, compare: -0.5, line: -0.5, partner: -0.5, calc: 0 },
+    nTask: { blitz: 0, match: 0, compare: 0, line: 0, partner: 0, calc: 0 },
     items: {}, ladder: {}, hist: [], sessions: [], seen: {},
+    calc: { level: 1 },
     study: { status: 'none' },
   };
 }
@@ -751,6 +787,7 @@ function mergeData(base, saved) {
   out.sessions = Array.isArray(saved.sessions) ? saved.sessions : [];
   out.seen = saved.seen || {};
   out.study = { status: 'none', ...(saved.study || {}) };
+  out.calc = { ...base.calc, ...(saved.calc || {}) };
   return out;
 }
 function loadData() {
@@ -835,6 +872,8 @@ function E() {
   return { ...s, max: 10, len: 12, target: 0.8, stage: Study.stage(), expoMode: fixed ? 'fixed' : 'auto', expoFixed: 4.0, timer: false, tasks: ALL_TASKS_ON, reps: ALL_REPS_ON };
 }
 function isUnlocked(k) {
+  // Die Rechen-Stufe bleibt während der Studie aus: Die Studie misst nur das Erfassen von Mengen.
+  if (k === 'calc') return !Study.active() && !!D.unlocked.calc;
   if (!Study.active()) return D.unlocked[k];
   return k === 'line' ? (D.study.trainSessions || 0) >= 2 : true;
 }
@@ -1055,6 +1094,8 @@ function bank(task) {
       if (M === 10 && a === 5) prior = -1.0;
       out.push({ key: `partner|${M}|${k}`, task, k, q: a, prior });
     }
+  } else if (task === 'calc') {
+    out.push(...calcBank());
   }
   return out;
 }
@@ -1079,6 +1120,16 @@ function thresholds(task, t, fixedBase) {
   else if (task === 'partner') { const a = t.q; fast = b + 0.15 * (a - 1) + 0.6; slow = b + 0.35 * (a - 1) + 1.8; }
   else if (task === 'match') { fast = b + 0.9 + 0.06 * t.q; slow = b + 2.8 + 0.25 * t.q; }
   else if (task === 'compare') { fast = b + 0.4; slow = b + 2.4; }
+  else if (task === 'calc') {
+    // Mit Bild: Ergebnis strukturiert sehen. Ohne Bild: Abrufen oder Ableiten ist schnell, Weiterzählen
+    // dauert mit jedem Schritt der kleineren Zahl länger (MIN-Modell, Groen & Parkman 1972).
+    const s = Math.min(t.q, 10), extra = (t.keys === 20 ? 0.4 : 0) + (t.tier === 2 ? 0.6 : 0) + (t.spoken ? 1.5 : 0);
+    let f0, s0;
+    if (t.phase === 0) { f0 = b + 0.9 + 0.12 * s; s0 = b + 1.4 + 0.3 * s; }
+    else if (t.phase === 1) { f0 = b + 1.4 + 0.06 * s; s0 = b + 3.0 + 0.4 * t.minC; }
+    else { f0 = b + 1.2 + (['cross', 'plus9', 'crossSub'].includes(t.fam) ? 0.6 : 0); s0 = b + 1.8 + 0.4 * t.minC; }
+    fast = f0 + extra; slow = Math.max(s0, f0 + 1) + extra;
+  }
   else { fast = b + 1.3; slow = b + 4.2; }
   return { fast, slow, b };
 }
@@ -1114,17 +1165,19 @@ function updateModel(item, cls) {
 }
 
 /* Blitzzeit-Treppe pro Menge (3 schnelle Treffer in Folge = kürzer, Fehler = länger) */
-function ladderKey(task, t) { return task === 'blitz' ? 'blitz:' + t.q : task === 'partner' ? 'partner' : task === 'compare' ? 'compare' : null; }
+function ladderKey(task, t) { return task === 'blitz' ? 'blitz:' + t.q : task === 'partner' ? 'partner' : task === 'compare' ? 'compare' : task === 'calc' ? 'calc:' + t.fam : null; }
 function ladderGet(key) {
   if (!D.ladder[key]) D.ladder[key] = { lv: START_LEVEL[D.startProfile] ?? 1, st: 0 };
   return D.ladder[key];
 }
 function exposureFor(task, t) {
+  if (task === 'calc') return t.tier === 2 ? CALC_FLASH + 0.5 : CALC_FLASH;
   const f = task === 'partner' ? 1.2 : 1;
   if (E().expoMode === 'fixed') return E().expoFixed * f;
   return EXPO[ladderGet(ladderKey(task, t)).lv] * f;
 }
 function updateLadder(task, t, cls) {
+  if (task === 'calc') return updatePhase(t, cls);
   if (E().expoMode === 'fixed' || !t.expo) return 0;
   const key = ladderKey(task, t); if (!key) return 0;
   const L = ladderGet(key), before = L.lv;
@@ -1152,7 +1205,7 @@ function recentCredit(task, n) {
   if (hs.length < 5) return null;
   return mean(hs.map(h => CREDIT[h.c] ?? 0));
 }
-const BASE_W = { blitz: 3, match: 1.6, compare: 1.5, line: 1.4, partner: 1.4 };
+const BASE_W = { blitz: 3, match: 1.6, compare: 1.5, line: 1.4, partner: 1.4, calc: 6 };
 function pickBlockTask() {
   if (S.only) return S.only;
   const avail = availableTasks();
@@ -1180,7 +1233,7 @@ function chooseItem(task) {
   const ri = S.retries.findIndex(r => r.task === task && r.due <= S.trialNo);
   if (ri >= 0) {
     const r = S.retries.splice(ri, 1)[0];
-    let c = task === 'compare' ? items.filter(it => it.key === r.key) : items.filter(it => it.q === r.q);
+    let c = task === 'compare' ? items.filter(it => it.key === r.key) : task === 'calc' ? items.filter(it => it.key === r.key || it.key === swapKey(r.key)) : items.filter(it => it.q === r.q);
     if (task === 'blitz') { const structured = c.filter(it => it.rep !== 'cloud'); if (structured.length) c = structured; }
     if (c.length) return { item: pick(c), retry: true };
   }
@@ -1188,6 +1241,8 @@ function chooseItem(task) {
   if (S.ease > 0) target = 0.95;
   if (S.trialNo === S.total - 1) target = Math.max(target, 0.92); // jede Runde endet mit einem Erfolg
   const recent = S.recentKeys.slice(-4);
+  // Rechnen: jede Aufgabenart (Rechenweg) gleich oft im Angebot, egal wie viele Aufgaben sie umfasst
+  const famN = task === 'calc' ? items.reduce((m, it) => { m[it.fam] = (m[it.fam] || 0) + 1; return m; }, {}) : null;
   const w = items.map(it => {
     const p = pCorrect(it);
     let x = Math.exp(-((p - target) ** 2) / (2 * 0.09 ** 2)) + 0.01;
@@ -1196,6 +1251,7 @@ function chooseItem(task) {
     const st = D.items[it.key];
     if (!st) x *= 1.2;
     else if (now() - st.last > DAY && p > 0.8) x *= 1.5; // verteilte Wiederholung
+    if (famN) x /= famN[it.fam];
     return x;
   });
   return { item: weightedPick(items, w), retry: false };
@@ -1257,7 +1313,7 @@ function handSVG(raised) {
   return s;
 }
 const TIP_LOCAL = [[142.7, 81.9], [92.5, 34], [68.5, 22], [44.5, 30], [22.5, 52]];
-function svgFingers(n) {
+function svgFingers(n, split) {
   const sc = 1.15, y = 26, items = [], groups = [];
   const place = (raised, tx, mirror) => {
     const tr = mirror ? `translate(${tx} ${y}) scale(${-sc} ${sc})` : `translate(${tx} ${y}) scale(${sc})`;
@@ -1267,7 +1323,8 @@ function svgFingers(n) {
     return `<g transform="${tr}">${handSVG(raised)}</g>`;
   };
   let svg;
-  if (n <= 5) svg = place(n, 108, false);
+  if (split) svg = place(split[0], 15, false) + place(split[1], 385, true);
+  else if (n <= 5) svg = place(n, 108, false);
   else svg = place(5, 15, false) + place(n - 5, 385, true);
   return { svg, groups, items };
 }
@@ -1348,8 +1405,291 @@ function renderRep(rep, n, t) {
 function groupMarks(groups) {
   return groups.map((g, i) => {
     const bx = clamp(g.x + g.w - 6, 22, 378), by = clamp(g.y + 4, 22, 258);
-    return `<g class="grp ${g.kind === 'gap' ? 'grp-gap' : ''}" style="animation-delay:${i * 0.3}s"><rect class="grp-box" x="${g.x}" y="${g.y}" width="${g.w}" height="${g.h}" rx="20"/><circle class="grp-badge" cx="${bx}" cy="${by}" r="19"/><text class="grp-num" x="${bx}" y="${by}">${g.count}</text></g>`;
+    return `<g class="grp ${g.kind === 'gap' ? 'grp-gap' : ''}" style="animation-delay:${i * 0.3}s"><rect class="grp-box" x="${g.x}" y="${g.y}" width="${g.w}" height="${g.h}" rx="20"/>${g.count == null ? '' : `<circle class="grp-badge" cx="${bx}" cy="${by}" r="19"/><text class="grp-num" x="${bx}" y="${by}">${g.count}</text>`}</g>`;
   }).join('');
+}
+
+/* =========================================================
+   Rechnen (ab Rechen-Reife): Plus und Minus bis 10, danach bis 20
+   ========================================================= */
+// Aufgaben sind nach nicht-zählenden Rechenwegen gruppiert. Die Familie bestimmt Erklärung, Lernphase und Startschwierigkeit.
+const CALC_FAM = {
+  plus1: { op: '+', tier: 1, name: 'Plus 1 (Nachbarzahl)', ex: '6 + 1', prior: -2.0 },
+  double: { op: '+', tier: 1, name: 'Verdoppeln', ex: '4 + 4', prior: -1.5 },
+  ten: { op: '+', tier: 1, name: 'Zehnerpartner', ex: '7 + 3', prior: -1.1 },
+  plus2: { op: '+', tier: 1, name: 'Plus 2', ex: '6 + 2', prior: -0.9 },
+  neardouble: { op: '+', tier: 1, name: 'Fast verdoppeln', ex: '3 + 4', prior: -0.6 },
+  kraft5: { op: '+', tier: 1, name: 'Kraft der 5', ex: '5 + 3', prior: -0.6 },
+  minus1: { op: '-', tier: 1, name: 'Minus 1 (Vorgänger)', ex: '8 − 1', prior: -1.4 },
+  half: { op: '-', tier: 1, name: 'Halbieren', ex: '8 − 4', prior: -0.5 },
+  from10: { op: '-', tier: 1, name: 'Von 10 weg', ex: '10 − 3', prior: -0.3 },
+  minus2: { op: '-', tier: 1, name: 'Minus 2', ex: '7 − 2', prior: -0.4 },
+  minus5: { op: '-', tier: 1, name: 'Mit der 5', ex: '8 − 5', prior: 0.0 },
+  diff: { op: '-', tier: 1, name: 'Ergänzen', ex: '9 − 7', prior: 0.4 },
+  zehner: { op: '±', tier: 2, name: 'Zehn und Einer', ex: '10 + 4', prior: 0.0 },
+  analogAdd: { op: '+', tier: 2, name: 'Analogieaufgaben plus', ex: '13 + 4', prior: 0.6 },
+  analogSub: { op: '-', tier: 2, name: 'Analogieaufgaben minus', ex: '17 − 4', prior: 0.9 },
+  double20: { op: '+', tier: 2, name: 'Verdoppeln bis 20', ex: '7 + 7', prior: 0.7 },
+  plus9: { op: '+', tier: 2, name: 'Plus 9', ex: '9 + 5', prior: 1.2 },
+  cross: { op: '+', tier: 2, name: 'Zehnerübergang plus', ex: '8 + 5', prior: 1.5 },
+  crossSub: { op: '-', tier: 2, name: 'Zehnerübergang minus', ex: '13 − 5', prior: 1.8 },
+};
+const CALC_LEVEL_NAME = { 1: 'Plus bis 10', 2: 'Plus und Minus bis 10', 3: 'Plus und Minus bis 20' };
+const CALC_LEVEL_SAY = { 2: 'Jetzt kommen auch Minus-Aufgaben', 3: 'Jetzt rechnest du bis zwanzig' };
+// Vierphasenmodell (Wartha & Schulz): mit Bild → Bild kurz, dann vorstellen → nur Zahlen
+const CALC_PHASE = ['Mit Plättchen', 'Vorstellen', 'Im Kopf'];
+const CALC_FLASH = 3.0;
+const MINUS = '−';
+const swapKey = k => k.replace(/^calc\|(\d+)\+(\d+)$/, 'calc|$2+$1');
+const famLevel = f => (CALC_FAM[f].tier === 2 ? 3 : CALC_FAM[f].op === '-' ? 2 : 1);
+function calcLevel() {
+  const s = D.settings.calcLevel;
+  return s === 'auto' || s == null ? clamp(D.calc.level || 1, 1, 3) : clamp(Number(s), 1, 3);
+}
+const calcKeys = () => (calcLevel() >= 3 ? 20 : 10);
+function calcFamily(a, op, b) {
+  if (op === '+') {
+    const s = a + b, lo = Math.min(a, b), hi = Math.max(a, b);
+    if (s <= 10) {
+      if (a === b) return 'double';
+      if (s === 10) return 'ten';
+      if (lo === 1) return 'plus1';
+      if (hi - lo === 1) return 'neardouble';
+      if (lo === 2) return 'plus2';
+      return 'kraft5';
+    }
+    if (hi === 10) return a === b ? 'double20' : 'zehner';
+    if (hi > 10) return 'analogAdd';
+    if (hi - lo <= 1) return 'double20';
+    if (hi === 9) return 'plus9';
+    return 'cross';
+  }
+  const r = a - b;
+  if (a <= 10) {
+    if (b === 1) return 'minus1';
+    if (a === 2 * b) return 'half';
+    if (a === 10) return 'from10';
+    if (b === 2) return 'minus2';
+    if (b === 5 || r === 5) return 'minus5';
+    if (b > r) return 'diff';
+    return 'minus5'; // 7 − 3, 9 − 3: über die volle Fünferreihe
+  }
+  if (b === 10 || r === 10) return 'zehner';
+  if (r > 10) return 'analogSub';
+  return 'crossSub';
+}
+function calcFacts(level) {
+  const out = [], add = (a, op, b) => out.push({ a, op, b });
+  for (let a = 1; a <= 9; a++) for (let b = 1; a + b <= 10; b++) add(a, '+', b);
+  if (level >= 2) for (let a = 2; a <= 10; a++) for (let b = 1; b < a; b++) add(a, '-', b);
+  if (level >= 3) {
+    for (let a = 1; a <= 10; a++) for (let b = 1; b <= 10; b++) if (a + b > 10) add(a, '+', b);
+    for (let a = 11; a <= 19; a++) for (let b = 1; b <= 9 && (a % 10) + b <= 10; b++) add(a, '+', b);
+    for (let a = 11; a <= 20; a++) for (let b = 1; b <= 10; b++) add(a, '-', b);
+  }
+  return out;
+}
+function calcPrior(fam, a, op, b) {
+  let p = CALC_FAM[fam].prior;
+  if (op === '+' && a < b && fam !== 'zehner') p += 0.25; // kleine Zahl vorn: erst tauschen
+  if (fam === 'double') p += a === 5 ? -0.4 : (a - 3) * 0.15;
+  if (fam === 'cross') p += 0.08 * (a + b - 10);
+  if (fam === 'crossSub') p += 0.08 * (b - (a - 10));
+  return p;
+}
+function calcBank() {
+  return calcFacts(calcLevel()).map(({ a, op, b }) => {
+    const fam = calcFamily(a, op, b);
+    return { key: `calc|${a}${op}${b}`, task: 'calc', a, b, op, fam, q: op === '+' ? a + b : a - b, tier: CALC_FAM[fam].tier, prior: calcPrior(fam, a, op, b) };
+  });
+}
+
+/* Lernphase pro Aufgabenart: 3 schnelle Treffer = eine Phase weiter, Fehler oder zweimal gezählt = eine zurück */
+const phaseKey = fam => 'calc:' + fam;
+function phaseGet(fam) {
+  const k = phaseKey(fam);
+  if (!D.ladder[k]) D.ladder[k] = { lv: 0, st: 0, sl: 0 };
+  return D.ladder[k];
+}
+const phaseOf = fam => (D.ladder[phaseKey(fam)] ? D.ladder[phaseKey(fam)].lv : 0);
+function updatePhase(t, cls) {
+  const P = phaseGet(t.fam), before = P.lv;
+  if (cls === 'fast') { P.st += 1; P.sl = 0; }
+  else if (cls === 'ok') { P.st += 0.5; P.sl = 0; }
+  else if (cls === 'slow') { P.st = 0; P.sl = (P.sl || 0) + 1; if (P.sl >= 2) { P.lv = Math.max(0, P.lv - 1); P.sl = 0; } }
+  else { P.lv = Math.max(0, P.lv - 1); P.st = 0; P.sl = 0; }
+  if (P.st >= 3) { P.lv = Math.min(2, P.lv + 1); P.st = 0; }
+  return P.lv - before;
+}
+
+/* Rechen-Reife: Mengen bis 10 auf einen Blick und Zerlegen bis 10 */
+function calcReady() {
+  const prof = E().max === 10 ? profileNumbers() : [];
+  const auto = prof.filter(p => p.status === 'auto').length, weak = prof.filter(p => p.status === 'learn' || p.status === 'guess').length;
+  const ph = D.hist.filter(h => h.k === 'partner' && !h.x && String(h.key).startsWith('partner|10|')).slice(-15);
+  const pAcc = ph.length ? ph.filter(h => h.ok).length / ph.length : 0;
+  const blitzOk = auto >= 8 && weak === 0, partOk = ph.length >= 15 && pAcc >= 0.8;
+  const progress = (Math.min(auto, 8) / 8 + Math.min(1, ph.length / 15) * Math.min(1, pAcc / 0.8)) / 2;
+  return { auto, weak, blitzOk, pN: ph.length, pAcc, partOk, ready: blitzOk && partOk, progress };
+}
+function unlockCalc() {
+  if (D.unlocked.calc) return;
+  D.unlocked.calc = true; D.settings.tasks.calc = true;
+  D.calc = { ...D.calc, level: D.calc.level || 1, at: now() };
+  if (!D.nTask.calc) D.theta.calc = 0;
+}
+function calcLevelUp() {
+  if (D.settings.calcLevel !== 'auto') return 0;
+  // Neue Aufgaben erst, wenn die bisherigen meist im Kopf gelingen und genug geübt wurde (Plus vor Minus, bis 10 vor bis 20).
+  const L = D.calc.level || 1, fams = lv => Object.keys(CALC_FAM).filter(f => famLevel(f) <= lv);
+  const inHead = lv => fams(lv).filter(f => phaseOf(f) >= 2).length, n = D.nTask.calc || 0, rc = recentCredit('calc', 30);
+  if (rc === null || rc < 0.8) return 0;
+  if (L === 1 && n >= 60 && inHead(1) >= 4) { D.calc.level = 2; return 2; }
+  if (L === 2 && n >= 200 && inHead(2) >= 9) { D.calc.level = 3; return 3; }
+  return 0;
+}
+
+/* Rechenbild: Zehnerfeld bis 10, zwei Zehnerfelder untereinander bis 20 (wie die Tasten 1–5, 6–10 | 11–15, 16–20).
+   Rot = erste Zahl, Blau = zweite Zahl. Bei Minus werden Plättchen durchgestrichen. */
+function calcRep(t) {
+  const pair = t.fam === 'double' || t.fam === 'neardouble';
+  if (t.op === '-' || t.q > 10) return t.fam === 'double20' ? 'split' : 'fill';
+  if (t.phase === 2) return pair ? 'split' : 'fill';
+  const reps = ['fill'], w = [pair ? 0.3 : 1];
+  if (t.a <= 5 && t.b <= 5) { reps.push('split'); w.push(pair ? 1 : 0.3); }
+  if (E().reps.dice && t.a <= 6 && t.b <= 6) { reps.push('dice'); w.push(0.35); }
+  if (E().reps.fingers && t.a <= 5 && t.b <= 5) { reps.push('fingers'); w.push(0.35); }
+  return weightedPick(reps, w);
+}
+function calcGeo(cap) {
+  if (cap === 10) {
+    const cell = 64, x0 = 40, y0 = 76;
+    return { cap, cell, r: 24, origins: [[x0, y0]], pos: i => [x0 + (i % 5) * cell + cell / 2, y0 + Math.floor(i / 5) * cell + cell / 2] };
+  }
+  const cell = 50, gap = 26, x0 = 75, y0 = 27;
+  return {
+    cap, cell, r: 19, origins: [[x0, y0], [x0, y0 + 2 * cell + gap]],
+    pos: i => { const f = Math.floor(i / 10), j = i % 10; return [x0 + (j % 5) * cell + cell / 2, y0 + f * (2 * cell + gap) + Math.floor(j / 5) * cell + cell / 2]; },
+  };
+}
+// Welche Plättchen weggenommen werden: von hinten; eine volle Fünferreihe bzw. ein volles Zehnerfeld als Ganzes.
+function calcTaken(t) {
+  if ((t.b === 5 && t.a <= 10) || t.b === 10) return [0, t.b];
+  return [t.q, t.a];
+}
+function calcCells(t, rep) {
+  const cells = [];
+  if (t.op === '+' && rep === 'split') {
+    const G = calcGeo(Math.max(t.a, t.b) > 5 ? 20 : 10), off = G.cap === 10 ? 5 : 10;
+    for (let i = 0; i < t.a; i++) cells.push({ i, c: 'r' });
+    for (let i = 0; i < t.b; i++) cells.push({ i: off + i, c: 'b' });
+    return { G, cells };
+  }
+  if (t.op === '+') {
+    const G = calcGeo(t.q > 10 ? 20 : 10);
+    for (let i = 0; i < t.q; i++) cells.push({ i, c: i < t.a ? 'r' : 'b' });
+    return { G, cells };
+  }
+  const G = calcGeo(t.a > 10 ? 20 : 10), [x0, x1] = calcTaken(t);
+  for (let i = 0; i < t.a; i++) cells.push({ i, c: 'r', off: i >= x0 && i < x1 });
+  return { G, cells };
+}
+function svgDicePair(a, b) {
+  const items = [], sz = 150, gap = 28, x1 = 200 - gap / 2 - sz, x2 = 200 + gap / 2, y = 65;
+  const svg = die(x1, y, sz, a, items).replace('class="die"', 'class="die da"') + die(x2, y, sz, b, items).replace('class="die"', 'class="die db"');
+  return { svg, groups: [{ x: x1 - 6, y: y - 6, w: sz + 12, h: sz + 12, count: a }, { x: x2 - 6, y: y - 6, w: sz + 12, h: sz + 12, count: b }], items };
+}
+function svgCalc(t, rep) {
+  if (rep === 'dice') return svgDicePair(t.a, t.b);
+  if (rep === 'fingers') return svgFingers(t.a + t.b, [t.a, t.b]);
+  const { G, cells } = calcCells(t, rep), W = 5 * G.cell, H = 2 * G.cell, items = [];
+  let s = '';
+  for (const [x, y] of G.origins) {
+    s += `<rect class="tf-frame" x="${x - 8}" y="${y - 8}" width="${W + 16}" height="${H + 16}" rx="18"/>`;
+    for (let r = 0; r < 2; r++) for (let c = 0; c < 5; c++) s += `<rect class="tf-cell" x="${x + c * G.cell + 4}" y="${y + r * G.cell + 4}" width="${G.cell - 8}" height="${G.cell - 8}" rx="${G.cell > 55 ? 12 : 10}"/>`;
+  }
+  for (const c of cells) {
+    const [x, y] = G.pos(c.i);
+    if (c.off) { const d = (G.r * 0.62).toFixed(1); s += `<g class="chip-off">${chip(x, y, G.r, c.c)}</g><path class="x-mark" d="M${x - d} ${y - d}L${x + +d} ${y + +d}M${x + +d} ${y - d}L${x - d} ${y + +d}"/>`; }
+    else { s += chip(x, y, G.r, c.c); items.push([x, y, G.r]); }
+  }
+  return { svg: s, groups: [], items, G };
+}
+// Rahmen um Felder from…to-1. Volle Reihen desselben Zehnerfelds werden zusammengefasst.
+// one = true: ein Abschnitt mit einer Zahl (an der letzten Teilfläche) statt einer Zahl pro Reihe.
+function cellBoxes(G, from, to, one) {
+  if (to <= from) return [];
+  const segs = [];
+  for (let i = from; i < to;) { const end = Math.min(to, i - (i % 5) + 5); segs.push({ a: i, b: end, full: i % 5 === 0 && end - i === 5 }); i = end; }
+  const merged = [];
+  for (const s of segs) {
+    const p = merged[merged.length - 1];
+    if (p && p.full && s.full && Math.floor(p.a / 10) === Math.floor(s.a / 10)) { p.b = s.b; continue; }
+    merged.push({ ...s });
+  }
+  const h = G.cell / 2;
+  return merged.map((m, k) => {
+    const [x1, y1] = G.pos(m.a), [x2, y2] = G.pos(m.b - 1);
+    return { x: x1 - h + 1, y: y1 - h + 1, w: x2 - x1 + G.cell - 2, h: y2 - y1 + G.cell - 2, count: one ? (k === merged.length - 1 ? to - from : null) : m.b - m.a };
+  });
+}
+// Welche Teile die Erklärung umrahmt: passend zum Rechenweg der Aufgabenart.
+function calcMarks(t, pic, rep) {
+  if (rep === 'dice' || rep === 'fingers') return pic.groups;
+  const G = pic.G, f = t.fam, box = (a, b, one) => cellBoxes(G, a, b, one);
+  if (t.op === '+') {
+    if (rep === 'split') { const off = G.cap === 10 ? 5 : 10; return [...box(0, t.a, f !== 'double20'), ...box(off, off + t.b, f !== 'double20')]; }
+    if (t.q > 10) return f === 'cross' || f === 'plus9' ? [...box(t.a, 10, true), ...box(10, t.q, true)] : [...box(0, 10, true), ...box(10, t.q, true)];
+    if (f === 'kraft5' || f === 'ten') return box(0, t.q);
+    return [...box(0, t.a, true), ...box(t.a, t.q, true)];
+  }
+  const [x0, x1] = calcTaken(t), rem = x0 === 0 ? [x1, t.a] : [0, t.q];
+  if (f === 'crossSub') return [...box(10, t.a, true), ...box(t.q, 10, true)];
+  if (rem[0] === 0 && t.q > 10) return [...box(0, 10, true), ...box(10, t.q, true)];
+  return box(rem[0], rem[1], !(f === 'minus5' && t.q > 5));
+}
+// Kurzer Rechenweg zur Aufgabe (Text fürs Bild, Satz zum Vorlesen)
+function calcExplain(t) {
+  const { a, b, q: r, fam: f } = t, W = n => WORD[n], lo = Math.min(a, b), hi = Math.max(a, b);
+  const swap = t.op === '+' && a < b ? `Tausche: ${W(b)} plus ${W(a)}. ` : '';
+  switch (f) {
+    case 'plus1': return { text: `Nach der ${hi} kommt die ${r}`, say: `${swap}Eins mehr: Nach der ${NAME[hi]} kommt die ${NAME[r]}.` };
+    case 'plus2': return { text: `${hi} + 1 + 1 = ${r}`, say: `${swap}Zwei mehr: ${W(hi + 1)}, ${W(r)}.` };
+    case 'double': return { text: `Doppelt: ${a} + ${a} = ${r}`, say: `Verdoppeln: ${W(a)} und ${W(a)} sind ${W(r)}.` };
+    case 'neardouble': return { text: `${lo} + ${lo} = ${2 * lo}, noch 1: ${r}`, say: `${W(lo)} plus ${W(lo)} ist ${W(2 * lo)}. Noch eins dazu: ${W(r)}.` };
+    case 'ten': return { text: `${a} und ${b} sind 10`, say: `${W(a)} und ${W(b)} sind zehn. Alles voll!` };
+    case 'kraft5': return { text: `5 und ${r - 5} sind ${r}`, say: `Oben die volle Reihe: fünf. Unten noch ${W(r - 5)}. Zusammen ${W(r)}.` };
+    case 'minus1': return { text: `Vor der ${a} kommt die ${r}`, say: `Eins weniger: Vor der ${NAME[a]} kommt die ${NAME[r]}.` };
+    case 'minus2': return { text: `${a} ${MINUS} 1 ${MINUS} 1 = ${r}`, say: `Zwei weniger: ${W(a - 1)}, ${W(r)}.` };
+    case 'half': return { text: `${r} + ${r} = ${a}, also bleiben ${r}`, say: `${W(r)} plus ${W(r)} ist ${W(a)}. Also bleiben ${W(r)}.` };
+    case 'from10': return { text: `${r} und ${b} sind 10`, say: `Zehnerpartner: ${W(b)} und ${W(r)} sind zehn. Also bleiben ${W(r)}.` };
+    case 'minus5':
+      if (b === 5) return { text: `${a} ist 5 und ${r}`, say: `${W(a)} ist fünf und ${W(r)}. Die volle Reihe weg: Es bleiben ${W(r)}.` };
+      if (r === 5) return { text: 'Übrig: die volle Reihe, 5', say: `${W(b)} weg. Übrig bleibt genau die volle Reihe: fünf.` };
+      if (b < a - 5) return { text: `5 und ${a - 5 - b} sind ${r}`, say: `Nimm ${W(b)} unten weg. Es bleiben fünf und ${W(a - 5 - b)}: ${W(r)}.` };
+      return { text: `Erst ${a - 5} weg: 5. Dann noch ${b - (a - 5)}: ${r}`, say: `Erst ${W(a - 5)} weg, dann bist du bei fünf. Dann noch ${W(b - (a - 5))} weg: ${W(r)}.` };
+    case 'diff': return { text: `Von ${b} bis ${a} sind es ${r}`, say: `Rechne hoch: Von ${W(b)} bis ${W(a)} sind es ${W(r)}.` };
+    case 'zehner':
+      if (t.op === '+') { const u = a === 10 ? b : a; return { text: `10 und ${u} sind ${r}`, say: `Zehn und ${W(u)} sind ${W(r)}.` }; }
+      if (b === 10) return { text: `${a} ist 10 und ${r}`, say: `${W(a)} ist zehn und ${W(r)}. Die Zehn weg: ${W(r)}.` };
+      return { text: `${a} ist 10 und ${b}`, say: `${W(a)} ist zehn und ${W(b)}. Nimm die ${W(b)} weg: zehn.` };
+    case 'analogAdd': { const u = a - 10; return { text: `${u} + ${b} = ${u + b}, also ${r}`, say: `${W(u)} plus ${W(b)} ist ${W(u + b)}. Also ist ${W(a)} plus ${W(b)} ${W(r)}.` }; }
+    case 'analogSub': { const u = a - 10; return { text: `${u} ${MINUS} ${b} = ${u - b}, also ${r}`, say: `${W(u)} minus ${W(b)} ist ${W(u - b)}. Also ist ${W(a)} minus ${W(b)} ${W(r)}.` }; }
+    case 'double20':
+      if (a === b && a === 10) return { text: '10 und 10 sind 20', say: 'Zehn und zehn sind zwanzig. Beide Felder voll!' };
+      if (a === b) return { text: `5 + 5 = 10, ${a - 5} + ${a - 5} = ${2 * (a - 5)}: ${r}`, say: `${W(a)} und ${W(a)}: Fünf und fünf sind zehn. ${W(a - 5)} und ${W(a - 5)} sind ${W(2 * (a - 5))}. Zusammen ${W(r)}.` };
+      return { text: `${lo} + ${lo} = ${2 * lo}, noch 1: ${r}`, say: `${W(lo)} plus ${W(lo)} ist ${W(2 * lo)}. Noch eins dazu: ${W(r)}.` };
+    case 'plus9': case 'cross': { const k = 10 - a, rest = b - k; return { text: `${a} + ${k} = 10, dann noch ${rest}: ${r}`, say: `Erst bis zur Zehn: ${W(a)} plus ${W(k)} ist zehn. Dann noch ${W(rest)}: ${W(r)}.` }; }
+    case 'crossSub': { const k = a - 10, rest = b - k; return { text: `${a} ${MINUS} ${k} = 10, dann noch ${rest} weg: ${r}`, say: `Erst bis zur Zehn: ${W(a)} minus ${W(k)} ist zehn. Dann noch ${W(rest)} weg: ${W(r)}.` }; }
+  }
+  return { text: `${a} ${t.op === '+' ? '+' : MINUS} ${b} = ${r}`, say: '' };
+}
+function calcEq(t) {
+  const plus = t.op === '+';
+  return `<div class="eq${t.phase === 2 ? ' solo' : ''}" role="img" aria-label="${t.a} ${plus ? 'plus' : 'minus'} ${t.b}"><span class="a">${t.a}</span><span class="op">${plus ? '+' : MINUS}</span><span class="b${plus ? ' plus' : ''}">${t.b}</span><span class="op">=</span><span class="q">?</span></div>`;
+}
+function calcPicHTML(pic, curtain) {
+  return `<div class="calc-pic"><svg class="pic" viewBox="0 0 400 280" role="img" aria-label="Rechenbild mit Plättchen">${pic.svg}<g class="marks"></g></svg>${curtain ? CURTAIN : ''}</div>`;
 }
 
 /* =========================================================
@@ -1401,6 +1741,13 @@ function makeTrial(task, item) {
     t.ans = a > b ? 0 : 1;
   } else if (task === 'line') {
     t.q = item.q; t.ans = t.q;
+  } else if (task === 'calc') {
+    Object.assign(t, { a: item.a, b: item.b, op: item.op, fam: item.fam, tier: item.tier, q: item.q, ans: item.q });
+    t.minC = item.op === '+' ? Math.min(item.a, item.b) : Math.min(item.b, item.q); // Zählschritte beim Weiter- bzw. Rückwärtszählen
+    t.keys = calcKeys();
+    t.phase = phaseOf(item.fam);
+    t.rep = calcRep(t);
+    if (t.phase === 1) t.expo = exposureFor('calc', t);
   }
   return t;
 }
@@ -1439,9 +1786,10 @@ function plattiDo(cls, ms = 950) {
   clearTimeout(plattiDo.t); plattiDo.t = setTimeout(() => el.platti.classList.remove(cls), ms);
 }
 function setBubble(html) { el.bubble.innerHTML = `<span>${html}</span>`; }
-function buildKeypad() {
-  const M = E().max;
+function buildKeypad(M = E().max) {
   el.keypad.innerHTML = '';
+  el.keypad.dataset.n = M;
+  el.keypad.classList.toggle('k20', M > 10);
   for (let n = 1; n <= M; n++) {
     const b = document.createElement('button');
     b.className = 'key'; b.type = 'button'; b.textContent = n; b.dataset.n = n;
@@ -1523,6 +1871,10 @@ function nextStep() {
 }
 function introText(task) {
   if (task === 'partner') return `Wie viele Plätze sind noch frei bis zur ${NAME[E().max]}?`;
+  if (task === 'calc') {
+    const L = calcLevel();
+    return (L === 1 ? 'Plus-Aufgaben! Rote und blaue Plättchen kommen zusammen.' : L === 2 ? 'Plus und Minus! Bei Minus werden Plättchen weggenommen.' : 'Rechnen bis 20! Zwei Zehnerfelder helfen dir.') + ' Manchmal verschwinden die Plättchen. Dann rechnest du im Kopf.';
+  }
   return GAME[task].intro;
 }
 function showIntro(task) {
@@ -1589,7 +1941,9 @@ function enableInputs(delay) {
 const CURTAIN = '<div class="curtain" aria-hidden="true"><span>?</span></div>';
 function renderTrial(t) {
   el.expoBar.hidden = true;
-  const usesKeypad = t.task === 'blitz' || t.task === 'partner';
+  const usesKeypad = t.task === 'blitz' || t.task === 'partner' || t.task === 'calc';
+  const keys = t.task === 'calc' ? t.keys : E().max;
+  if (usesKeypad && Number(el.keypad.dataset.n) !== keys) buildKeypad(keys);
   el.answer.hidden = false;
   el.keypad.hidden = !usesKeypad;
   el.keypad.querySelectorAll('.key').forEach(k => { k.classList.remove('right', 'picked'); k.disabled = false; });
@@ -1603,6 +1957,10 @@ function renderTrial(t) {
     t.pic = pic;
     el.stage.innerHTML = `<svg class="pic" viewBox="0 0 400 280" role="img" aria-label="Zehnerfeld">${pic.svg}<g class="marks"></g></svg>${CURTAIN}`;
     setBubble(`Wie viele fehlen bis zur <span class="big-digit">${t.M}</span>?`);
+  } else if (t.task === 'calc') {
+    t.pic = t.phase < 2 ? svgCalc(t, t.rep) : null;
+    el.stage.innerHTML = `<div class="calc${t.keys === 20 ? ' k20' : ''}">${calcEq(t)}${t.pic ? calcPicHTML(t.pic, t.phase === 1) : ''}</div>`;
+    setBubble(t.phase === 0 ? (t.op === '+' ? 'Wie viele sind es zusammen?' : 'Wie viele bleiben übrig?') : t.phase === 1 ? 'Schau hin und rechne!' : 'Rechne im Kopf!');
   } else if (t.task === 'match') {
     t.optPics = t.options.map(v => renderRep(t.rep, v, { M: t.M, stage: t.stage }));
     el.stage.innerHTML = `<div class="match"><div class="opts">${t.optPics.map((p, i) => `<button type="button" class="opt" data-i="${i}" aria-label="Bild ${i + 1}"><svg viewBox="${optViewBox(t.rep, t.M, t.options[i])}" aria-hidden="true">${p.svg}<g class="marks"></g></svg></button>`).join('')}</div></div>`;
@@ -1662,9 +2020,9 @@ function starPath(cx, cy, r) {
 }
 
 /* ---------- Antworten ---------- */
-function answer(value) {
+function answer(value, at) {
   if (!T || !S || (T.state !== 'show' && T.state !== 'covered') || !T.inputOn) return;
-  const rt = (performance.now() - T.t0) / 1000;
+  const rt = ((at ?? performance.now()) - T.t0) / 1000;
   clearTimeout(T.curtainTimer);
   const ok = value === T.ans;
   finishTrial(ok, rt, false, value);
@@ -1698,7 +2056,7 @@ function finishTrial(ok, rt, help, given) {
     if (S.wrongRun >= 2) { S.ease = 2; S.wrongRun = 0; T.encourage = true; }
     if (S.calm > 0) S.calm--;
     if (cls === 'guess' && S.results.slice(-5).filter(r => r.cls === 'guess').length >= 2) S.calm = 3;
-    if (!ok && !S.retries.some(r => r.task === T.task && (T.q !== undefined ? r.q === T.q : r.key === T.item.key))) {
+    if (!ok && !S.retries.some(r => r.task === T.task && (T.q !== undefined && T.task !== 'calc' ? r.q === T.q : r.key === T.item.key))) {
       S.retries.push({ task: T.task, q: T.q, key: T.item.key, due: S.trialNo + 2 });
     }
   }
@@ -1708,6 +2066,7 @@ function finishTrial(ok, rt, help, given) {
     t: now(), s: S.idx, k: T.task, key: T.item.key, q: T.q ?? null, a: given, ok: ok ? 1 : 0,
     rt: Math.round(rt * 100) / 100, c: cls, ex: T.expo ? Math.round(T.expo * 100) / 100 : 0,
     r: T.rep || T.f || null, st: T.stage, x: T.interrupted ? 1 : 0,
+    ...(T.task === 'calc' ? { fm: T.fam, ph: T.phase, op: T.op, mc: T.minC } : {}),
   });
   Study.logTrial(trialEvent(T, { ok, rt, cls, given, help, model }));
   if (!Study.active()) for (const k of Object.keys(UNLOCK)) if (!D.unlocked[k] && D.stars >= UNLOCK[k]) { D.unlocked[k] = true; S.newUnlocks.push(k); }
@@ -1760,6 +2119,7 @@ function endCheck() {
 const PRAISE_FAST = ['Blitzschnell erkannt!', 'Super hingeschaut!', 'Wie ein Blitz!', 'Klasse gesehen!'];
 const PRAISE_OK = ['Richtig!', 'Genau!', 'Prima!', 'Stimmt!'];
 const ENCOURAGE = ['Nächstes Mal schaffst du es bestimmt!', 'Fast! Schau mal:', 'Kein Problem – schau mal:', 'Gleich klappt’s! Schau:'];
+const PRAISE_CALC = ['Blitzschnell!', 'Super gerechnet!', 'Rechen-Blitz!', 'Klasse gerechnet!'];
 function explain(t) {
   const W = WORD, two = t.stage === 2;
   if (t.task === 'blitz') {
@@ -1800,10 +2160,10 @@ function lineHint(n, M, two) {
   if (M === 10 && n >= 8) return { text: `${10 - n} vor der 10`, say: `Die ${NAME[n]} ist ${WORD[10 - n]} vor der Zehn.`, from: 10 };
   return { text: `5 und noch ${n - 5}`, say: `Fünf und noch ${n - 5 === 1 ? 'ein Schritt' : WORD[n - 5] + ' Schritte'}.`, from: 5 };
 }
-function showToast(text, stars) {
+function showToast(text, stars, low) {
   const old = el.stage.querySelector('.toast'); if (old) old.remove();
   const plus = stars ? `<span class="plus">+${stars}${icon('star')}</span>` : '';
-  el.stage.insertAdjacentHTML('beforeend', `<div class="toast" role="status">${icon('check')}<span>${esc(text)}</span>${plus}</div>`);
+  el.stage.insertAdjacentHTML('beforeend', `<div class="toast${low ? ' low' : ''}" role="status">${icon('check')}<span>${esc(text)}</span>${plus}</div>`);
 }
 function countAnimation(svgMarks, items, total, extraSay) {
   // Stufe 1: Teile leuchten nacheinander auf (eins, zwei, …), dann wird die ganze Menge benannt.
@@ -1822,6 +2182,7 @@ function countAnimation(svgMarks, items, total, extraSay) {
 function showFeedback(t, ok, cls, stars, given, lvChange) {
   disableInputsVisual();
   openCurtains();
+  if (t.task === 'calc') return calcFeedback(t, ok, cls, stars, given);
   const ex = explain(t);
   const marks = el.stage.querySelector('.marks');
   // Wahl sichtbar machen
@@ -1899,6 +2260,47 @@ function showFeedback(t, ok, cls, stars, given, lvChange) {
   if (T.encourage) setBubble('Du schaffst das!');
   setTimeout(() => $('#btn-next').focus({ preventScroll: true }), 60);
 }
+function calcFeedback(t, ok, cls, stars, given) {
+  const ex = calcExplain(t);
+  if (given) { const k = el.keypad.querySelector(`[data-n="${given}"]`); if (k) k.classList.add(ok ? 'right' : 'picked'); }
+  if (!ok) { const k = el.keypad.querySelector(`[data-n="${t.ans}"]`); if (k) k.classList.add('right'); }
+  const wrap = el.stage.querySelector('.calc'), q = wrap.querySelector('.q');
+  q.textContent = t.q; q.classList.add('done');
+  const showPicture = () => {
+    if (!t.pic) { t.pic = svgCalc(t, t.rep); wrap.querySelector('.eq').classList.remove('solo'); wrap.insertAdjacentHTML('beforeend', calcPicHTML(t.pic, false)); }
+    wrap.querySelector('.marks').innerHTML = groupMarks(calcMarks(t, t.pic, t.rep));
+  };
+  if (ok && cls !== 'slow') {
+    const praise = cls === 'fast' ? pick(PRAISE_CALC) : pick(PRAISE_OK);
+    showToast(praise, stars, true);
+    plattiDo('flip', 1000); Sound.good(cls === 'fast');
+    const name = D.name && Math.random() < 0.3 ? `, ${D.name}` : '';
+    Speech.say(`${NAME[t.q]}! ${praise.replace('!', '')}${name}!`);
+    S.nextTimer = setTimeout(nextStep, cls === 'fast' ? 1300 : 1500);
+    return;
+  }
+  if (ok) {
+    // Richtig, aber so langsam wie beim Abzählen: den kürzeren Rechenweg zeigen.
+    showToast('Richtig!', stars, true);
+    plattiDo('flip', 1000); Sound.good(false);
+    showPicture();
+    setBubble(`Tipp: ${esc(ex.text)}`);
+    const say = `Richtig! So geht es schneller: ${ex.say}`;
+    Speech.say(say);
+    S.nextTimer = setTimeout(nextStep, clamp(1500 + say.length * 65, 3500, 7500));
+    return;
+  }
+  plattiDo('nod', 950); Sound.soft();
+  const title = cls === 'help' ? 'Ich zeig’s dir:' : cls === 'guess' ? 'Ganz in Ruhe – schau mal:' : pick(ENCOURAGE);
+  $('#explain-title').textContent = title;
+  $('#explain-eq').textContent = ex.text;
+  el.answer.hidden = true; el.explain.hidden = false;
+  showPicture();
+  const lead = cls === 'help' ? 'Ich zeig es dir. ' : cls === 'guess' ? 'Schau ganz in Ruhe hin. ' : title.replace(/:$/, '.') + ' ';
+  Speech.say(`${lead}${ex.say} ${WORD[t.a]} ${t.op === '+' ? 'plus' : 'minus'} ${WORD[t.b]} ist ${WORD[t.q]}.`);
+  if (T.encourage) setBubble('Du schaffst das!');
+  setTimeout(() => $('#btn-next').focus({ preventScroll: true }), 60);
+}
 function disableInputsVisual() { el.keypad.querySelectorAll('.key').forEach(k => { k.disabled = true; }); }
 $('#btn-next').addEventListener('click', () => {
   if (!S || !T || T.state !== 'feedback') return;
@@ -1916,16 +2318,19 @@ function endSession() {
     D.study.trainSessions = (D.study.trainSessions || 0) + 1;
     if (D.study.trainSessions === 2) S.newUnlocks.push('line');
     Study.logSession(sessionRecord(true));
-  }
+  } else if (!D.unlocked.calc) {
+    if (calcReady().ready) { unlockCalc(); S.newUnlocks.push('calc'); }
+  } else S.calcUp = calcLevelUp();
   save();
   Study.flush();
   const today = D.sessions.filter(s => dayKey(s.t) === dayKey(now()));
   const mins = today.reduce((a, s) => a + s.dur, 0) / 60000;
   $('#end-stars').innerHTML = `+${S.stars}${icon('star')}`;
   $('#end-badges').innerHTML = `<span class="badge">${icon('check')} ${ok} von ${n} richtig</span>` + (fast ? `<span class="badge">${icon('bolt')} ${fast}× blitzschnell</span>` : '');
-  $('#end-unlock').innerHTML = S.newUnlocks.map(k => `<div class="unlock">${GAME_ICON[k]}<div><b>Neues Spiel!</b><br>${GAME[k].name}${k === 'partner' && E().stage !== 2 ? ' (ab Lernstufe 2)' : ''}</div></div>`).join('');
+  $('#end-unlock').innerHTML = S.newUnlocks.map(k => `<div class="unlock">${GAME_ICON[k]}<div><b>Neues Spiel!</b><br>${GAME[k].name}${k === 'partner' && E().stage !== 2 ? ' (ab Lernstufe 2)' : ''}</div></div>`).join('')
+    + (S.calcUp ? `<div class="unlock">${GAME_ICON.calc}<div><b>Neue Rechen-Stufe!</b><br>${CALC_LEVEL_NAME[S.calcUp]}</div></div>` : '');
   $('#end-note').textContent = mins >= 15 ? 'Toll geübt! Für heute reicht es – morgen geht es weiter.' : '';
-  const unlockSay = S.newUnlocks.length ? ` Du hast ein neues Spiel freigeschaltet: ${GAME[S.newUnlocks[0]].name}!` : '';
+  const unlockSay = (S.newUnlocks.length ? ` Du hast ein neues Spiel freigeschaltet: ${GAME[S.newUnlocks[0]].name}!` : '') + (S.calcUp ? ` ${CALC_LEVEL_SAY[S.calcUp]}!` : '');
   const starSay = S.stars === 1 ? 'einen Stern' : `${S.stars} Sterne`;
   Speech.say(`Geschafft${D.name ? ', ' + D.name : ''}! Du hast ${starSay} gesammelt.${unlockSay}`);
   const lastOnly = S.only;
@@ -1937,6 +2342,21 @@ function endSession() {
 $('#end-home').addEventListener('click', () => { hide('#end'); showHome(); });
 
 /* ---------- Startbildschirm ---------- */
+function calcTileHTML() {
+  if (Study.active()) return '';
+  const on = isUnlocked('calc'), off = on && !E().tasks.calc;
+  let sub, bar = '', lock = '';
+  if (on && !off) sub = CALC_LEVEL_NAME[calcLevel()];
+  else if (off) { sub = 'Im Eltern-Bereich ausgeschaltet'; lock = `<span class="lock">${icon('lock')}aus</span>`; }
+  else {
+    const p = Math.round(calcReady().progress * 100);
+    sub = 'Kommt, wenn du die Mengen bis 10 blitzschnell siehst';
+    bar = `<span class="pbar" role="progressbar" aria-label="Weg bis zum Rechnen" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${p}"><i style="width:${p}%"></i></span>`;
+    lock = `<span class="lock">${icon('lock')}</span>`;
+  }
+  const locked = !on || off;
+  return `<button type="button" class="tile wide ${locked ? 'locked' : ''}" data-task="calc" ${locked ? 'aria-disabled="true"' : ''}>${lock}${GAME_ICON.calc}<span class="tw"><b>${GAME.calc.name}</b><small>${sub}</small>${bar}</span></button>`;
+}
 function showHome() {
   Speech.stop();
   if (S) { clearTimeout(S.nextTimer); if (T) clearTimeout(T.curtainTimer); }
@@ -1944,15 +2364,16 @@ function showHome() {
   ['#intro', '#end', '#quit', '#gate', '#parent'].forEach(hide);
   el.answer.hidden = false; el.explain.hidden = true;
   $('#hello').textContent = D.name ? `Hallo, ${D.name}!` : 'Hallo! Schön, dass du da bist.';
-  const tiles = TASKS.map(k => {
+  const tiles = TASKS.filter(k => k !== 'calc').map(k => {
     const stageLock = k === 'partner' && E().stage !== 2;
     const locked = !isUnlocked(k) || stageLock || !E().tasks[k];
     const why = !E().tasks[k] ? 'aus' : !isUnlocked(k) ? (Study.active() ? '2 Runden' : `${UNLOCK[k]}`) : stageLock ? 'Stufe 2' : '';
     const lock = locked ? `<span class="lock">${icon(why && /^\d/.test(why) ? 'star' : 'lock')}${why}</span>` : '';
     return `<button type="button" class="tile ${locked ? 'locked' : ''}" data-task="${k}" ${locked ? 'aria-disabled="true"' : ''}>${lock}${GAME_ICON[k]}<span>${GAME[k].name}</span></button>`;
-  }).join('') + `<button type="button" class="tile" id="tile-parent">${'<svg class="gi" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="28" class="gi-card"/><g transform="translate(14 14) scale(1.5)" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">' + IC.parents + '</g></svg>'}<span>Für Eltern</span></button>`;
+  }).join('') + `<button type="button" class="tile" id="tile-parent">${'<svg class="gi" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="28" class="gi-card"/><g transform="translate(14 14) scale(1.5)" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">' + IC.parents + '</g></svg>'}<span>Für Eltern</span></button>` + calcTileHTML();
   $('#tiles').innerHTML = tiles;
   $('#tiles').querySelectorAll('.tile[data-task]').forEach(b => b.addEventListener('click', () => {
+    if (b.classList.contains('locked') && b.dataset.task === 'calc') { Speech.say(isUnlocked('calc') ? 'Rechnen ist gerade ausgeschaltet.' : 'Rechnen kommt, wenn du die Mengen bis zehn blitzschnell siehst. Der Balken zeigt, wie weit du schon bist.'); return; }
     if (b.classList.contains('locked')) { Speech.say(isUnlocked(b.dataset.task) || Study.active() ? 'Dieses Spiel kommt später.' : `Dieses Spiel bekommst du bei ${UNLOCK[b.dataset.task]} Sternen.`); return; }
     startPlay(b.dataset.task);
   }));
@@ -1975,6 +2396,11 @@ $('#quit-yes').addEventListener('click', () => {
 $('#btn-say').addEventListener('click', () => {
   if (!T) return;
   const t = T;
+  if (t.task === 'calc') {
+    if (t.state === 'show' || t.state === 'covered') t.spoken = true; // Vorlesen kostet Zeit: Zeitgrenzen werden großzügiger
+    Speech.say(`${WORD[t.a]} ${t.op === '+' ? 'plus' : 'minus'} ${WORD[t.b]}. Wie viel ist das?`);
+    return;
+  }
   const txt = t.task === 'match' ? `Finde die ${NAME[t.q]}!` : t.task === 'line' ? `Wo wohnt die ${NAME[t.q]}?` : t.task === 'compare' ? el.bubble.textContent : t.task === 'partner' ? `Wie viele fehlen bis zur ${NAME[t.M]}?` : 'Wie viele sind es?';
   Speech.say(txt);
 });
@@ -1996,16 +2422,35 @@ function resumeGame() {
 }
 
 /* ---------- Tastatur ---------- */
+// Zahlen bis 20: Nach 1 oder 2 kurz auf eine zweite Ziffer warten. Die Zeit zählt ab der ersten Taste.
+const kb = { d: null, id: 0, at: 0, timer: 0 };
+function typeTwoDigits(key) {
+  if (!/^[0-9]$/.test(key)) return;
+  const d = Number(key), id = T.id;
+  if (kb.d !== null && kb.id === id) {
+    clearTimeout(kb.timer);
+    const first = kb.d, v = first * 10 + d; kb.d = null;
+    answer(v <= 20 ? v : first, kb.at);
+    return;
+  }
+  if (d === 1 || d === 2) {
+    kb.d = d; kb.id = id; kb.at = performance.now();
+    kb.timer = setTimeout(() => { if (kb.d !== null && T && T.id === id) { const v = kb.d; kb.d = null; answer(v, kb.at); } }, 900);
+    return;
+  }
+  answer(d === 0 ? 10 : d);
+}
 window.addEventListener('keydown', e => {
   if (!$('#parent').hidden || !$('#gate').hidden) return;
   if (!$('#intro').hidden && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); $('#intro-go').click(); return; }
   if (!T || !S) return;
   if (T.state === 'feedback' && !el.explain.hidden && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); $('#btn-next').click(); return; }
   if (T.state !== 'show' && T.state !== 'covered') return;
-  if (T.task === 'blitz' || T.task === 'partner') {
+  if (T.task === 'calc' && T.keys === 20) typeTwoDigits(e.key);
+  else if (T.task === 'blitz' || T.task === 'partner' || T.task === 'calc') {
     let v = null;
     if (e.key >= '1' && e.key <= '9') v = Number(e.key); else if (e.key === '0') v = 10;
-    if (v !== null && v <= E().max) answer(v);
+    if (v !== null && v <= (T.task === 'calc' ? T.keys : E().max)) answer(v);
   } else if (T.task === 'compare') {
     if (e.key === 'ArrowLeft') answer(0); else if (e.key === 'ArrowRight') answer(1);
   } else if (T.task === 'match' && e.key >= '1' && e.key <= '3') answer(Number(e.key) - 1);
@@ -2045,8 +2490,9 @@ $('#tabs').addEventListener('click', e => {
 function renderTab(tab) {
   document.querySelectorAll('.tab-btn').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
   const body = $('#tab-body');
-  body.innerHTML = tab === 'overview' ? tabOverview() : tab === 'numbers' ? tabNumbers() : tab === 'settings' ? tabSettings() : tab === 'study' ? tabStudy() : tabResearch();
+  body.innerHTML = tab === 'overview' ? tabOverview() : tab === 'numbers' ? tabNumbers() : tab === 'calc' ? tabCalc() : tab === 'settings' ? tabSettings() : tab === 'study' ? tabStudy() : tabResearch();
   if (tab === 'settings') bindSettings();
+  if (tab === 'calc') bindCalc();
   if (tab === 'study') bindStudy();
 }
 
@@ -2122,7 +2568,7 @@ function tabOverview() {
   </div>`;
   h += `<div><h3>Geübt in den letzten 14 Tagen</h3><div class="days" style="margin-top:8px">${days.map(d => `<span class="day ${d.on ? 'on' : ''}" data-tip="${esc(new Date(d.t).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'numeric' }) + (d.on ? ': ' + Math.max(1, Math.round(d.min)) + ' Min.' : ': nicht geübt'))}" tabindex="0"></span>`).join('')}</div><div class="day-labels"><span>vor 2 Wochen</span><span>heute</span></div></div>`;
   h += `<div><h3>Verlauf der letzten Runden</h3><p class="p-note">Anteil der Aufgaben pro Runde. Ziel ist, dass der dunkle Teil (blitzschnell, also ohne Abzählen erkannt) wächst.</p>${chartSessions(sess.slice(-12))}</div>`;
-  h += `<div><h3>Spiele</h3><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Spiel</th><th>Aufgaben</th><th>Richtig (letzte 20)</th><th>Blitzschnell</th><th>Trend</th><th>Sicher gekonnt</th></tr></thead><tbody>${TASKS.map(k => {
+  h += `<div><h3>Spiele</h3><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Spiel</th><th>Aufgaben</th><th>Richtig (letzte 20)</th><th>Blitzschnell</th><th>Trend</th><th>Sicher gekonnt</th></tr></thead><tbody>${TASKS.filter(k => k !== 'calc' || isUnlocked('calc')).map(k => {
     const s = taskSummary(k);
     const tr = s.trend === null ? '–' : s.trend > 0.05 ? '▲ besser' : s.trend < -0.05 ? '▼ schwächer' : '● stabil';
     return `<tr><td>${GAME[k].name}${!isUnlocked(k) ? ' <span class="p-note">(gesperrt)</span>' : ''}</td><td>${s.n}</td><td>${s.acc === null ? '–' : pct(s.acc)}</td><td>${s.fast === null ? '–' : pct(s.fast)}</td><td>${tr}</td><td><span class="meter"><i style="width:${Math.round(s.sure * 100)}%"></i></span>${pct(s.sure)}</td></tr>`;
@@ -2209,8 +2655,106 @@ function recommendations() {
   const cmp = taskSummary('compare'); if (cmp.acc !== null && cmp.acc < 0.75) out.push({ color: 'var(--st-warn)', title: 'Vergleichen üben', text: 'Mit Zahlenkarten 1–10 „Wer hat mehr?“ spielen (jeder deckt eine Karte auf, die größere gewinnt). Beim Tischdecken fragen: „Wo liegen mehr Gabeln?“' });
   const ln = taskSummary('line'); if (ln.acc !== null && ln.acc < 0.75) out.push({ color: 'var(--st-warn)', title: 'Zahlenweg spielen', text: 'Ein einfaches Brettspiel mit einem geraden Weg von 1 bis 10, bei dem man beim Ziehen laut mitzählt („sechs, sieben“). In Studien von Siegler und Ramani reichten vier Spielrunden von 15–20 Minuten für messbare Fortschritte beim Zahlenverständnis.' });
   if (!Study.active() && E().stage === 1 && autoShare >= 0.6) out.push({ color: 'var(--st-good)', title: 'Bereit für Lernstufe 2', text: 'Die meisten Mengen werden schon blitzschnell erkannt. In den Einstellungen können Sie Lernstufe 2 einschalten: Dann kommen zwei Farben im Zehnerfeld, Würfelpaare und das Zerlegen („Wie viele fehlen bis 10?“) dazu.' });
+  if (!Study.active() && !D.unlocked.calc) {
+    const r = calcReady();
+    if (r.blitzOk && !r.partOk) out.push({ color: 'var(--st-good)', title: 'Fast bereit zum Rechnen', text: 'Die Mengen bis 10 sitzen. Jetzt noch das Zerlegen festigen („Wie viele fehlen bis 10?“), dann schaltet sich die Rechen-Stufe frei. Den Stand sehen Sie im Reiter „Rechnen“.' });
+  }
   out.push({ color: 'var(--s2)', title: 'Anstrengung loben, nicht Begabung', text: 'Sätze wie „Du hast genau hingeschaut“ oder „Du hast die volle Reihe gesehen“ wirken langfristig besser als „Du bist schlau“. Und bitte keinen Zeitdruck aufbauen: Schon in Klasse 1 kann Mathe-Angst entstehen, und sie blockiert das Arbeitsgedächtnis.' });
   return out;
+}
+/* ---------- Reiter „Rechnen“ ---------- */
+const CSTATUS = {
+  auto: { label: 'Sitzt: schnell im Kopf', short: 'sitzt', ic: 'bolt', color: 'var(--st-good)' },
+  way: { label: 'Richtig, braucht noch das Bild', short: 'mit Bild', ic: 'eye', color: 'var(--s1)' },
+  count: { label: 'Richtig, aber noch gezählt', short: 'zählt noch', ic: 'hourglass', color: 'var(--st-warn)' },
+  learn: { label: 'Wird noch geübt', short: 'übt noch', ic: 'sprout', color: 'var(--st-serious)' },
+  guess: { label: 'Oft zu schnell geraten', short: 'rät oft', ic: 'dice', color: 'var(--st-crit)' },
+  none: { label: 'Noch nicht geübt', short: 'noch offen', ic: 'dot', color: 'var(--st-none)' },
+};
+const cChip = s => `<span class="chip-st"><i style="background:${CSTATUS[s].color}">${icon(CSTATUS[s].ic)}</i>${CSTATUS[s].short}</span>`;
+function calcProfile() {
+  const L = calcLevel();
+  return Object.keys(CALC_FAM).filter(f => famLevel(f) <= L || D.hist.some(h => h.fm === f)).map(f => {
+    const hs = D.hist.filter(h => h.k === 'calc' && h.fm === f && !h.x).slice(-12);
+    const tries = hs.length, ok = hs.filter(h => h.ok).length, share = c => hs.filter(h => h.c === c).length / Math.max(1, tries);
+    const ph = phaseOf(f), med = median(hs.filter(h => h.ok).map(h => h.rt));
+    let status = 'none';
+    if (tries >= 3) {
+      const acc = ok / tries;
+      if (share('guess') >= 0.3) status = 'guess';
+      else if (acc >= 0.8 && ph === 2 && share('fast') >= 0.6) status = 'auto';
+      else if (acc >= 0.7 && share('slow') >= 0.3) status = 'count';
+      else if (acc >= 0.7) status = 'way';
+      else status = 'learn';
+    }
+    return { f, tries, ok, med, ph, status };
+  });
+}
+// Steigung der Zeit über die kleinere Zahl bei Plus-Aufgaben im Kopf: Weiterzählen kostet pro Schritt Zeit, Abrufen nicht.
+function calcSlope() {
+  const pts = D.hist.filter(h => h.k === 'calc' && h.ok && !h.x && h.ph === 2 && h.op === '+' && h.mc != null).slice(-60);
+  if (pts.length < 8 || new Set(pts.map(h => h.mc)).size < 3) return null;
+  const mx = mean(pts.map(h => h.mc)), my = mean(pts.map(h => h.rt));
+  const num = pts.reduce((s, h) => s + (h.mc - mx) * (h.rt - my), 0), den = pts.reduce((s, h) => s + (h.mc - mx) ** 2, 0);
+  return den ? num / den : null;
+}
+function calcRecos(prof, slope) {
+  const out = [], st = f => (prof.find(p => p.f === f) || {}).status;
+  const weak = fs => fs.some(f => ['learn', 'count', 'guess'].includes(st(f)));
+  if (weak(['plus1', 'minus1', 'plus2', 'minus2'])) out.push({ title: 'Nachbarzahlen', text: 'Auf einer Treppe oder einem Zahlenweg fragen: „Eins mehr als 6? Eins weniger als 6?“ Nur den Nachbarn nennen, nicht abzählen. So wird +1 und −1 zur Regel.' });
+  if (weak(['double', 'neardouble', 'half', 'double20'])) out.push({ title: 'Verdoppeln', text: 'Mit beiden Händen gleich viele Finger zeigen (3 und 3) oder mit einem Spiegel legen. Danach Fast-Verdoppeln: „3 + 4 ist 3 + 3 und noch 1.“' });
+  if (weak(['ten', 'from10'])) out.push({ title: 'Zehnerpartner', text: 'Schüttelbox: 10 Plättchen in eine Schachtel mit Trennwand, schütteln, eine Seite ansehen. Wie viele liegen auf der anderen? Ein Eierkarton mit 10 Mulden geht genauso.' });
+  if (weak(['kraft5', 'minus5'])) out.push({ title: 'Kraft der 5', text: 'Zahlen bis 10 als „5 und …“ zeigen: eine ganze Hand und noch 3 Finger, oder im Zehnerfeld. Bei 8 − 5: „Die ganze Hand weg.“' });
+  if (weak(['diff'])) out.push({ title: 'Ergänzen', text: 'Bei Aufgaben wie 9 − 7 lieber hochrechnen: „Von 7 bis 9 sind es 2.“ Das geht schneller, als 7 wegzunehmen.' });
+  if (weak(['zehner', 'analogAdd', 'analogSub'])) out.push({ title: 'Zehn und Einer', text: 'Mit Geld (ein 10-Cent-Stück und einzelne Cents) oder zwei Eierkartons: 13 ist „10 und 3“. Dann: 3 + 4 = 7, also 13 + 4 = 17.' });
+  if (weak(['cross', 'plus9', 'crossSub'])) out.push({ title: 'Zehnerübergang', text: 'Zwei Eierkartons mit je 10 Mulden: Für 8 + 5 erst den ersten Karton voll machen (2), dann den Rest in den zweiten (3). Laut sagen: „8 und 2 sind 10, und noch 3 sind 13.“' });
+  if (prof.filter(p => p.status === 'count').length >= 2 || (slope !== null && slope > 0.3)) out.push({ color: 'var(--st-serious)', title: 'Vom Zählen lösen', text: 'Ihr Kind rechnet bei mehreren Aufgabenarten noch zählend. Das ist in Klasse 1 häufig, sollte sich aber nicht verfestigen. Hilfreich: Aufgabe mit Material legen und beschreiben, dann abdecken und vorstellen, erst danach nur mit Zahlen rechnen. Fragen Sie „Wie hast du das gerechnet?“ und loben Sie Abkürzungen.' });
+  out.push({ color: 'var(--s2)', title: 'Erst verstehen, dann schnell werden', text: 'Tempo hilft erst, wenn ein Rechenweg sitzt. Deshalb zeigt das Spiel keinen Countdown. Kurz und regelmäßig üben (etwa 10 Minuten an 4–5 Tagen pro Woche) wirkt besser als selten und lang.' });
+  return out.map(r => ({ color: 'var(--st-warn)', ...r }));
+}
+function tabCalc() {
+  const r = calcReady(), on = !!D.unlocked.calc;
+  const row = (title, txt, frac, done, hint) => `<div class="ready-row"><b>${title}</b><span>${done ? `<span class="chip-st"><i style="background:var(--st-good)">${icon('check')}</i>erreicht</span> ` : `<span class="meter"><i style="width:${Math.round(clamp(frac, 0, 1) * 100)}%"></i></span>`}${txt}</span>${hint ? `<span class="p-note">${hint}</span>` : ''}</div>`;
+  let h = '';
+  if (Study.active()) h += '<p class="lock-note">Während der Studie bleibt die Rechen-Stufe aus, damit die Studie nur das Erfassen von Mengen misst. Nach der Studie schaltet sie sich frei, sobald Ihr Kind so weit ist.</p>';
+  h += '<div><h3>Wann das Rechnen beginnt</h3><p class="p-text">Rechnen ohne Abzählen baut auf zwei Fähigkeiten auf: Mengen bis 10 auf einen Blick erkennen und Mengen zerlegen („7 sind 5 und 2“, „bis 10 fehlen 3“). Sind beide sicher, schaltet sich die Rechen-Stufe am Ende einer Runde von selbst frei.</p></div>';
+  h += `<div class="ready">${row('Blitzblick: mindestens 8 der Mengen 1–10 blitzschnell, keine unsicher', `${r.auto} von 10 Mengen blitzschnell${r.weak ? ` · ${r.weak} noch unsicher` : ''}`, r.auto / 8, r.blitzOk, E().max !== 10 ? 'Dafür in den Einstellungen den Zahlenraum „bis 10“ wählen.' : '')}
+    ${row('Wie viele fehlen bis 10? Mindestens 80 % richtig in den letzten 15 Aufgaben', r.pN ? `${pct(r.pAcc)} richtig bei ${r.pN} Aufgaben` : 'noch nicht gespielt', Math.min(1, r.pN / 15) * Math.min(1, r.pAcc / 0.8), r.partOk, E().stage !== 2 ? 'Dieses Spiel gibt es ab Lernstufe 2 (Einstellungen).' : '')}</div>`;
+  if (!on) {
+    if (!Study.active()) h += '<div><button type="button" class="ghost-btn" id="calc-unlock">Rechnen jetzt freischalten</button><p class="p-note" style="margin-top:8px">Sinnvoll, wenn in der Schule schon gerechnet wird. Wenn Ihr Kind dabei noch viel abzählt, lohnt es sich, zuerst die Mengen weiter zu üben.</p></div>';
+    return h;
+  }
+  const cur = String(D.settings.calcLevel ?? 'auto');
+  h += `<p class="ok-note">Rechnen ist freigeschaltet${D.calc.at ? ' (seit ' + new Date(D.calc.at).toLocaleDateString('de-DE') + ')' : ''}.</p>`;
+  h += `<div class="field"><span class="lbl">Rechen-Stufe</span><div class="seg" id="calc-level">${[['auto', 'Automatisch (empfohlen)'], ['1', 'Plus bis 10'], ['2', 'Plus und Minus bis 10'], ['3', 'Bis 20']].map(([v, l]) => `<button type="button" data-v="${v}" aria-pressed="${String(cur === v)}">${l}</button>`).join('')}</div>
+    <small>Jetzt: ${CALC_LEVEL_NAME[calcLevel()]}. Automatisch kommt Minus dazu, wenn 4 von 6 Plus-Arten im Kopf gelingen (frühestens nach 60 Aufgaben). Bis 20 geht es, wenn 9 von 12 Aufgabenarten im Kopf gelingen (frühestens nach 200 Aufgaben). In beiden Fällen müssen zuletzt mindestens 80 % stimmen. Ältere Aufgaben kommen zur Wiederholung immer wieder dran.</small></div>`;
+  h += `<div><h3>So übt das Spiel: vom Bild in den Kopf</h3><ol class="find">
+    <li><b>${CALC_PHASE[0]}.</b><p>Aufgabe und Bild bleiben stehen: rote Plättchen für die erste Zahl, blaue für die zweite. Bei Minus werden Plättchen durchgestrichen.</p></li>
+    <li><b>${CALC_PHASE[1]}.</b><p>Das Bild ist 3 Sekunden zu sehen und wird dann zugedeckt. Die Aufgabe bleibt stehen.</p></li>
+    <li><b>${CALC_PHASE[2]}.</b><p>Nur die Zahlen. Das Bild kommt erst bei der Erklärung.</p></li>
+  </ol><p class="p-note" style="margin-top:8px">Jede Aufgabenart hat ihre eigene Phase. Nach drei schnellen richtigen Antworten geht es eine Phase weiter, nach einem Fehler oder zwei gezählten Antworten eine zurück. „Gezählt“ heißt: richtig, aber so langsam wie beim Abzählen. Dann zeigt das Spiel einen kürzeren Rechenweg.</p></div>`;
+  const prof = calcProfile(), slope = calcSlope();
+  h += `<div><h3>Aufgabenarten</h3><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Aufgabenart</th><th>Phase</th><th>Richtig (letzte 12)</th><th>Typische Zeit</th><th>Stand</th></tr></thead><tbody>${prof.map(p => `<tr><td>${CALC_FAM[p.f].name} <span class="p-note">${CALC_FAM[p.f].ex}</span></td><td><span class="phase">${[0, 1, 2].map(i => `<i class="${i <= p.ph ? 'on' : ''}"></i>`).join('')}</span>${CALC_PHASE[p.ph]}</td><td>${p.tries ? `${p.ok}/${p.tries}` : '–'}</td><td>${p.med != null ? fmtS(p.med) : '–'}</td><td>${cChip(p.status)}</td></tr>`).join('')}</tbody></table></div>
+    <div class="legend" style="margin-top:8px">${Object.keys(CSTATUS).map(s => `<span>${cChip(s)} ${CSTATUS[s].label}</span>`).join('')}</div></div>`;
+  let interp;
+  if (slope === null) interp = 'Für eine Einschätzung braucht es mindestens 8 richtige Plus-Aufgaben in der Phase „Im Kopf“ mit unterschiedlich großen Zahlen.';
+  else if (slope > 0.3) interp = `Mit jedem Schritt der kleineren Zahl braucht Ihr Kind etwa ${fmtS(slope)} länger. Das spricht für Weiterzählen (in Studien mit Erstklässlern etwa 0,4 s pro Zählschritt). Ziel ist, Aufgaben abzuleiten: über Nachbarzahlen, Verdoppeln und die 10.`;
+  else if (slope > 0.12) interp = `Mit jedem Schritt der kleineren Zahl braucht Ihr Kind etwa ${fmtS(slope)} länger. Einen Teil der Aufgaben rechnet es schon ohne Zählen, bei anderen zählt es noch.`;
+  else interp = `Die Zeit hängt kaum davon ab, wie groß die kleinere Zahl ist (${fmtS(Math.max(0, slope))} pro Schritt). Ihr Kind ruft die Ergebnisse ab oder leitet sie ab, statt zu zählen.`;
+  h += `<div><h3>Zählt Ihr Kind beim Rechnen noch?</h3><p class="p-text">${interp}</p></div>`;
+  h += `<div><h3>Ideen für zu Hause</h3><div class="reco">${calcRecos(prof, slope).map(x => `<div class="reco-item" style="box-shadow: inset 4px 0 0 ${x.color}"><b>${x.title}</b><p>${x.text}</p></div>`).join('')}</div></div>`;
+  return h;
+}
+function bindCalc() {
+  const u = $('#calc-unlock'); if (u) u.addEventListener('click', () => { unlockCalc(); save(); renderTab('calc'); });
+  const g = $('#calc-level');
+  if (!g) return;
+  if (Study.active()) g.querySelectorAll('button').forEach(b => { b.disabled = true; });
+  g.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b || b.disabled) return;
+    D.settings.calcLevel = b.dataset.v === 'auto' ? 'auto' : Number(b.dataset.v);
+    save(); renderTab('calc');
+  });
 }
 function tabResearch() {
   return `<div><h3>So arbeitet die Lern-Steuerung</h3>
@@ -2236,6 +2780,17 @@ function tabResearch() {
     <li><b>Digitale Förderung wirkt, aber kein Wundermittel.</b><p>Eine Metaanalyse von 15 kontrollierten Studien fand einen mittleren Effekt (0,55). Spiele waren nicht besser als gut gemachtes Üben. Ergänzen Sie deshalb mit echten Materialien.</p><span class="src">Benavides-Varela et al. (2020), Computers &amp; Education. <a href="https://research.unipd.it/handle/11577/3345422" target="_blank" rel="noopener">Eintrag</a></span></li>
     <li><b>Kein Zeitdruck.</b><p>Mathe-Angst zeigt sich schon in Klasse 1 und 2 und belastet das Arbeitsgedächtnis. Deshalb zeigt das Spiel keinen Countdown und kein „Zeit vorbei“.</p><span class="src">Ramirez, Gunderson, Levine &amp; Beilock (2013). <a href="https://news.uchicago.edu/story/math-anxiety-causes-trouble-students-early-first-grade" target="_blank" rel="noopener">Bericht</a></span></li>
   </ol></div>
+  <div><h3>Rechnen lernen (Rechen-Stufe)</h3>
+  <ol class="find">
+    <li><b>Erst Mengen und Zerlegungen, dann rechnen.</b><p>Wer Mengen strukturiert sieht (Kraft der 5) und zerlegen kann („7 sind 5 und 2“), kann Aufgaben ohne Abzählen lösen. Deshalb schaltet sich die Rechen-Stufe erst frei, wenn beides sicher ist.</p><span class="src">PIKAS (DZLM), <a href="https://pikas.dzlm.de/pikasfiles/uploads/upload/Material/Fortbildung_neu/Haus_3_Rechenschwierigkeiten/Modul_4/steckbrief_modul_4_nicht_zaehlendes_rechnen_11_und_1-1.pdf" target="_blank" rel="noopener">Nicht-zählendes Rechnen</a></span></li>
+    <li><b>Vom Material in den Kopf.</b><p>Das Vierphasenmodell löst Kinder schrittweise vom Material: handeln, mit Blick auf das Material beschreiben, ohne Blick vorstellen, dann nur mit Zahlen. Im Spiel: Bild bleibt stehen, Bild 3 Sekunden, nur Zahlen.</p><span class="src">Wartha &amp; Schulz (2012), Rechenproblemen vorbeugen; ISB Bayern, <a href="https://isb.bayern.de/fileadmin/user_upload/Foerderschulen/Geistige_Entwicklung/Rechnenlernen/PPP_Handreichung_Rechnenlernen_20_fuer_HP.pdf" target="_blank" rel="noopener">Handreichung Rechnenlernen</a></span></li>
+    <li><b>Ableiten hilft beim Auswendigwissen.</b><p>In einer Längsschnittstudie mit Erstklässlern wussten am Schuljahresende vor allem die Kinder viele Aufgaben auswendig, die Aufgaben aus bekannten ableiteten (etwa 6 + 7 aus 6 + 6). Kinder, die weiter zählten, wussten deutlich weniger.</p><span class="src">Gaidoschik (2012), Journal für Mathematik-Didaktik 33, 287–315</span></li>
+    <li><b>Regeln entdecken statt Einzelaufgaben pauken.</b><p>Erstklässler, die am Computer die Regel „plus 1 ist die nächste Zahl“ entdeckten, lösten danach auch ungeübte Plus-1-Aufgaben flüssiger.</p><span class="src">Baroody, Eiland, Purpura &amp; Reid (2013), American Educational Research Journal. <a href="https://files.eric.ed.gov/fulltext/ED535656.pdf" target="_blank" rel="noopener">Kurzfassung</a></span></li>
+    <li><b>Die Antwortzeit verrät den Rechenweg.</b><p>Wer weiterzählt, braucht mit jedem Schritt der kleineren Zahl länger, bei Erstklässlern etwa 0,4 s pro Schritt. Wer abruft oder ableitet, ist fast gleich schnell. Kinder mischen ihre Wege; deshalb wertet das Spiel jede Antwort einzeln statt im Mittel.</p><span class="src">Groen &amp; Parkman (1972), Psychological Review 79; Siegler (1987), Journal of Experimental Psychology: General 116</span></li>
+    <li><b>Gemischt üben.</b><p>Wer verschiedene Aufgabenarten gemischt übt statt eine Art am Stück, kann sie später besser auseinanderhalten. Belegt ist das vor allem bei älteren Schülern. Das Spiel mischt deshalb Rechnen mit Mengen-Aufgaben und neue mit älteren Aufgaben.</p><span class="src">Rohrer, Dedrick, Hartwig &amp; Cheung (2020), Journal of Educational Psychology</span></li>
+    <li><b>Was in Klasse 1 dran ist.</b><p>In Klasse 1 wird bis 20 gerechnet, auch über die 10. Empfohlen ist der Weg über die 10: 8 + 5 = 8 + 2 + 3.</p><span class="src">Lehrerfortbildung Baden-Württemberg, <a href="https://lehrerfortbildung-bw.de/u_matnatech/mathematik/gs/lernbaender/fb1/1_klasse1/lb1.7/1-7_lb_addition-und-subtraktion-mit-uebergang-bis-20_260422_bf.pdf" target="_blank" rel="noopener">Lernband 1.7</a></span></li>
+  </ol>
+  <p class="p-note" style="margin-top:8px">Die Schwellen fürs Freischalten und die Zeitgrenzen sind fachlich begründet, aber nicht empirisch geeicht.</p></div>
   <details class="p-details"><summary>Wann sollte man genauer hinschauen?</summary><p class="p-text" style="margin-top:8px">Viele Kinder brauchen zu Schulbeginn einfach Zeit. Wenn aber nach 6–8 Wochen regelmäßigen Übens kaum Fortschritte zu sehen sind, oder wenn Ihr Kind auch Mengen bis 3 oft nicht sicher erkennt, sprechen Sie mit der Lehrkraft. Eine Abklärung (z. B. über den schulpsychologischen Dienst oder die Kinderärztin bzw. den Kinderarzt) kann klären, ob eine Rechenschwäche vorliegt. Dieses Spiel ersetzt keine Diagnose.</p></details>`;
 }
 function tabSettings() {
@@ -2258,7 +2813,7 @@ function tabSettings() {
       <label class="toggle"><input type="checkbox" id="set-timer" ${s.timer ? 'checked' : ''}> Balken zeigen, wie lange das Bild noch zu sehen ist</label>
       ${Speech.ok ? '<div><button type="button" class="ghost-btn" id="set-voice">Stimme testen</button></div>' : '<small>Dieser Browser kann nicht vorlesen.</small>'}
     </div>
-    <div class="field"><span class="lbl">Spiele</span><div class="checks">${TASKS.map(k => `<label><input type="checkbox" data-task="${k}" ${s.tasks[k] ? 'checked' : ''}> ${GAME[k].name}${!D.unlocked[k] ? ' (ab ' + UNLOCK[k] + ' Sternen)' : ''}${k === 'partner' ? ' – nur Stufe 2' : ''}</label>`).join('')}</div>
+    <div class="field"><span class="lbl">Spiele</span><div class="checks">${TASKS.filter(k => k !== 'calc' || !Study.active()).map(k => `<label><input type="checkbox" data-task="${k}" ${s.tasks[k] ? 'checked' : ''}> ${GAME[k].name}${k === 'calc' ? (D.unlocked.calc ? '' : ' (ab Rechen-Reife)') : !D.unlocked[k] ? ' (ab ' + UNLOCK[k] + ' Sternen)' : ''}${k === 'partner' ? ' – nur Stufe 2' : ''}</label>`).join('')}</div>
       <div><button type="button" class="ghost-btn" id="set-unlock">Alle Spiele sofort freischalten</button></div></div>
     <div class="field"><span class="lbl">Darstellungen im Blitzblick</span><div class="checks">${REPS.map(r => `<label><input type="checkbox" data-rep="${r}" ${s.reps[r] ? 'checked' : ''}> ${REP_NAME[r]}</label>`).join('')}</div><small>Mindestens eine bleibt immer an.</small></div>
     <div class="field"><span class="lbl">Daten</span><p class="p-note">Alles wird nur auf diesem Gerät im Browser gespeichert.</p><div><button type="button" class="ghost-btn danger" id="set-reset">Alle Daten löschen</button></div></div>
@@ -2276,8 +2831,8 @@ function bindSettings() {
     const name = g.dataset.seg, v = b.dataset.v;
     if (name === 'profile') {
       D.startProfile = v;
-      TASKS.forEach(k => { D.theta[k] = START_THETA[v]; });
-      Object.values(D.ladder).forEach(L => { L.lv = START_LEVEL[v]; L.st = 0; });
+      TASKS.filter(k => k !== 'calc').forEach(k => { D.theta[k] = START_THETA[v]; });
+      Object.entries(D.ladder).forEach(([key, L]) => { if (!key.startsWith('calc:')) { L.lv = START_LEVEL[v]; L.st = 0; } });
     } else if (name === 'expoMode') { s.expoMode = v; $('#fixed-wrap').hidden = v !== 'fixed'; }
     else s[name] = Number(v);
     g.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
@@ -2291,7 +2846,7 @@ function bindSettings() {
   const v = $('#set-voice'); if (v) v.addEventListener('click', () => Speech.say(`Hallo${D.name ? ' ' + D.name : ''}! Wie viele sind es?`));
   f.querySelectorAll('[data-task]').forEach(c => c.addEventListener('change', () => { s.tasks[c.dataset.task] = c.checked; if (!TASKS.some(k => s.tasks[k])) { s.tasks.blitz = true; f.querySelector('[data-task="blitz"]').checked = true; } save(); }));
   f.querySelectorAll('[data-rep]').forEach(c => c.addEventListener('change', () => { s.reps[c.dataset.rep] = c.checked; if (!REPS.some(r => s.reps[r])) { s.reps.tenframe = true; f.querySelector('[data-rep="tenframe"]').checked = true; } save(); }));
-  $('#set-unlock').addEventListener('click', () => { TASKS.forEach(k => { D.unlocked[k] = true; }); save(); renderTab('settings'); });
+  $('#set-unlock').addEventListener('click', () => { TASKS.filter(k => k !== 'calc').forEach(k => { D.unlocked[k] = true; }); save(); renderTab('settings'); });
   const r = $('#set-reset');
   r.addEventListener('click', () => {
     if (r.dataset.armed) { const keep = D.study; try { localStorage.removeItem(STORE_KEY); } catch (e) { /* egal */ } D = freshData(); if (keep && keep.status !== 'none') D.study = keep; save(); S = null; T = null; renderTab('settings'); return; }
@@ -2511,6 +3066,7 @@ window.BlitzMengen = {
   get data() { return D; }, get trial() { return T; }, get session() { return S; },
   bank, pCorrect, classify, thresholds, baseline, exposureFor, profileNumbers, countingSlope,
   engine: { chooseItem, makeTrial, updateModel, updateLadder, setSession: v => { S = v; } },
+  calc: { family: calcFamily, facts: calcFacts, ready: calcReady, unlock: unlockCalc, level: calcLevel, levelUp: calcLevelUp, explain: calcExplain, marks: calcMarks, svg: svgCalc, profile: calcProfile, slope: calcSlope, phaseOf },
 };
 })();
 </script>
