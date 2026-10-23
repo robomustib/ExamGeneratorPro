@@ -1,3 +1,5 @@
+import { useId } from "react";
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // SYMBOLE — ein ruhiger, einheitlicher Satz statt bunter Emojis
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -133,6 +135,29 @@ export function Medal({ kind, size = 64, style }) {
       <circle cx="24" cy="38" r="17" fill={m ? m.c : "#eef1f6"} stroke={m ? m.d : "#d3d8e3"} strokeWidth="3" />
       <circle cx="24" cy="38" r="11.5" fill="none" stroke={m ? m.l : "#ffffff"} strokeWidth="2" opacity="0.8" />
       {m && <path d="M24 30.5l2.3 4.7 5.2.7-3.8 3.6.9 5.1-4.6-2.4-4.6 2.4.9-5.1-3.8-3.6 5.2-.7z" fill={m.l} stroke={m.d} strokeWidth="1" strokeLinejoin="round" />}
+    </svg>
+  );
+}
+
+// Fleißglas: füllt sich mit jedem geschriebenen Zeichen mit goldenen Sternen
+export function JarArt({ n = 0, max = 8, size = 40, glow = false }) {
+  const id = "jar" + useId().replace(/:/g, "");
+  const f = Math.max(0, Math.min(1, n / max)), top = 46 - 30 * f;
+  const body = "M10 13h20v3c3 2 4.5 5 4.5 9v15a6 6 0 0 1-6 6h-17a6 6 0 0 1-6-6V25c0-4 1.5-7 4.5-9z";
+  // kleine Sterne im Glas, von unten nach oben
+  const spots = [[14, 41], [25, 40], [20, 35], [29, 33], [12, 32], [22, 28], [15, 24], [27, 22]];
+  return (
+    <svg width={size} height={size * 1.2} viewBox="0 0 40 48" aria-hidden="true" style={{ display: "block", flexShrink: 0, overflow: "visible" }}>
+      <defs><clipPath id={id}><path d={body} /></clipPath></defs>
+      {glow && <circle cx="20" cy="28" r="22" fill="#ffe58a" opacity="0.6" />}
+      <path d={body} fill="#e8f6ff" />
+      <rect x="0" y={top} width="40" height="48" fill="#ffd23f" clipPath={`url(#${id})`} />
+      {spots.slice(0, Math.round(f * spots.length)).map(([x, y], i) => (
+        <path key={i} transform={`translate(${x} ${y}) scale(0.32)`} d="M0-8l2.4 4.9 5.4.8-3.9 3.8.9 5.4L0 4.3l-4.8 2.6.9-5.4-3.9-3.8 5.4-.8z" fill="#fff8d6" />
+      ))}
+      <path d={body} fill="none" stroke="#7cc4ec" strokeWidth="2.2" />
+      <path d="M12 18c-2 2-3 5-3 8" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" opacity="0.9" />
+      <rect x="8" y="5" width="24" height="8" rx="3" fill="#f2884b" stroke="#c75f22" strokeWidth="2" />
     </svg>
   );
 }

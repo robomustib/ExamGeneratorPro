@@ -3,7 +3,7 @@ import { useResearch, enroll, withdraw, exportMyData, logTrial, markWaveDone, tr
 import { Klecks, KlecksBubble, CompanionCtx, KLECKS_COLORS, accList, wearAcc, toggleAcc } from "./klecks.jsx";
 import { sfx, setSoundOn } from "./sound.js";
 import { useInstall } from "./install.js";
-import { Icon, Star, WorldArt, ChestArt, Medal } from "./icons.jsx";
+import { Icon, Star, WorldArt, ChestArt, Medal, JarArt } from "./icons.jsx";
 import { polyLength, distToPolyline, bbox, scoreDrawing, scoreFree, freeStars } from "./score.js";
 // Schrift „Nunito" (SIL Open Font License) — wird in die App eingebettet, kein Google-Server
 import nunito700 from "@fontsource/nunito/files/nunito-latin-700-normal.woff2";
@@ -484,7 +484,29 @@ const TREASURES={
   cape:      {kind:"acc",  name:"Umhang",           text:"Ein Superhelden-Umhang für Klecks!"},
   gold:      {kind:"pen",  name:"Goldstift",        text:"Ein Goldstift!"},
   regenbogen:{kind:"color",name:"Regenbogen-Klecks",text:"Klecks kann jetzt regenbogenbunt sein!"},
+  // aus dem Fleißglas
+  zauberhut: {kind:"acc",  name:"Zauberhut",        text:"Ein Zauberhut für Klecks!"},
+  kopfhoerer:{kind:"acc",  name:"Kopfhörer",        text:"Kopfhörer für Klecks!"},
+  fliege:    {kind:"acc",  name:"Fliege",           text:"Eine Fliege für Klecks!"},
+  zauberstab:{kind:"acc",  name:"Zauberstab",       text:"Ein Zauberstab für Klecks!"},
+  feuer:     {kind:"pen",  name:"Feuerstift",       text:"Ein Feuerstift!"},
+  ozean:     {kind:"pen",  name:"Ozeanstift",       text:"Ein Ozeanstift!"},
+  neon:      {kind:"pen",  name:"Neonstift",        text:"Ein Neonstift!"},
+  goldklecks:{kind:"color",name:"Gold-Klecks",      text:"Klecks kann jetzt golden glänzen!"},
+  nacht:     {kind:"color",name:"Nacht-Klecks",     text:"Klecks kann jetzt nachtblau sein!"},
 };
+// Fleißglas: Jedes richtig geschriebene Zeichen (zwei Sterne beim Lernen, im Wettbewerb
+// schon ab einem) wirft einen Stern ins Glas. Ist es voll, gibt es eine Überraschung.
+// Belohnt wird das Schreiben selbst — nicht Zeit, nicht Zufall —, und nichts geht verloren.
+const JAR_SIZE=8;
+const FLEISS_STICKERS=["🦄","🚀","🦖","🐬","🦋","🍓","🎈","🏰","🧸","🐞","🌵","🍉","🐙","🎨","🪁","🐢","🌋","🦜","🍀","🐉"];
+const JAR_REWARDS=(()=>{
+  const items=["zauberhut","feuer","goldklecks","kopfhoerer","ozean","fliege","nacht","zauberstab","neon"],out=[];
+  FLEISS_STICKERS.forEach((st,i)=>{if(items[i])out.push(items[i]);out.push("st:"+st);});
+  return out;
+})();
+// Nächste Überraschung: was noch fehlt (null, wenn schon alles gefunden ist)
+const nextJarReward=(unlocks)=>JAR_REWARDS.find(r=>!unlocks.includes(r))||null;
 const CHESTS={
   "GROß":[{after:7,reward:"glitter"},{after:14,reward:"bow"},{after:21,reward:"hat"},{after:29,reward:"crown"}],
   klein:[{after:7,reward:"flower"},{after:14,reward:"rainbow"},{after:21,reward:"glasses"},{after:30,reward:"cape"}],
@@ -503,6 +525,9 @@ const PENS={
   glitter:{name:"Glitzer",color:null,     swatch:"radial-gradient(circle at 35% 35%,#fff7c2,#fbbf24 60%,#d97706)",special:true},
   rainbow:{name:"Regenbogen",color:null,  swatch:"conic-gradient(#fb923c,#fbbf24,#4ade80,#60a5fa,#a78bfa,#f472b6,#fb923c)",special:true},
   gold:   {name:"Gold",   color:"#c98a00",swatch:"linear-gradient(135deg,#fff3b0,#e6a800 45%,#9a6a00)",special:true,glow:true},
+  feuer:  {name:"Feuer",  color:null,     swatch:"linear-gradient(135deg,#ff8a3d,#ffd23f)",special:true},
+  ozean:  {name:"Ozean",  color:null,     swatch:"linear-gradient(135deg,#2dd4bf,#3b82f6)",special:true},
+  neon:   {name:"Neon",   color:"#f43fbf",swatch:"radial-gradient(circle at 35% 35%,#ffd1f2,#f43fbf 60%,#a3007d)",special:true,glow:true},
 };
 const penAvailable=(id,unlocks)=>!!PENS[id]&&(!PENS[id].special||unlocks.includes(id));
 
@@ -514,7 +539,7 @@ const EDU_TIPS=[
   {icon:"👀",title:"Bereitschaft erkennen",text:"Wenn Ihr Kind unruhig oder frustriert wirkt, ist es Zeit für eine Pause oder einen anderen Tag."},
   {icon:"🧠",title:"Aus dem Kopf schreiben",text:"Nachfahren ist nur der Anfang. Am meisten lernen Kinder, wenn sie einen Buchstaben ansehen, abdecken und dann aus dem Gedächtnis schreiben. Die App führt Schritt für Schritt dorthin."},
   {icon:"➡️",title:"Richtung zählt",text:"Achten Sie auf Startpunkt und Schreibrichtung, nicht nur auf das Aussehen. Wer Buchstaben immer gleich schreibt, schreibt später flüssiger."},
-  {icon:"🎁",title:"Spielen ohne Druck",text:"Jeder Buchstabe ist ein Level mit bis zu drei Sternen. Schatztruhen auf dem Spielbrett öffnen sich, wenn die Buchstaben davor gut geschrieben sind; was drin ist, bleibt eine Überraschung. Es gibt keine Serien, die abreißen, keinen Zufall und kein „Komm zurück!“. Nach dem Tagesziel schlägt Klecks eine Pause vor."},
+  {icon:"🎁",title:"Spielen ohne Druck",text:"Jeder Buchstabe ist ein Level mit bis zu drei Sternen. Schatztruhen auf dem Spielbrett öffnen sich, wenn die Buchstaben davor gut geschrieben sind; was drin ist, bleibt eine Überraschung. Das Fleißglas füllt sich mit jedem richtig geschriebenen Zeichen, alle 8 Zeichen gibt es ein Geschenk. Es gibt keine Serien, die abreißen, keinen Zufall und kein „Komm zurück!“. Nach dem Tagesziel schlägt Klecks eine Pause vor."},
   {icon:"🔁",title:"Wiederholen lohnt sich",text:"Ein Buchstabe sitzt besser, wenn er nach einem Tag noch einmal geübt wird. Die App schlägt dafür im Menü passende Buchstaben vor."},
 ];
 
@@ -644,13 +669,15 @@ function StarRain({onDone}){
 // Regenbogen: Die Farbe wandert mit der geschriebenen Länge sanft von Orange über
 // Gelb, Grün, Blau und Lila bis Pink und zurück. Rot bleibt ausgespart, weil Rot
 // beim Nachfahren „neben der Linie" bedeutet.
+// Feuer (Orange bis Gelb) und Ozean (Türkis bis Blau) wandern genauso, nur in ihrem Farbbereich.
+const PEN_HUES={rainbow:[28,318],feuer:[24,52],ozean:[172,226]};
 let rainbowPos=0;
-function rainbowColor(len){
+function cycleColor(len,[h0,h1]){
   rainbowPos+=len;
   const t=(rainbowPos/240)%2,tri=t<1?t:2-t;
-  return`hsl(${Math.round(28+290*tri)},92%,54%)`;
+  return`hsl(${Math.round(h0+(h1-h0)*tri)},92%,54%)`;
 }
-const penColorFor=(pen,len)=>pen==="rainbow"?rainbowColor(len):PENS[pen]?.color||null;
+const penColorFor=(pen,len)=>PEN_HUES[pen]?cycleColor(len,PEN_HUES[pen]):PENS[pen]?.color||null;
 const penGlows=(pen)=>pen==="glitter"||!!PENS[pen]?.glow;
 function paintInk(ctx,a,b,{color,glitter=false,width=10,alpha=0.85}){
   const line=(c,w)=>{ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.strokeStyle=c;ctx.lineWidth=w;ctx.stroke();};
@@ -2260,6 +2287,7 @@ function ParentZone({settings,onChange,onClose,journal,onStartProbe}){
             <div><b>Lernstufe Abschreiben:</b> {Object.values(settings.stageMap||{}).filter(v=>v===2).length} · <b>Aus dem Kopf:</b> {Object.values(settings.stageMap||{}).filter(v=>v>=3).length}</div>
             <div><b>Sicher aus dem Kopf geschrieben:</b> {Object.values(settings.memMap||{}).filter(v=>v>0).length}</div>
             <div><b>Geöffnete Schatztruhen:</b> {(settings.chests||[]).length} von {Object.values(CHESTS).flat().length}</div>
+            <div><b>Fleißglas gefüllt:</b> {settings.jar?.filled||0}-mal</div>
           </div>
           {journal.length>0&&(
             <div style={{marginTop:10}}>
@@ -2304,9 +2332,10 @@ function ScreenTimeReminder({limit,onDismiss}){
 // ═══════════════════════════════════════════════════════════════════════════════
 // STICKER BOOK
 // ═══════════════════════════════════════════════════════════════════════════════
-function StickerBook({learnedMap}){
+function StickerBook({learnedMap,unlocks=[]}){
   const allLetters=[...UPPERCASE,...LOWERCASE,...NUMBERS];
   const perfect=allLetters.filter(l=>(learnedMap[l]||0)>=5);
+  const fleiss=FLEISS_STICKERS.filter(st=>unlocks.includes("st:"+st));
   return(
     <div className="k-card" style={{background:"linear-gradient(135deg,#fffbea,#fff1c1)",padding:16,maxWidth:560,margin:"0 auto"}}>
       <div style={{fontSize:16,fontWeight:900,color:"#78350f",marginBottom:4}}>{perfect.length} Sticker gesammelt</div>
@@ -2324,6 +2353,13 @@ function StickerBook({learnedMap}){
         {NUMBERS.map(l=>{const have=(learnedMap[l]||0)>=5;return(<div key={l} title={have?`${l} — ${STICKERS[l]}`:`${l} noch nicht`} style={{height:34,borderRadius:10,background:have?"#ffffff":"#f3e8c8",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>{have?STICKERS[l]||"⭐":<Glyph letter={l} height={22} weight={2.4} color="#d6c08a"/>}</div>);})}
       </div>
       {perfect.length===0&&<div style={{textAlign:"center",color:"#a16207",fontSize:14,marginTop:8}}>Hier kleben bald deine ersten Sticker!</div>}
+      <div style={{fontSize:11,fontWeight:700,color:"#92400e",margin:"14px 0 6px",display:"flex",alignItems:"center",gap:6}}>
+        <JarArt n={JAR_SIZE} max={JAR_SIZE} size={14}/>Fleiß-Sticker aus dem Fleißglas: {fleiss.length} von {FLEISS_STICKERS.length}
+      </div>
+      <div data-k="fleiss-stickers" style={{display:"grid",gridTemplateColumns:"repeat(8,1fr)",gap:5}}>
+        {FLEISS_STICKERS.map(st=>{const have=unlocks.includes("st:"+st);return(
+          <div key={st} style={{height:34,borderRadius:10,background:have?"#ffffff":"#f3e8c8",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,color:"#d6c08a",fontWeight:900}}>{have?st:"?"}</div>);})}
+      </div>
     </div>
   );
 }
@@ -2403,7 +2439,7 @@ function WordsPanel({learnedMap, onPractice}){
 // WORD PRACTICE SCREEN — writes each letter of a word in sequence
 // ═══════════════════════════════════════════════════════════════════════════════
 const WORD_THEME={key:"wort",acc:"#f59e0b",dark:"#b45309",soft:"#fef3c7",bg:"linear-gradient(180deg,#fff3c4 0%,#fffbea 45%,#ffffff 100%)"};
-function WordPractice({word, settings, pen="classic", onSpeak=()=>{}, onTrial=null, scale=1, onBack}){
+function WordPractice({word, settings, pen="classic", onSpeak=()=>{}, onTrial=null, onWrite=()=>{}, scale=1, onBack}){
   const name=useContext(ChildCtx);
   const letters=word.word.split("");
   const [idx,setIdx]=useState(0);           // current letter index
@@ -2415,6 +2451,7 @@ function WordPractice({word, settings, pen="classic", onSpeak=()=>{}, onTrial=nu
   const current=letters[idx];
 
   const handleLetterDone=(stars)=>{
+    if(stars>=3)onWrite();
     const next=[...doneLetters,stars];
     setDoneLetters(next);
     if(idx<letters.length-1){
@@ -2588,7 +2625,7 @@ function ContestHome({records,onStart,onSetName,onBack,onSpeak}){
 }
 
 // Ein Durchgang: Zeichen für Zeichen abschreiben (genaue Bewertung), am Ende Punkte und Medaille
-function ContestRun({item,mode,settings,pen,tools,scale,best,effects,onSpeak,onFinish,onBack}){
+function ContestRun({item,mode,settings,pen,tools,scale,best,effects,onSpeak,onFinish,onWrite=()=>{},onBack}){
   const name=useContext(ChildCtx);
   const chars=item.chars,anim=item.kind==="schwung";
   const [idx,setIdx]=useState(0);
@@ -2601,6 +2638,7 @@ function ContestRun({item,mode,settings,pen,tools,scale,best,effects,onSpeak,onF
   const done=(s,info={})=>{
     const raw=info.raw??s/5,pts=Math.round(100*Math.min(1,info.mode==="trace"?raw/0.9:raw));
     setScores(sc=>{const n=[...sc];n[idx]={pts,stars:s};return n;});
+    if(s>=2)onWrite();
   };
   const restart=()=>{setIdx(0);setScores([]);setFinal(null);setPhase(anim?"anim":"write");setReplayKey(k=>k+1);};
   const next=()=>{
@@ -2739,7 +2777,7 @@ function PenPicker({pen,unlocks,onPick}){
   return(
     <div style={{position:"relative"}}>
       {open&&(
-        <div style={{position:"absolute",bottom:58,right:-6,display:"flex",gap:8,background:"white",borderRadius:26,padding:"8px 10px",boxShadow:"0 5px 0 #0f172a14,0 12px 28px #0f172a24",zIndex:30,animation:"popIn 0.2s ease-out"}}>
+        <div style={{position:"absolute",bottom:58,right:-6,display:"flex",flexWrap:"wrap",justifyContent:"flex-end",gap:8,width:"max-content",maxWidth:212,background:"white",borderRadius:26,padding:"8px 10px",boxShadow:"0 5px 0 #0f172a14,0 12px 28px #0f172a24",zIndex:30,animation:"popIn 0.2s ease-out"}}>
           {ids.map(id=>(
             <button key={id} data-pen={id} aria-label={PENS[id].name} title={PENS[id].name} onClick={()=>{sfx("tap");onPick(id);setOpen(false);}}
               style={{width:34,height:34,borderRadius:"50%",border:pen===id?"3px solid var(--ink)":"3px solid white",background:PENS[id].swatch,cursor:"pointer",padding:0,
@@ -2789,7 +2827,7 @@ function Onboarding({onDone,onSpeak}){
 }
 
 // ── Spielbrett einer Welt: Buchstaben als Level, Truhen auf dem Weg, Klecks läuft mit ──
-function WorldMap({world,learnedMap,stageMap,memMap,next,opened,from,gain,onOpen,onPlay,onChest,onLockedChest,onBack}){
+function WorldMap({world,learnedMap,stageMap,memMap,next,opened,from,gain,jarN=0,onOpen,onPlay,onChest,onLockedChest,onBack}){
   const w=world.key,path=LEARN_PATH[w],chests=CHESTS[w];
   const [cw]=useState(()=>Math.min((typeof window!=="undefined"?window.innerWidth:400)-24,440));
   const STONE=66,STEP=92;
@@ -2870,7 +2908,8 @@ function WorldMap({world,learnedMap,stageMap,memMap,next,opened,from,gain,onOpen
           <div style={{animation:hop?"kJump 0.8s ease-in-out":"none"}}><Klecks size={44} anim={hop?"none":"bob"} mood={hop?"cheer":"happy"}/></div>
         </div>
       </div>
-      <div style={{position:"fixed",left:0,right:0,bottom:0,padding:"18px 16px calc(14px + env(safe-area-inset-bottom))",background:`linear-gradient(180deg,${world.soft}00,${world.soft}ee 45%)`,display:"flex",justifyContent:"center",zIndex:6}}>
+      <div style={{position:"fixed",left:0,right:0,bottom:0,padding:"18px 16px calc(14px + env(safe-area-inset-bottom))",background:`linear-gradient(180deg,${world.soft}00,${world.soft}ee 45%)`,display:"flex",justifyContent:"center",alignItems:"center",gap:10,zIndex:6}}>
+        <JarBadge n={jarN} style={{background:"white",boxShadow:"0 3px 0 #0f172a14"}}/>
         <Btn data-k="play" bg="var(--coral)" sh="var(--coralD)" onClick={()=>{sfx("pop");onPlay();}} style={{fontSize:21,padding:"12px 26px",borderRadius:24,minWidth:200}}>
           <Icon name="play" size={24} color="white"/>Los
           <span style={{background:"white",borderRadius:12,padding:"3px 8px",display:"inline-flex",marginLeft:4}}><Glyph letter={next} height={30} weight={3.2} color="var(--coralD)" fit/></span>
@@ -2894,7 +2933,7 @@ function ChestModal({reward,effects,onUse,onClose}){
           {open&&(
             <div style={{position:"absolute",top:0,left:0,right:0,display:"flex",justifyContent:"center",animation:"kRise 0.6s ease-out both"}}>
               {t.kind==="acc"&&<Klecks size={96} mood="cheer" anim="none" acc={wearAcc(comp.accs,reward)}/>}
-              {t.kind==="color"&&<Klecks size={96} mood="cheer" anim="none" color="regenbogen"/>}
+              {t.kind==="color"&&<Klecks size={96} mood="cheer" anim="none" color={reward}/>}
               {t.kind==="pen"&&<div style={{width:76,height:76,borderRadius:"50%",marginTop:20,background:PENS[reward].swatch,border:"4px solid white",boxShadow:"0 4px 0 #0002",animation:"kPulse 1.4s ease-in-out infinite"}}/>}
             </div>
           )}
@@ -2906,6 +2945,58 @@ function ChestModal({reward,effects,onUse,onClose}){
           <Btn data-k="later" bg="white" sh="#d5dbe7" color="var(--ink2)" style={{width:"100%",border:"2px solid #eef1f6"}} onClick={onClose}>Später</Btn>
         </>):<div style={{fontSize:18,fontWeight:900,color:"var(--ink2)",marginTop:12}}>Die Truhe geht auf …</div>}
       </div>
+    </div>
+  );
+}
+
+// ── Fleißglas voll: wackeln, aufgehen, Überraschung zeigen ──
+function GiftModal({reward,effects,onUse,onClose,onSpeak}){
+  const comp=useContext(CompanionCtx);
+  const name=useContext(ChildCtx);
+  const [open,setOpen]=useState(!effects);
+  const sticker=reward?.startsWith("st:")?reward.slice(3):null,t=reward&&!sticker?TREASURES[reward]:null;
+  const text=sticker?"Ein neuer Sticker für dein Album!":t?t.text:"Du hast schon alle Schätze! Super fleißig!";
+  useEffect(()=>{
+    onSpeak(`Dein Fleißglas ist voll${name?`, ${name}`:""}! Du hast so fleißig geschrieben.`);
+    if(open){sfx("unlock");return;}
+    const a=setTimeout(()=>{setOpen(true);sfx("unlock");},1100);return()=>clearTimeout(a);
+  },[]);
+  useEffect(()=>{if(open)setTimeout(()=>onSpeak(text),1700);},[open]);
+  const overlay={position:"fixed",inset:0,background:"rgba(20,24,44,0.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2500,backdropFilter:"blur(5px)",padding:16};
+  return(
+    <div style={overlay} role="dialog" aria-modal="true" data-gift={reward||"alles"}>
+      {open&&effects&&<StarRain onDone={()=>{}}/>}
+      <div className="k-card" style={{padding:"18px 20px",maxWidth:340,width:"100%",textAlign:"center",animation:"popIn 0.35s ease-out"}}>
+        <div style={{fontSize:20,fontWeight:900,color:"#a16207",marginBottom:6}}>Dein Fleißglas ist voll{name?`, ${name}`:""}!</div>
+        <div style={{position:"relative",height:180,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          {!open&&<div style={{animation:"kWiggle 0.32s ease-in-out infinite"}}><JarArt n={JAR_SIZE} max={JAR_SIZE} size={110} glow/></div>}
+          {open&&(
+            <div style={{animation:"kRise 0.6s ease-out both",display:"flex",alignItems:"center",justifyContent:"center"}}>
+              {sticker&&<div style={{width:130,height:130,borderRadius:28,background:"white",border:"4px dashed #ffc93c",display:"flex",alignItems:"center",justifyContent:"center",fontSize:84,transform:"rotate(-6deg)"}}>{sticker}</div>}
+              {t?.kind==="acc"&&<Klecks size={110} mood="cheer" anim="none" acc={wearAcc(comp.accs,reward)}/>}
+              {t?.kind==="color"&&<Klecks size={110} mood="cheer" anim="none" color={reward}/>}
+              {t?.kind==="pen"&&<div style={{width:96,height:96,borderRadius:"50%",background:PENS[reward].swatch,border:"5px solid white",boxShadow:"0 4px 0 #0002",animation:"kPulse 1.4s ease-in-out infinite"}}/>}
+              {!reward&&<Klecks size={110} mood="cheer" anim="jump"/>}
+            </div>
+          )}
+        </div>
+        {open?(<>
+          <h3 style={{margin:"8px 0 14px",fontSize:21,fontWeight:900,lineHeight:1.25}}>{text}</h3>
+          {t?(<>
+            <Btn data-k="use" bg="var(--mint)" sh="var(--mintD)" style={{width:"100%",fontSize:17,marginBottom:10}} onClick={()=>onUse(reward)}>{t.kind==="acc"?"Anziehen":"Ausprobieren"}</Btn>
+            <Btn data-k="later" bg="white" sh="#d5dbe7" color="var(--ink2)" style={{width:"100%",border:"2px solid #eef1f6"}} onClick={onClose}>Später</Btn>
+          </>):<Btn data-k="gift-ok" bg="var(--mint)" sh="var(--mintD)" style={{width:"100%",fontSize:17}} onClick={onClose}>{sticker?"Ins Album kleben":"Super!"}</Btn>}
+        </>):<div style={{fontSize:17,fontWeight:900,color:"var(--ink2)",marginTop:8}}>Da ist etwas drin …</div>}
+      </div>
+    </div>
+  );
+}
+// Fleißglas als kleine Anzeige: wie voll es ist
+function JarBadge({n,style}){
+  return(
+    <div data-k="jar" data-n={n} aria-label={`Fleißglas: ${n} von ${JAR_SIZE}`} title="Fleißglas"
+      style={{display:"inline-flex",alignItems:"center",gap:5,background:"#ffffffcc",borderRadius:20,padding:"3px 10px 3px 6px",fontSize:14,fontWeight:900,color:"var(--ink2)",...style}}>
+      <div key={n} style={{animation:n?"popIn 0.4s ease-out":"none"}}><JarArt n={n} max={JAR_SIZE} size={22}/></div>{n}/{JAR_SIZE}
     </div>
   );
 }
@@ -2968,7 +3059,7 @@ function Collection({companion,onChange,unlocks,pen,onPen,learnedMap,onOpen,onBa
             <button key={k} data-tab={k} onClick={()=>{sfx("tap");setTab(k);}} style={{flex:1,padding:"9px 4px",borderRadius:12,border:"none",fontSize:15,fontWeight:900,cursor:"pointer",background:tab===k?"var(--grape)":"transparent",color:tab===k?"white":"var(--ink2)"}}>{t}</button>
           ))}
         </div>
-        {tab==="sticker"&&<StickerBook learnedMap={learnedMap}/>}
+        {tab==="sticker"&&<StickerBook learnedMap={learnedMap} unlocks={unlocks}/>}
         {tab==="sterne"&&<LetterStars learnedMap={learnedMap} onOpen={onOpen}/>}
         {tab==="klecks"&&(<>
           <div className="k-card" style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"18px 12px 12px"}}>
@@ -3099,6 +3190,9 @@ export default function App(){
   const [daily,setDaily]=useState(()=>persisted.daily||{date:"",letters:[],celebrated:false});
   const [contest,setContest]=useState(()=>persisted.contest||{});          // Wettbewerb: bester Punktestand je Aufgabe
   const [contestItem,setContestItem]=useState(null);
+  // Fleißglas: n Sterne im Glas, filled = wie oft voll, gift = Überraschung, die noch gezeigt wird
+  const [jar,setJar]=useState(()=>({n:0,filled:0,gift:null,...(persisted.jar||{})}));
+  const [giftOpen,setGiftOpen]=useState(null);
   const [goalOpen,setGoalOpen]=useState(false);
   const [chestOpen,setChestOpen]=useState(null);                          // Fundstück der gerade geöffneten Truhe
   const [lastDone,setLastDone]=useState(null);                            // für Klecks' Sprung auf dem Spielbrett
@@ -3138,8 +3232,8 @@ export default function App(){
 
   // Fortschritt automatisch speichern
   useEffect(()=>{
-    savePersisted({learnedMap,totalScore,settings,stageMap,memMap,lastPracticed,companion,unlocks,chests,pen,daily,tab,contest});
-  },[learnedMap,totalScore,settings,stageMap,memMap,lastPracticed,companion,unlocks,chests,pen,daily,tab,contest]);
+    savePersisted({learnedMap,totalScore,settings,stageMap,memMap,lastPracticed,companion,unlocks,chests,pen,daily,tab,contest,jar});
+  },[learnedMap,totalScore,settings,stageMap,memMap,lastPracticed,companion,unlocks,chests,pen,daily,tab,contest,jar]);
 
   // Beim Start aus nativem Speicher wiederherstellen, falls localStorage leer war
   useEffect(()=>{
@@ -3157,6 +3251,7 @@ export default function App(){
       if(data.pen)setPen(data.pen);
       if(data.daily)setDaily(data.daily);
       if(data.contest)setContest(data.contest);
+      if(data.jar)setJar(j=>({...j,...data.jar}));
       if(data.companion){setCompanion(normCompanion(data.companion));setScreen(sc=>sc==="hello"?"menu":sc);}
     });
     return()=>{cancelled=true;};
@@ -3166,6 +3261,7 @@ export default function App(){
   useEffect(()=>{
     const onBack=(e)=>{
       if(chestOpen){e.preventDefault();setChestOpen(null);return;}
+      if(giftOpen){e.preventDefault();setGiftOpen(null);return;}
       if(goalOpen){e.preventDefault();setGoalOpen(false);return;}
       if(showParent){e.preventDefault();setShowParent(false);return;}
       if(practiceWord){e.preventDefault();setPracticeWord(null);return;}
@@ -3176,7 +3272,7 @@ export default function App(){
     };
     window.addEventListener("app:backbutton",onBack);
     return()=>window.removeEventListener("app:backbutton",onBack);
-  },[chestOpen,goalOpen,showParent,practiceWord,contestItem,screen]);
+  },[chestOpen,giftOpen,goalOpen,showParent,practiceWord,contestItem,screen]);
 
   const allLetters=[...UPPERCASE,...LOWERCASE,...NUMBERS];
   const learnedCount=Object.values(learnedMap).filter(v=>v>0).length;
@@ -3207,7 +3303,16 @@ export default function App(){
   const goNext=()=>{setMapWorld(tabOf(letter));setScreen("map");};
   const showHint=(text)=>{setHint(text);sayIt(text);clearTimeout(hintTimer.current);hintTimer.current=setTimeout(()=>setHint(null),3500);};
 
+  const addJar=()=>{
+    setJar(j=>{
+      if(j.n+1<JAR_SIZE)return{...j,n:j.n+1};
+      const gift=nextJarReward(unlocks)||"alles";
+      if(gift!=="alles")setUnlocks(u=>u.includes(gift)?u:[...u,gift]);
+      return{...j,n:0,filled:j.filled+1,gift};
+    });
+  };
   const handleDone=(s,info={})=>{
+    if(s>=3)addJar();
     const now=new Date();
     const before=learnedMap[letter]||0;
     const newLearned={...learnedMap,[letter]:Math.max(before,s)};
@@ -3251,6 +3356,13 @@ export default function App(){
     }
   };
 
+  const calm=(screen==="map"||screen==="menu"||(screen==="contest"&&!contestItem)||(screen==="words"&&!practiceWord))&&!chestOpen&&!goalOpen&&!showParent;
+  useEffect(()=>{
+    if(!jar.gift||giftOpen||!calm)return;
+    const t=setTimeout(()=>{setGiftOpen(jar.gift);setJar(j=>({...j,gift:null}));},700);
+    return()=>clearTimeout(t);
+  },[jar.gift,giftOpen,calm]);
+
   const openChest=(w,i)=>{
     const reward=CHESTS[w][i].reward;
     setChests(c=>c.includes(chestId(w,i))?c:[...c,chestId(w,i)]);
@@ -3265,9 +3377,9 @@ export default function App(){
     setChestOpen(null);
   };
 
-  const settingsWithData={...settings,learnedMap,totalScore,stageMap,memMap,unlocks,chests};
+  const settingsWithData={...settings,learnedMap,totalScore,stageMap,memMap,unlocks,chests,jar};
   // Lerndaten nicht in die Einstellungen übernehmen
-  const updateSettings=({learnedMap:_l,totalScore:_t,stageMap:_s,memMap:_m,unlocks:_u,chests:_c,...rest})=>setSettings(rest);
+  const updateSettings=({learnedMap:_l,totalScore:_t,stageMap:_s,memMap:_m,unlocks:_u,chests:_c,jar:_j,...rest})=>setSettings(rest);
   // Verteiltes Üben: Buchstaben, die vor mehr als einem Tag geübt wurden
   const due=Object.keys(lastPracticed)
     .filter(l=>(learnedMap[l]||0)>0&&Date.now()-lastPracticed[l]>REVIEW_AFTER_MS)
@@ -3281,6 +3393,8 @@ export default function App(){
     <ChildCtx.Provider value={childName}>
       {el}
       {chestOpen&&<ChestModal key={chestOpen} reward={chestOpen} effects={fx} onUse={applyTreasure} onClose={()=>setChestOpen(null)}/>}
+      {giftOpen&&<GiftModal key={giftOpen} reward={giftOpen==="alles"?null:giftOpen} effects={fx} onSpeak={sayIt}
+        onUse={(id)=>{applyTreasure(id);setGiftOpen(null);}} onClose={()=>{sfx("pop");setGiftOpen(null);}}/>}
       {goalOpen&&screen!=="probe"&&<GoalModal effects={fx} onHome={()=>{setGoalOpen(false);setScreen("menu");}} onMore={()=>setGoalOpen(false)}/>}
       {hint&&(
         <div style={{position:"fixed",left:0,right:0,bottom:96,display:"flex",justifyContent:"center",zIndex:1500,pointerEvents:"none",padding:"0 16px"}}>
@@ -3329,7 +3443,7 @@ export default function App(){
               onClick={()=>{setHomeKick(k=>k+1);sfx("pop");sayIt(greet);}}/>
             <div style={{flex:1,display:"flex",flexDirection:"column",gap:10,alignItems:"flex-start"}}>
               <div className="k-bubble" style={{"--bb":"#ffffff","--bg":"#ffffff",background:"white",borderRadius:20,padding:"12px 14px",fontSize:18,fontWeight:800,lineHeight:1.3,boxShadow:"0 4px 0 #0f172a12"}}>{greet}</div>
-              <DailyDots count={dailyCount}/>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}><DailyDots count={dailyCount}/><JarBadge n={jar.n}/></div>
             </div>
           </div>
 
@@ -3414,7 +3528,7 @@ export default function App(){
     const from=lastDone&&tabOf(lastDone.letter)===mapWorld?lastDone.letter:null;
     return wrap(
       <WorldMap key={mapWorld+(lastDone?lastDone.letter:"")} world={WORLDS[mapWorld]} learnedMap={learnedMap} stageMap={stageMap} memMap={memMap}
-        next={next} opened={chests} from={from} gain={from?lastDone.gain:0}
+        next={next} opened={chests} from={from} gain={from?lastDone.gain:0} jarN={jar.n}
         onOpen={(l)=>openLetter(l)} onPlay={()=>openLetter(next)}
         onChest={(i)=>openChest(mapWorld,i)} onLockedChest={()=>showHint("Die Truhe geht auf, wenn alle Buchstaben davor zwei Sterne haben.")}
         onBack={()=>{setLastDone(null);setScreen("menu");}}/>
@@ -3431,7 +3545,7 @@ export default function App(){
     if(contestItem) return wrap(
       <ContestRun key={contestItem.id} item={contestItem} mode={rs.restricted?"trace":"copy"} settings={settings} pen={usePenNow} scale={fs}
         tools={<PenPicker pen={usePenNow} unlocks={unlocks} onPick={setPen}/>} best={contest[contestItem.id]??null} effects={fx} onSpeak={sayIt}
-        onFinish={(pts)=>setContest(c=>({...c,[contestItem.id]:Math.max(c[contestItem.id]??0,pts)}))}
+        onFinish={(pts)=>setContest(c=>({...c,[contestItem.id]:Math.max(c[contestItem.id]??0,pts)}))} onWrite={addJar}
         onBack={()=>setContestItem(null)}/>
     );
     return wrap(
@@ -3442,7 +3556,7 @@ export default function App(){
 
   if(screen==="words"){
     if(practiceWord) return wrap(
-      <WordPractice word={practiceWord} settings={settings} pen={pen} onSpeak={sayIt} scale={fs}
+      <WordPractice word={practiceWord} settings={settings} pen={pen} onSpeak={sayIt} scale={fs} onWrite={addJar}
         onTrial={studyLog&&((ch,t)=>studyLog({kind:"word",ch,stage:stageOf(ch)})(t))}
         onBack={()=>setPracticeWord(null)}/>
     );

@@ -18,6 +18,9 @@ export const KLECKS_COLORS = [
   { id: "rot", c: "#ff6b6b", d: "#d94343", name: "Rot" },
   // Fundstück aus einer Schatztruhe: Klecks in Regenbogenfarben
   { id: "regenbogen", c: "rainbow", d: "#7c3aed", name: "Regenbogen", special: true },
+  // Fundstücke aus dem Fleißglas
+  { id: "goldklecks", c: "#ffcf3d", d: "#d99a00", name: "Gold", special: true },
+  { id: "nacht", c: "#6d72f2", d: "#3f3fb8", name: "Nachtblau", special: true },
 ];
 export const klecksColor = (id) => KLECKS_COLORS.find((k) => k.id === id) || KLECKS_COLORS[0];
 
@@ -25,8 +28,10 @@ export const CompanionCtx = createContext({ color: "lila", accs: [] });
 
 // Zubehör: mehrere Teile gleichzeitig. Teile am selben Platz (Hut und Krone sitzen
 // beide auf der Spitze) ersetzen sich gegenseitig, alles andere lässt sich kombinieren.
-const ACC_SLOT = { hat: "top", crown: "top", bow: "right", flower: "left", glasses: "face", cape: "back" };
-const ACC_ORDER = ["flower", "bow", "glasses", "hat", "crown"];   // vor dem Körper; der Umhang liegt dahinter
+const ACC_SLOT = { hat: "top", crown: "top", zauberhut: "top", kopfhoerer: "top", bow: "right", flower: "left", glasses: "face",
+  cape: "back", fliege: "neck", zauberstab: "hand" };
+// vor dem Körper; der Umhang liegt dahinter
+const ACC_ORDER = ["flower", "bow", "glasses", "fliege", "hat", "crown", "zauberhut", "kopfhoerer", "zauberstab"];
 export const accList = (a) => (Array.isArray(a) ? a : a ? [a] : []).filter((id) => ACC_SLOT[id]);
 export function wearAcc(accs, id) {
   const list = accList(accs).filter((x) => ACC_SLOT[x] !== ACC_SLOT[id]);
@@ -74,6 +79,39 @@ function Accessory({ id }) {
           <circle key={a} cx={6.5 * Math.cos((a * Math.PI) / 180)} cy={6.5 * Math.sin((a * Math.PI) / 180)} r="6" fill="white" stroke="#f9a8d4" strokeWidth="1.5" />
         ))}
         <circle r="4.5" fill="#ffc93c" />
+      </g>
+    );
+  if (id === "zauberhut")
+    return (
+      <g>
+        <path d="M61 -18 L44 20 Q60 26 76 20 Z" fill="#7c3aed" stroke="#5b21b6" strokeWidth="2" strokeLinejoin="round" />
+        <ellipse cx="60" cy="21" rx="23" ry="5" fill="#6d28d9" stroke="#5b21b6" strokeWidth="2" />
+        <path d="M58 0l1.6 3.2 3.5.5-2.5 2.4.6 3.5-3.2-1.7-3.1 1.7.6-3.5-2.5-2.4 3.5-.5z" fill="#ffd23f" />
+        <circle cx="66" cy="12" r="1.9" fill="#ffd23f" />
+        <circle cx="53" cy="14" r="1.5" fill="#ffffff" />
+      </g>
+    );
+  if (id === "kopfhoerer")
+    return (
+      <g>
+        <path d="M26 58 C20 4 100 4 94 58" fill="none" stroke="#334155" strokeWidth="5.5" strokeLinecap="round" />
+        <rect x="15" y="50" width="15" height="24" rx="7" fill="#ef4444" stroke="#b91c1c" strokeWidth="2" />
+        <rect x="90" y="50" width="15" height="24" rx="7" fill="#ef4444" stroke="#b91c1c" strokeWidth="2" />
+      </g>
+    );
+  if (id === "fliege")
+    return (
+      <g transform="translate(60 111)" fill="#2563eb" stroke="#1e3a8a" strokeWidth="1.8" strokeLinejoin="round">
+        <path d="M0 0 L-12 -7 L-12 7 Z" />
+        <path d="M0 0 L12 -7 L12 7 Z" />
+        <circle r="3.6" />
+      </g>
+    );
+  if (id === "zauberstab")
+    return (
+      <g>
+        <path d="M100 99 L114 69" stroke="#6b3f1d" strokeWidth="4" strokeLinecap="round" />
+        <path d="M115 56.5l3 6 6.6.9-4.8 4.6 1.2 6.5-6-3.1-5.9 3.1 1.1-6.5-4.8-4.6 6.6-.9z" fill="#ffd23f" stroke="#e0a100" strokeWidth="1.5" strokeLinejoin="round" />
       </g>
     );
   if (id === "glasses")
