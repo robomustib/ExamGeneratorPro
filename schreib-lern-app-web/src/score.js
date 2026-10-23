@@ -62,13 +62,21 @@ export function mirrorStrokes(strokes) {
 // ── Frei geschrieben: Form statt Stelle ───────────────────────────────────────
 const DOT = 25;              // kürzere Vorlagen-Striche sind Punkte (i, j, ä, ö, ü)
 const STEP = 3;              // Abstand der Messpunkte entlang der Striche
-const SCALE = [0.72, 1.4];   // so viel kleiner/größer als die Vorlage darf der Buchstabe sein
 const ASPECT = 1.3;          // so viel schmaler/breiter (im Verhältnis zur Höhe)
-// Seitlich darf der Buchstabe beliebig verschoben sein, in der Höhe nur um etwa ein
-// Viertel einer Zeile: Ein „p“ eine Zone tiefer als „P“ oder ein kleines „o“ statt „O“
-// bleibt so ein Fehler.
-const MAXDY = 30;
-const LIM = { scale: SCALE, maxDy: MAXDY };
+// Zwei Stufen der Bewertung:
+//   lernen — Abschreiben und Aus dem Kopf auf dem Lernweg. Großzügig: Wer einen erkennbar
+//            richtigen Buchstaben schreibt, kommt weiter. Hinweise gibt es trotzdem.
+//   genau  — Wettbewerb und Schreibtest der Studie. Größe 72–140 %, in der Höhe höchstens
+//            etwa eine Viertelzeile verschoben: Ein „p“ eine Zone tiefer als „P“ oder ein
+//            kleines „o“ statt „O“ bleibt so ein Fehler.
+// Seitlich darf der Buchstabe in beiden Stufen beliebig verschoben sein.
+//   lim: Grenzen für Größe und Höhenversatz · tol: Faktor auf die Toleranz
+//   stars: Mindestwerte für 5, 4, 3 und 2 Sterne · cap: höchstens so viele Sterne mit Hinweis
+export const PROFILES = {
+  genau: { lim: { scale: [0.72, 1.4], maxDy: 30 }, tol: 1, stars: [0.88, 0.74, 0.55, 0.38], cap: 3 },
+  lernen: { lim: { scale: [0.62, 1.7], maxDy: 40 }, tol: 1.25, stars: [0.76, 0.6, 0.48, 0.3], cap: 4 },
+};
+const LIM = PROFILES.genau.lim;
 // Nur zum Erkennen „Form stimmt, aber Größe oder Lage auf den Linien nicht“
 const FREE = { scale: [0.35, 2.8], maxDy: 400 };
 
@@ -236,11 +244,12 @@ function bestFit(drawnStrokes, D, tplStrokes, TOL, lim = LIM) {
 // (Verschiebung und Größe), missing ("part" oder "dots" fehlen), extra (ein Strich zu
 // viel), size (Form stimmt, aber "small"/"big": viel kleiner/größer, z. B. „o“ statt „O“,
 // oder "high"/"low": auf der falschen Zeile, z. B. „p“ statt „P“)
-// und mirrored (Buchstabe deutlich besser gespiegelt)
-export function scoreFree(drawnStrokes, tplStrokes, TOL) {
+// und mirrored (Buchstabe deutlich besser gespiegelt). profile: "lernen" oder "genau".
+export function scoreFree(drawnStrokes, tplStrokes, tol, profile = "genau") {
+  const pr = PROFILES[profile] || PROFILES.genau, TOL = tol * pr.tol;
   const D = resample(drawnStrokes.map((s) => s.map((p) => [p[0], p[1]])));
-  if (D.length < 4) return { raw: 0, accuracy: 0, coverage: 0, tpl: tplStrokes, fit: { sx: 1, sy: 1, tx: 0, ty: 0 }, missing: null, extra: false, size: null, mirrored: false };
-  const best = bestFit(drawnStrokes, D, tplStrokes, TOL);
+  if (D.length < 4) return { raw: 0, accuracy: 0, coverage: 0, tpl: tplStrokes, fit: { sx: 1, sy: 1, tx: 0, ty: 0 }, missing: null, extra: false, size: null, mirrored: false, profile };
+  const best = bestFit(drawnStrokes, D, tplStrokes, TOL, pr.lim);
   const dots = tplStrokes.map((s) => polyLength(s) < DOT);
   const missing = best.parts.some((v, i) => !dots[i] && v < 0.7) ? "part"
     : best.parts.some((v, i) => dots[i] && v < 0.5) ? "dots" : null;
@@ -264,26 +273,27 @@ export function scoreFree(drawnStrokes, tplStrokes, TOL) {
   }
   // Gespiegelt? Nur bei Zeichen, die gespiegelt anders aussehen
   const m = mirrorStrokes(tplStrokes);
-  const symmetric = m.flat().every((p) => distToPolyline(p[0], p[1], tplStrokes) < TOL * 0.6);
+  const symmetric = m.flat().every((p) => distToPolyline(p[0], p[1], tplStrokes) < tol * 0.6);
   let mirrored = false;
   if (!symmetric) {
     // Mit enger Toleranz vergleichen: Beim „a“ liegt der Strich am Kreis an, gespiegelt
     // sieht er mit großzügiger Toleranz fast gleich aus
-    const bm = bestFit(drawnStrokes, D, m, TOL);
+    const bm = bestFit(drawnStrokes, D, m, TOL, pr.lim);
     const tight = (b) => compare(D, b.tpl, b.T * 0.5, b.drawnLen).raw;
     mirrored = bm.raw > 0.6 && (bm.raw > best.raw + 0.1 || tight(bm) > tight(best) + 0.15);
   }
   const { T, drawnLen, ...rest } = best;
-  return { ...rest, missing, size, mirrored };
+  return { ...rest, missing, size, mirrored, profile };
 }
 
 // Sterne (1–5) für frei Geschriebenes. 5 = gut erkennbare, sauber geformte Schrift;
 // dafür muss ein Kind nicht pixelgenau schreiben. Fehlt ein Teil, ist ein Strich zu viel
-// oder passt die Größe gar nicht, höchstens 3.
+// oder passt die Größe gar nicht, gibt es höchstens cap Sterne (genau: 3, lernen: 4 —
+// beim Lernen ist das ein Tipp, kein Hindernis). Gespiegelt: höchstens 2.
 export function freeStars(sc) {
-  const r = sc.raw;
-  let s = r >= 0.88 ? 5 : r >= 0.74 ? 4 : r >= 0.55 ? 3 : r >= 0.38 ? 2 : 1;
-  if (sc.missing || sc.extra || sc.size) s = Math.min(s, 3);
+  const pr = PROFILES[sc.profile] || PROFILES.genau, r = sc.raw, [s5, s4, s3, s2] = pr.stars;
+  let s = r >= s5 ? 5 : r >= s4 ? 4 : r >= s3 ? 3 : r >= s2 ? 2 : 1;
+  if (sc.missing || sc.extra || sc.size) s = Math.min(s, pr.cap);
   if (sc.mirrored) s = Math.min(s, 2);
   return s;
 }

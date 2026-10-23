@@ -224,7 +224,7 @@ export function KlecksBubble({ text, mood = "happy", tone = "info", size = 46, m
           color: t.color,
           borderRadius: 18,
           padding: "7px 12px",
-          fontSize: 15,
+          fontSize: String(text).length > 44 ? 13.5 : 15,   // längere Sätze (z. B. mit Namen) bleiben bei zwei Zeilen
           fontWeight: 800,
           lineHeight: 1.25,
           minHeight: minH,

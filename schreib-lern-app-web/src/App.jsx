@@ -3,7 +3,7 @@ import { useResearch, enroll, withdraw, exportMyData, logTrial, markWaveDone, tr
 import { Klecks, KlecksBubble, CompanionCtx, KLECKS_COLORS, accList, wearAcc, toggleAcc } from "./klecks.jsx";
 import { sfx, setSoundOn } from "./sound.js";
 import { useInstall } from "./install.js";
-import { Icon, Star, WorldArt, ChestArt } from "./icons.jsx";
+import { Icon, Star, WorldArt, ChestArt, Medal } from "./icons.jsx";
 import { polyLength, distToPolyline, bbox, scoreDrawing, scoreFree, freeStars } from "./score.js";
 // Schrift „Nunito" (SIL Open Font License) — wird in die App eingebettet, kein Google-Server
 import nunito700 from "@fontsource/nunito/files/nunito-latin-700-normal.woff2";
@@ -134,6 +134,13 @@ const STROKES=(()=>{
   const o_=[S(arc(50,MID,R,R,-65,-425))];
   const u_=[S([30,ML],[30,MID],arc(30+RX,MID,R,R,180,0),[30+2*RX,ML]),S([30+2*RX,ML],[30+2*RX,GL])];
 
+  // Schwungübungen (Wettbewerb): je drei Bögen, Wellen oder Zacken über die ganze Breite,
+  // im Mittelband, in einem Zug von links nach rechts
+  const X0=4,X1=96,WD=(X1-X0)/3;
+  const wave=[],loops=[];
+  for(let i=0;i<=96;i++){const x=X0+(X1-X0)*i/96;wave.push([x,MID-14*Math.sin(2*Math.PI*(x-X0)/WD)]);}
+  for(let i=0;i<=180;i++){const t=Math.PI+6*Math.PI*i/180;loops.push([X0+(X1-X0)*(t-Math.PI)/(6*Math.PI)-8*Math.sin(t),GL-36*(1+Math.cos(t))/2]);}
+
   return{
     // ── Großbuchstaben ───────────────────────────────────────────────────────
     A:A_,
@@ -215,6 +222,13 @@ const STROKES=(()=>{
            curve(68,80,60,GL,50,GL),curve(40,GL,32,80,32,70),curve(32,59,43,54,50,49),
            curve(56,44,65,38,65,28),curve(65,20,59,OL,50,OL))],
     "9":[S(arc(48,33,19,19,-20,-360),[48+19*AX,GL])],
+
+    // ── Schwungübungen ───────────────────────────────────────────────────────
+    "~welle":[S(...wave)],
+    "~girlande":[S(...[0,1,2].map(i=>arc(X0+WD*(i+0.5),ML,WD/2/AX,36,180,0)))],      // ∪∪∪
+    "~arkade":[S(...[0,1,2].map(i=>arc(X0+WD*(i+0.5),GL,WD/2/AX,36,180,360)))],      // ∩∩∩
+    "~zickzack":[S([X0,GL],...[1,2,3,4,5,6].map(i=>[X0+WD/2*i,i%2?ML:GL]))],
+    "~schleife":[S(...loops)],
   };
 })();
 
@@ -390,21 +404,47 @@ function applyContrast(diff,high){
 
 // Sterne zeigen, wie genau geschrieben wurde (Information, kein Urteil über das Kind).
 // Intern 1–5 (auch für die Forschungsdaten), sichtbar wie in Spielen 1–3 Sterne.
-const PRAISE=["","Weiter so!","Schon fast!","Gut geschrieben!","Sehr schön!","Super genau!"];
 const stars3=(s)=>s>=5?3:s>=3?2:s>=1?1:0;
 
 // Lob für den Weg, nicht für die Person: Startpunkt, Richtung, Dranbleiben, Strategie.
 // Kinder, die für Anstrengung und Vorgehen gelobt werden, bleiben bei Fehlern eher dran
 // (Mueller & Dweck 1998; Gunderson u. a. 2013).
+// short: für die Sprechblase (passt mit dem Namen in zwei Zeilen), long: zum Vorlesen
 function processPraise({stars,mode,formationErrors=0,tries=0}){
-  if(stars<=2)return "Gut, dass du es versuchst! Schau nochmal genau hin.";
-  if(mode==="memory"&&stars>=4)return "Aus dem Kopf geschrieben! Du hast ihn dir gemerkt.";
-  if(mode==="copy"&&stars>=4)return "Genau hingeschaut und abgeschrieben!";
-  if(tries>0)return "Du hast nicht aufgegeben – so lernt man!";
-  if(mode==="trace"&&formationErrors===0&&stars>=4)return "Jeden Strich am richtigen Punkt angefangen!";
-  if(formationErrors>0)return "Du hast die Richtung verbessert!";
-  if(stars>=4)return "Du hast genau auf die Linien geachtet!";
-  return "Gut geschrieben! Nächstes Mal noch näher an der Linie.";
+  const P=(short,long)=>({short,long});
+  if(stars<=2)return P("Schau nochmal genau hin.","Gut, dass du es versuchst! Schau nochmal genau hin.");
+  if(mode==="memory"&&stars>=4)return P("Aus dem Kopf geschrieben!","Aus dem Kopf geschrieben! Du hast ihn dir gemerkt.");
+  if(mode==="copy"&&stars>=4)return P("Genau abgeschrieben!","Genau hingeschaut und abgeschrieben!");
+  if(tries>0)return P("Du bleibst dran!","Du hast nicht aufgegeben – so lernt man!");
+  if(mode==="trace"&&formationErrors===0&&stars>=4)return P("Alles richtig begonnen!","Jeden Strich am richtigen Punkt angefangen!");
+  if(formationErrors>0)return P("Richtung verbessert!","Du hast die Richtung verbessert!");
+  if(stars>=4)return P("Schön auf der Linie!","Du hast genau auf die Linien geachtet!");
+  return P("Gut geschrieben!","Gut geschrieben! Nächstes Mal noch näher an der Linie.");
+}
+// Name des Kindes (freiwillig, nur auf dem Gerät gespeichert): Klecks lobt damit
+const ChildCtx=createContext("");
+// Name: nur Buchstaben, Leer- und Bindestrich, höchstens 16 Zeichen; ganz klein
+// getippt → erster Buchstabe groß
+function cleanName(v){
+  let n=String(v||"").replace(/[^A-Za-zÄÖÜäöüßÀ-ÖØ-öø-ÿ \-]/g,"").replace(/\s+/g," ").replace(/^\s+/,"").slice(0,16);
+  if(n&&n===n.toLowerCase())n=n[0].toUpperCase()+n.slice(1);
+  return n;
+}
+// Zeichen des Namens, die das Kind schreiben kann (é → e, Leerzeichen und Bindestrich fallen weg)
+function nameLetters(name){
+  return [...String(name||"").trim()].map(ch=>STROKES[ch]?ch:ch.normalize("NFD").replace(/[\u0300-\u036f]/g,"")).filter(ch=>STROKES[ch]);
+}
+// „Gut gemacht, Lale!“ — das Lob gilt der geschriebenen Arbeit, nicht der Person
+const CHEERS={top:["Super gemacht","Toll gemacht","Klasse gemacht"],good:["Gut gemacht","Prima gemacht","Schön gemacht"],try:["Weiter so","Gut geübt"]};
+function cheer(name,stars){
+  const list=stars>=5?CHEERS.top:stars>=3?CHEERS.good:CHEERS.try;
+  const w=list[Math.floor(Math.random()*list.length)];
+  return name?`${w}, ${name}!`:`${w}!`;
+}
+// Lob zusammensetzen: Sprechblase höchstens zwei Zeilen, vorgelesen ausführlich
+function praiseFor(name,stars,p){
+  const c=cheer(name,stars),text=`${c} ${p.short}`;
+  return{text:text.length<=48?text:c,speech:`${c} ${p.long}`};
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -642,7 +682,8 @@ function toCanvas(p,W,H){return[p[0]/100*W,p[1]/130*H];}
 function useStrokes(letter,W,H){
   return useMemo(()=>{
     const raw=STROKES[letter]||STROKES["A"];
-    return annotateStrokes(raw.map(s=>interpolatePts(s,90).map(p=>toCanvas(p,W,H))));
+    const steps=letter.startsWith("~")?200:90;   // Schwungübungen sind lang: feiner auflösen
+    return annotateStrokes(raw.map(s=>interpolatePts(s,steps).map(p=>toCanvas(p,W,H))));
   },[letter,W,H]);
 }
 // Teilstriche wie auf den Schreibrichtungs-Plakaten nummeriert:
@@ -1017,8 +1058,12 @@ const COACH={
   start:"Fang beim gelben Punkt an!",
   direction:"Andersherum! Fang beim gelben Punkt an.",
 };
+// profile: Bewertung beim freien Schreiben — "lernen" (Lernweg, großzügig) oder "genau"
+// (Wettbewerb, Schreibtest). copyHint: Satz beim Abschreiben (z. B. für Schwungübungen).
 function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="medium",mode="trace",memoryDelay=1,pen="classic",
-                     lefthanded=false,highContrast=false,hapticsEnabled=true,onSpeak=()=>{},onTrial=null,scale=1,W=260,H=310}){
+                     lefthanded=false,highContrast=false,hapticsEnabled=true,onSpeak=()=>{},onTrial=null,scale=1,W=260,H=310,
+                     profile=null,copyHint="Schau auf die Vorlage und schreib ab!"}){
+  const childName=useContext(ChildCtx);
   const bgRef=useRef(null);const ovRef=useRef(null);
   const [k]=useState(()=>pixelRatio(scale));
   useCanvasScale([bgRef,ovRef],k);
@@ -1286,7 +1331,7 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
     const TOL=diff.tolerance*(guided?1:1.3);
     // Nachfahren: direkt an der Vorlage im Feld messen. Frei geschrieben: Es zählt die Form —
     // die Vorlage wird an die Schrift angelegt (Stelle und Größe in Grenzen egal).
-    const sc=guided?scoreDrawing(drawn.current,strokes,TOL):scoreFree(drawn.current,strokes,TOL);
+    const sc=guided?scoreDrawing(drawn.current,strokes,TOL):scoreFree(drawn.current,strokes,TOL,profile||(probe?"genau":"lernen"));
     const raw=sc.raw,tpl=guided?strokes:sc.tpl,mirrored=!guided&&sc.mirrored;
     const s=guided?Math.max(1,Math.min(5,Math.round(raw*5))):freeStars(sc);
     report(true,{accuracy:+sc.accuracy.toFixed(3),coverage:+sc.coverage.toFixed(3),score_raw:+raw.toFixed(3),stars:s,mirrored:guided?null:mirrored?1:0});
@@ -1294,7 +1339,7 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
       // Schreibtest: keine Bewertung zeigen, direkt weiter
       setResult({stars:s,note:null});setDone(true);clearTimeout(idleTimerRef.current);setShowHintBtn(false);
       haptic("tick",hapticsEnabled);
-      setTimeout(()=>onComplete(s,{mode,mirrored}),500);
+      setTimeout(()=>onComplete(s,{mode,mirrored,raw}),500);
       return;
     }
     if(!guided){
@@ -1307,27 +1352,28 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
     let note=null;
     if(mirrored)note="Gespiegelt! Schau, in welche Richtung er zeigt.";
     else if(!guided&&sc.missing==="dots")note="Die Punkte nicht vergessen!";
-    else if(!guided&&sc.size)note={small:"Schreib ihn so groß wie die Vorlage!",big:"Etwas kleiner – so groß wie die Vorlage!",
-      high:"Er sitzt zu hoch. Schau auf die Linien!",low:"Er sitzt zu tief. Schau auf die Linien!"}[sc.size];
+    else if(!guided&&sc.size)note={small:"Schreib so groß wie die Vorlage!",big:"Etwas kleiner – so groß wie die Vorlage!",
+      high:"Etwas zu hoch. Schau auf die Linien!",low:"Etwas zu tief. Schau auf die Linien!"}[sc.size];
     else if(!guided&&sc.missing)note="Da fehlt ein Teil. Grün zeigt dir, welcher.";
     else if(!guided&&sc.extra)note="Ein Strich zu viel. Grün zeigt, wie es geht.";
     else if(formationErrors.current>=2)note="Tipp: Immer beim gelben Punkt anfangen.";
-    const praise=processPraise({stars:s,mode,formationErrors:formationErrors.current,tries:tries.current});
+    const pr=praiseFor(childName,s,processPraise({stars:s,mode,formationErrors:formationErrors.current,tries:tries.current}));
+    const praise=pr.text,speech=note?`${cheer(childName,s)} ${note}`:pr.speech;
     clearTimeout(coachTimer.current);setCoach(null);
     setResult({stars:s,note,praise});setDone(true);
     clearTimeout(idleTimerRef.current);setShowHintBtn(false);
     haptic(s===5?"celebrate":s>=3?"success":"tick",hapticsEnabled);
     sfx(s>=4?"fanfare":s>=3?"done":"soft");
-    setTimeout(()=>onSpeak(note||praise),500);
+    setTimeout(()=>onSpeak(speech),500);
     if(s===5)setConfetti(true);
-    onComplete(s,{mode,mirrored});
+    onComplete(s,{mode,mirrored,raw});
   };
 
   const allStrokesDone=guided&&strokeIdx.current>=strokes.length;
   const hint=mode==="memory"&&memPhase==="show"?"Merk dir den Buchstaben!"
     :mode==="memory"&&memPhase==="wait"?"Gleich bist du dran …"
     :mode==="memory"?"Jetzt aus dem Kopf schreiben!"
-    :mode==="copy"?"Schau auf die Vorlage und schreib ihn ab!"
+    :mode==="copy"?copyHint
     :probe?"Schreib ihn aus dem Kopf!"
     :allStrokesDone?"Super! Tippe auf Fertig."
     :`Strich ${strokeIdx.current+1} von ${strokes.length} – fahr ihn nach!`;
@@ -1417,6 +1463,7 @@ const RedoIconBtn=({onClick})=>(
 // GUIDED CANVAS  — Phase 1: geführt, Phase 2: frei nachzeichnen, Phase 3: Vergleich
 // ═══════════════════════════════════════════════════════════════════════════════
 function GuidedCanvas({letter, onComplete, onNext=null, tools=null, pen="classic", onSpeak=()=>{}, onTrial=null, scale=1, W=260, H=310}){
+  const childName=useContext(ChildCtx);
   const bgRef=useRef(null);
   const ovRef=useRef(null);
   const compareRef=useRef(null);
@@ -1777,10 +1824,10 @@ function GuidedCanvas({letter, onComplete, onNext=null, tools=null, pen="classic
 
   const finishFree=()=>{
     const pct=calcScore(),stars=Math.max(1,Math.round(pct/20));
-    const praise=stars>=3?"Erst mit Hilfe, dann ganz allein nachgefahren!":processPraise({stars,mode:"guided"});
-    setScoreInfo({score:pct,praise,stars});setPhase("compare");
+    const pr=praiseFor(childName,stars,stars>=3?{short:"Erst mit Hilfe, dann allein!",long:"Erst mit Hilfe, dann ganz allein nachgefahren!"}:processPraise({stars,mode:"guided"}));
+    setScoreInfo({score:pct,praise:pr.text,stars});setPhase("compare");
     sfx(stars>=4?"fanfare":stars>=3?"done":"soft");
-    setTimeout(()=>onSpeak(praise),500);
+    setTimeout(()=>onSpeak(pr.speech),500);
     reportG(true,{score_raw:pct/100,stars,n_strokes:strokes.length});
     onComplete(stars,{mode:"guided"});
   };
@@ -2109,6 +2156,14 @@ function ParentZone({settings,onChange,onClose,journal,onStartProbe}){
           </div>
         </div>
 
+        {/* Name */}
+        <div style={{marginBottom:14,paddingBottom:14,borderBottom:"1px solid #e2e8f0"}}>
+          <h4 style={{margin:"0 0 8px",fontSize:14,fontWeight:800,color:"#1e3a8a"}}>🙂 Name des Kindes</h4>
+          <input data-k="parent-name" value={settings.childName||""} onChange={e=>onChange({...settings,childName:cleanName(e.target.value)})} placeholder="z. B. Lale" maxLength={16}
+            autoComplete="off" spellCheck={false} style={{width:"100%",boxSizing:"border-box",padding:10,borderRadius:10,border:"2px solid #e2e8f0",fontSize:14,fontFamily:"inherit"}}/>
+          <p style={{fontSize:11,color:"#94a3b8",margin:"4px 0 0"}}>Freiwillig. Klecks lobt dann mit Namen („Gut gemacht, Lale!“), und im Wettbewerb kann das Kind seinen Namen schreiben. Der Name bleibt auf diesem Gerät und wird nie gesendet.</p>
+        </div>
+
         {/* Difficulty */}
         <div style={{marginBottom:14,paddingBottom:14,borderBottom:"1px solid #e2e8f0"}}>
           <h4 style={{margin:"0 0 8px",fontSize:14,fontWeight:800,color:"#1e3a8a"}}>🎯 Schwierigkeitsgrad</h4>
@@ -2134,7 +2189,7 @@ function ParentZone({settings,onChange,onClose,journal,onStartProbe}){
         {/* Übungs-Modi */}
         <div style={{marginBottom:14,paddingBottom:14,borderBottom:"1px solid #e2e8f0"}}>
           <h4 style={{margin:"0 0 4px",fontSize:14,fontWeight:800,color:"#1e3a8a"}}>🖐️ Erlaubte Übungs-Modi</h4>
-          <p style={{fontSize:11,color:"#94a3b8",margin:"0 0 10px"}}>Wähle welche Modi dein Kind sehen darf. Mit 4 oder 5 Sternen geht es pro Buchstabe eine Stufe weiter: geführt → abschreiben → aus dem Kopf.</p>
+          <p style={{fontSize:11,color:"#94a3b8",margin:"0 0 10px"}}>Wähle welche Modi dein Kind sehen darf. Ab zwei Sternen (von drei) geht es pro Buchstabe eine Stufe weiter: geführt → abschreiben → aus dem Kopf.</p>
           {[
             {key:"guided", label:"🖐️ Geführt", desc:"Stift klebt auf der Linie — ideal für Anfänger", color:"#22c55e"},
             {key:"trace",  label:"✏️ Nachfahren", desc:"Frei nachzeichnen, Startpunkt und Richtung werden geprüft", color:"#4361ee"},
@@ -2349,6 +2404,7 @@ function WordsPanel({learnedMap, onPractice}){
 // ═══════════════════════════════════════════════════════════════════════════════
 const WORD_THEME={key:"wort",acc:"#f59e0b",dark:"#b45309",soft:"#fef3c7",bg:"linear-gradient(180deg,#fff3c4 0%,#fffbea 45%,#ffffff 100%)"};
 function WordPractice({word, settings, pen="classic", onSpeak=()=>{}, onTrial=null, scale=1, onBack}){
+  const name=useContext(ChildCtx);
   const letters=word.word.split("");
   const [idx,setIdx]=useState(0);           // current letter index
   const [doneLetters,setDoneLetters]=useState([]); // stars per letter
@@ -2364,7 +2420,7 @@ function WordPractice({word, settings, pen="classic", onSpeak=()=>{}, onTrial=nu
     if(idx<letters.length-1){
       setTimeout(()=>{ setIdx(idx+1); setPhase("anim"); setReplayKey(k=>k+1); },2600);
     } else {
-      setTimeout(()=>{setFinished(true);sfx("fanfare");},2600);
+      setTimeout(()=>{setFinished(true);sfx("fanfare");onSpeak(`Gut gemacht${name?`, ${name}`:""}! Du hast das ganze Wort ${word.meaning.split(" ")[0]} geschrieben.`);},2600);
     }
   };
 
@@ -2375,7 +2431,7 @@ function WordPractice({word, settings, pen="classic", onSpeak=()=>{}, onTrial=nu
         <div style={{fontSize:56,lineHeight:1}}>{word.meaning.split(" ").slice(-1)[0]}</div>
         <GlyphWord word={word.word} height={48} color="#78350f"/>
         <div className="k-card" style={{padding:"12px 20px",fontSize:17,fontWeight:900,textAlign:"center"}}>
-          Du hast das ganze Wort geschrieben!
+          {name?`Gut gemacht, ${name}!`:"Gut gemacht!"} Du hast das ganze Wort geschrieben!
           <div style={{display:"flex",gap:10,justifyContent:"center",marginTop:6}}>
             {letters.map((l,i)=><div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><Glyph letter={l} height={26} weight={2.6} tight yr={[LINES.top-7,LINES.base+7]}/><div style={{display:"flex"}}>{[1,2,3].map(k=><Star key={k} size={11} on={k<=stars3(doneLetters[i]||0)}/>)}</div></div>)}
           </div>
@@ -2427,6 +2483,186 @@ function WordPractice({word, settings, pen="classic", onSpeak=()=>{}, onTrial=nu
             lefthanded={!!settings.lefthanded} highContrast={!!settings.highContrast} hapticsEnabled={settings.hapticsEnabled!==false}
             onSpeak={onSpeak} scale={scale} onTrial={onTrial&&(t=>onTrial(current,t))}/>}
       </div>
+    </div>
+    </ThemeCtx.Provider>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WETTBEWERB — Schwungübungen, der eigene Name und einfache Wörter
+// ═══════════════════════════════════════════════════════════════════════════════
+// Beim Lernen der Buchstaben bewertet die App großzügig, damit jedes Kind weiterkommt.
+// Genau zählt es nur hier: freiwillige Herausforderungen mit Punkten, Medaillen und dem
+// eigenen Rekord — Wettstreit mit sich selbst, keine Ranglisten. Wettbewerbe gehen nicht
+// in die Forschungsdaten ein.
+const CONTEST_THEME={key:"wettbewerb",acc:"#e0a100",dark:"#a16207",soft:"#fef3c7",bg:"linear-gradient(180deg,#fff4c4 0%,#fffbea 45%,#ffffff 100%)"};
+const SCHWUNG=[
+  {ch:"~welle",title:"Welle",emoji:"🌊",what:"die Welle"},
+  {ch:"~girlande",title:"Girlande",emoji:"🎈",what:"die Girlande"},
+  {ch:"~arkade",title:"Arkade",emoji:"🌉",what:"die Arkade"},
+  {ch:"~zickzack",title:"Zickzack",emoji:"⚡",what:"den Zickzack"},
+  {ch:"~schleife",title:"Schleifen",emoji:"🎀",what:"die Schleifen"},
+];
+const CONTEST_WORDS=[["MAMA","👩"],["PAPA","👨"],["OMA","👵"],["OPA","👴"],["EIS","🍦"],["AUTO","🚗"],
+  ["HAUS","🏠"],["BALL","⚽"],["HUND","🐕"],["MAUS","🐭"],["BAUM","🌳"],["SONNE","☀️"]];
+// Punkte 0–100; Medaillen wie die Sterne der genauen Bewertung (5, 4, 3 Sterne)
+const MEDALS=[{min:88,kind:"gold",name:"Gold",stars:5},{min:74,kind:"silber",name:"Silber",stars:4},{min:55,kind:"bronze",name:"Bronze",stars:3}];
+const medalFor=(pts)=>pts==null?null:MEDALS.find(m=>pts>=m.min)||null;
+// Aufgaben (id = Schlüssel für den Rekord)
+const contestSchwung=(x)=>({id:"s:"+x.ch,kind:"schwung",title:x.title,emoji:x.emoji,chars:[x.ch],copyHint:`Schau auf die Vorlage und schreib ${x.what} ab!`});
+const contestWord=([w,e])=>({id:"w:"+w,kind:"wort",title:w,emoji:e,chars:w.split("")});
+const contestName=(name)=>({id:"name",kind:"name",title:name,emoji:"🙂",chars:nameLetters(name)});
+
+function ContestBest({pts}){
+  const m=medalFor(pts);
+  if(pts==null)return <div style={{fontSize:12,fontWeight:800,color:"var(--muted)"}}>Noch frei</div>;
+  return <div data-best={pts} style={{display:"flex",alignItems:"center",gap:4,fontSize:14,fontWeight:900,color:"var(--ink2)"}}><Medal kind={m?.kind} size={18}/>{pts} Punkte</div>;
+}
+
+function ContestHome({records,onStart,onSetName,onBack,onSpeak}){
+  const name=useContext(ChildCtx);
+  const [draft,setDraft]=useState("");
+  const tile={background:"white","--sh":"#f2c94c",border:"3px solid #ffe08a",borderRadius:20,padding:"10px 6px 8px",display:"flex",flexDirection:"column",alignItems:"center",gap:5};
+  const h3={fontSize:17,fontWeight:900,color:"#78350f",margin:"0 0 10px"};
+  const nameItem=name?contestName(name):null;
+  const saveName=()=>{const n=draft.trim();if(!nameLetters(n).length)return;sfx("pop");onSetName(n);onSpeak(`Hallo ${n}! Schreib deinen Namen so schön du kannst.`);};
+  return(
+    <ThemeCtx.Provider value={CONTEST_THEME}>
+    <div style={{minHeight:"100vh",background:CONTEST_THEME.bg,padding:16}}>
+      <ScreenHeader title={<span style={{display:"flex",alignItems:"center",gap:8}}><Icon name="trophy" size={26} color="#d99a00" stroke={2.6}/>Wettbewerb</span>} color="#78350f" onBack={onBack}/>
+      <div style={{maxWidth:560,margin:"0 auto",display:"flex",flexDirection:"column",gap:18}}>
+        <div className="k-card" style={{display:"flex",alignItems:"center",gap:12,padding:14}}>
+          <Klecks size={56} mood="cheer"/>
+          <div style={{fontSize:15,fontWeight:800,color:"var(--ink2)",lineHeight:1.35}}>
+            Hier zählt jede Linie! Schreib so schön du kannst – schaffst du Gold?
+          </div>
+        </div>
+
+        <section>
+          <h3 style={h3}>Mein Name</h3>
+          {nameItem&&nameItem.chars.length?(
+            <button data-contest="name" className="k-press" style={{...tile,width:"100%",padding:"14px 10px 10px"}} onClick={()=>{sfx("tap");onStart(nameItem);}}>
+              <GlyphWord word={nameItem.chars.join("")} height={40} color="#78350f"/>
+              <ContestBest pts={records.name}/>
+            </button>
+          ):(
+            <div className="k-card" style={{padding:14,display:"flex",flexDirection:"column",gap:10}}>
+              <div style={{fontSize:15,fontWeight:800,color:"var(--ink2)"}}>Wie heißt du? Dann kannst du deinen Namen schreiben.</div>
+              <div style={{display:"flex",gap:8}}>
+                <input data-k="contest-name" value={draft} onChange={e=>setDraft(cleanName(e.target.value))} onKeyDown={e=>{if(e.key==="Enter")saveName();}}
+                  placeholder="Dein Name" maxLength={16} autoComplete="off" autoCapitalize="words" spellCheck={false}
+                  style={{flex:1,minWidth:0,fontSize:18,fontWeight:800,padding:"8px 10px",borderRadius:12,border:"2px solid #ffe08a",fontFamily:"inherit",color:"var(--ink)"}}/>
+                <Btn data-k="save-name" bg="var(--mint)" sh="var(--mintD)" onClick={saveName} style={{opacity:nameLetters(draft).length?1:0.5}}>OK</Btn>
+              </div>
+            </div>
+          )}
+        </section>
+
+        <section>
+          <h3 style={h3}>Schwungübungen</h3>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:10}}>
+            {SCHWUNG.map(x=>{const it=contestSchwung(x);return(
+              <button key={x.ch} data-contest={it.id} className="k-press" style={tile} onClick={()=>{sfx("tap");onStart(it);}}>
+                <Glyph letter={x.ch} height={34} weight={2.6} color="#78350f" yr={[LINES.mid-5,LINES.base+5]}/>
+                <div style={{fontSize:15,fontWeight:900,color:"var(--ink)"}}>{x.emoji} {x.title}</div>
+                <ContestBest pts={records[it.id]}/>
+              </button>);})}
+          </div>
+        </section>
+
+        <section>
+          <h3 style={h3}>Wörter</h3>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:10}}>
+            {CONTEST_WORDS.map(w=>{const it=contestWord(w);return(
+              <button key={it.id} data-contest={it.id} className="k-press" style={tile} onClick={()=>{sfx("tap");onStart(it);}}>
+                <div style={{fontSize:26,lineHeight:1}}>{it.emoji}</div>
+                <GlyphWord word={it.title} height={24} color="#78350f"/>
+                <ContestBest pts={records[it.id]}/>
+              </button>);})}
+          </div>
+        </section>
+      </div>
+    </div>
+    </ThemeCtx.Provider>
+  );
+}
+
+// Ein Durchgang: Zeichen für Zeichen abschreiben (genaue Bewertung), am Ende Punkte und Medaille
+function ContestRun({item,mode,settings,pen,tools,scale,best,effects,onSpeak,onFinish,onBack}){
+  const name=useContext(ChildCtx);
+  const chars=item.chars,anim=item.kind==="schwung";
+  const [idx,setIdx]=useState(0);
+  const [scores,setScores]=useState([]);
+  const [phase,setPhase]=useState(anim?"anim":"write");
+  const [replayKey,setReplayKey]=useState(0);
+  const [final,setFinal]=useState(null);
+  const current=chars[idx];
+  // Punkte je Zeichen: Rohwert der Bewertung (beim Nachfahren höchstens 0,9)
+  const done=(s,info={})=>{
+    const raw=info.raw??s/5,pts=Math.round(100*Math.min(1,info.mode==="trace"?raw/0.9:raw));
+    setScores(sc=>{const n=[...sc];n[idx]={pts,stars:s};return n;});
+  };
+  const restart=()=>{setIdx(0);setScores([]);setFinal(null);setPhase(anim?"anim":"write");setReplayKey(k=>k+1);};
+  const next=()=>{
+    if(idx<chars.length-1){setIdx(i=>i+1);setPhase(anim?"anim":"write");setReplayKey(k=>k+1);return;}
+    const points=Math.round(scores.reduce((a,b)=>a+(b?.pts||0),0)/chars.length);
+    const medal=medalFor(points),record=best==null||points>best;
+    const title=cheer(name,medal?medal.stars:2);
+    setFinal({points,medal,record,title});
+    onFinish(points);
+    sfx(medal?"fanfare":"done");
+    onSpeak(`${title} ${medal?`Du hast ${medal.name} geschafft!`:"Du hast es geschafft! Mit Üben wird es noch schöner."}${record&&best!=null?" Neuer Rekord!":""}`);
+  };
+
+  if(final) return(
+    <div style={{minHeight:"100vh",background:CONTEST_THEME.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:14,padding:20,textAlign:"center"}}>
+      {effects&&final.medal&&<StarRain onDone={()=>{}}/>}
+      <div data-medal={final.medal?.kind||"keine"} style={{animation:"popIn 0.5s ease-out"}}><Medal kind={final.medal?.kind} size={110}/></div>
+      <h2 style={{margin:0,fontSize:26,fontWeight:900,color:"#78350f",lineHeight:1.2}}>{final.title}</h2>
+      <div className="k-card" style={{padding:"14px 20px",minWidth:240,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+        <div style={{fontSize:16,fontWeight:900,color:"var(--ink2)",display:"flex",alignItems:"center",gap:6}}><span style={{fontSize:22}}>{item.emoji}</span>{item.kind==="schwung"?item.title:<GlyphWord word={chars.join("")} height={24} color="var(--ink)"/>}</div>
+        <div data-points={final.points} style={{fontSize:40,fontWeight:900,color:"var(--ink)",lineHeight:1.1}}>{final.points}<span style={{fontSize:18,color:"var(--muted)"}}> Punkte</span></div>
+        <div style={{fontSize:18,fontWeight:900,color:"#a16207"}}>{final.medal?`${final.medal.name}!`:"Weiter üben – Bronze schaffst du!"}</div>
+        {final.record&&best!=null&&<div data-k="record" style={{fontSize:15,fontWeight:900,color:"#16a34a"}}>Neuer Rekord!</div>}
+        {!final.record&&<div style={{fontSize:13,fontWeight:800,color:"var(--muted)"}}>Dein Rekord: {best} Punkte</div>}
+        {chars.length>1&&(
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"center",marginTop:6}}>
+            {chars.map((l,i)=><div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><Glyph letter={l} height={24} weight={2.6} tight yr={[LINES.top-7,LINES.base+7]}/><div style={{display:"flex"}}>{[1,2,3].map(k=><Star key={k} size={10} on={k<=stars3(scores[i]?.stars||0)}/>)}</div></div>)}
+          </div>
+        )}
+      </div>
+      <div style={{display:"flex",gap:10}}>
+        <Btn data-k="again" bg="var(--sun)" sh="var(--sunD)" color="#5a3a00" onClick={()=>{sfx("tap");restart();}}><Icon name="redo" size={20}/>Nochmal</Btn>
+        <Btn data-k="contest-done" bg="var(--sky)" sh="var(--skyD)" onClick={onBack}><Icon name="check" size={20} stroke={3}/>Fertig</Btn>
+      </div>
+    </div>
+  );
+
+  return(
+    <ThemeCtx.Provider value={CONTEST_THEME}>
+    <div style={{minHeight:"100vh",background:CONTEST_THEME.bg,display:"flex",flexDirection:"column",alignItems:"center",padding:"10px 10px 18px",gap:12}}>
+      <div style={{width:"100%",maxWidth:560,display:"flex",alignItems:"center",gap:8}}>
+        <RoundBtn onClick={onBack} aria-label="Zurück zum Wettbewerb"><Icon name="back" size={24} stroke={3}/></RoundBtn>
+        <div className="k-card" style={{flex:1,minWidth:0,padding:"8px 12px",display:"flex",alignItems:"center",gap:8,borderRadius:18}}>
+          <span style={{fontSize:26,lineHeight:1}}>{item.emoji}</span>
+          {chars.length>1?(
+            <div style={{display:"flex",gap:5,alignItems:"center",flexWrap:"wrap"}}>
+              {chars.map((l,i)=>{const d=i<idx,a=i===idx;return(
+                <div key={i} style={{width:34,height:38,borderRadius:10,background:d?"#d9f7e4":a?CONTEST_THEME.acc:"#f4f5f8",border:`2px solid ${d?"#2ecc8f":a?CONTEST_THEME.dark:"#e3e8f2"}`,
+                  display:"flex",alignItems:"center",justifyContent:"center"}}>
+                  {d?<Icon name="check" size={18} color="#17a06c" stroke={3.4}/>:<Glyph letter={l} height={30} weight={2.6} color={a?"white":"#9aa3b5"}/>}
+                </div>);})}
+            </div>
+          ):<span style={{fontSize:19,fontWeight:900,color:"var(--ink)"}}>{item.title}</span>}
+        </div>
+        <RoundBtn data-k="show" aria-label="Vorführen" onClick={()=>{sfx("tap");setPhase("anim");setReplayKey(k=>k+1);}}><Icon name="play" size={22} color={CONTEST_THEME.dark} style={{marginLeft:2}}/></RoundBtn>
+      </div>
+      {phase==="anim"
+        ?<AnimCanvas key={`canim-${idx}-${replayKey}`} letter={current} scale={scale} onDone={()=>setPhase("write")}/>
+        :<TraceCanvas key={`contest-${item.id}-${idx}-${replayKey}`} letter={current} mode={mode} profile="genau" copyHint={item.copyHint}
+           onComplete={done} onNext={next} difficulty={settings.difficulty} pen={pen}
+           lefthanded={!!settings.lefthanded} highContrast={!!settings.highContrast} hapticsEnabled={settings.hapticsEnabled!==false}
+           tools={tools} onSpeak={onSpeak} scale={scale}/>}
     </div>
     </ThemeCtx.Provider>
   );
@@ -2521,6 +2757,7 @@ function PenPicker({pen,unlocks,onPick}){
 // Eine kleine Geschichte als Rahmen: Schreiben = Buchstaben für Klecks einsammeln.
 function Onboarding({onDone,onSpeak}){
   const [color,setColor]=useState("lila");
+  const [name,setName]=useState("");
   const [kick,setKick]=useState(0);
   const intro="Hallo! Ich bin Klecks. Meine Buchstaben sind über Berg, Wald und Insel verstreut. Hilfst du mir, sie zu sammeln? Jeden Buchstaben, den du schreibst, finden wir wieder. Welche Farbe soll ich haben?";
   return(
@@ -2538,7 +2775,13 @@ function Onboarding({onDone,onSpeak}){
             style={{width:46,height:46,borderRadius:"50%",background:k.c,border:color===k.id?"4px solid var(--ink)":"4px solid white",cursor:"pointer",boxShadow:`0 4px 0 ${k.d}`,transform:color===k.id?"scale(1.12)":"none",transition:"transform .12s"}}/>
         ))}
       </div>
-      <Btn data-k="start" bg="var(--coral)" sh="var(--coralD)" style={{fontSize:21,padding:"14px 34px",borderRadius:24}} onClick={()=>{sfx("fanfare");onDone({color,accs:[]});}}>
+      <label className="k-card" style={{padding:"10px 14px",maxWidth:350,width:"100%",boxSizing:"border-box",display:"flex",alignItems:"center",gap:10}}>
+        <span style={{fontWeight:900,fontSize:16,whiteSpace:"nowrap"}}>Wie heißt du?</span>
+        <input data-k="name" value={name} onChange={e=>setName(cleanName(e.target.value))} placeholder="Name (freiwillig)" maxLength={16}
+          autoComplete="off" autoCapitalize="words" spellCheck={false}
+          style={{flex:1,minWidth:0,fontSize:18,fontWeight:800,padding:"8px 10px",borderRadius:12,border:"2px solid #dfe4ee",fontFamily:"inherit",color:"var(--ink)"}}/>
+      </label>
+      <Btn data-k="start" bg="var(--coral)" sh="var(--coralD)" style={{fontSize:21,padding:"14px 34px",borderRadius:24}} onClick={()=>{sfx("fanfare");const n=name.trim();if(n)onSpeak(`Hallo ${n}! Los geht's!`);onDone({color,accs:[]},n);}}>
         <Icon name="play" size={24} color="white"/>Los geht's
       </Btn>
     </div>
@@ -2669,14 +2912,15 @@ function ChestModal({reward,effects,onUse,onClose}){
 
 // ── Tagesziel geschafft: natürlicher Endpunkt ──
 function GoalModal({effects,onHome,onMore}){
+  const name=useContext(ChildCtx);
   const overlay={position:"fixed",inset:0,background:"rgba(20,24,44,0.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2500,backdropFilter:"blur(5px)",padding:16};
   return(
     <div style={overlay} role="dialog" aria-modal="true">
       {effects&&<StarRain onDone={()=>{}}/>}
       <div className="k-card" style={{padding:"20px 20px 18px",maxWidth:340,width:"100%",textAlign:"center",animation:"popIn 0.4s ease-out"}}>
         <div style={{display:"flex",justifyContent:"center",marginTop:-70}}><Klecks size={120} mood="cheer" anim="jump"/></div>
-        <h3 style={{margin:"8px 0 6px",fontSize:24,fontWeight:900}}>Tagesziel geschafft!</h3>
-        <p style={{margin:"0 0 14px",fontSize:16,color:"var(--ink2)",lineHeight:1.4}}>Du hast heute {DAILY_GOAL} Zeichen geschrieben. Jetzt darfst du Pause machen – oder weiter üben, wenn du magst.</p>
+        <h3 style={{margin:"8px 0 6px",fontSize:24,fontWeight:900}}>{name?`Super gemacht, ${name}!`:"Tagesziel geschafft!"}</h3>
+        <p style={{margin:"0 0 14px",fontSize:16,color:"var(--ink2)",lineHeight:1.4}}>{name?"Tagesziel geschafft: ":""}Du hast heute {DAILY_GOAL} Zeichen geschrieben. Jetzt darfst du Pause machen – oder weiter üben, wenn du magst.</p>
         <Btn data-k="pause" bg="var(--sky)" sh="var(--skyD)" style={{width:"100%",fontSize:17,marginBottom:10}} onClick={onHome}>Pause machen</Btn>
         <Btn data-k="more" bg="white" sh="#d5dbe7" color="var(--ink2)" style={{width:"100%",border:"2px solid #eef1f6"}} onClick={onMore}>Weiter üben</Btn>
       </div>
@@ -2853,6 +3097,8 @@ export default function App(){
   const [chests,setChests]=useState(()=>persisted.chests||[]);           // geöffnete Truhen
   const [pen,setPen]=useState(()=>persisted.pen||"classic");
   const [daily,setDaily]=useState(()=>persisted.daily||{date:"",letters:[],celebrated:false});
+  const [contest,setContest]=useState(()=>persisted.contest||{});          // Wettbewerb: bester Punktestand je Aufgabe
+  const [contestItem,setContestItem]=useState(null);
   const [goalOpen,setGoalOpen]=useState(false);
   const [chestOpen,setChestOpen]=useState(null);                          // Fundstück der gerade geöffneten Truhe
   const [lastDone,setLastDone]=useState(null);                            // für Klecks' Sprung auf dem Spielbrett
@@ -2892,8 +3138,8 @@ export default function App(){
 
   // Fortschritt automatisch speichern
   useEffect(()=>{
-    savePersisted({learnedMap,totalScore,settings,stageMap,memMap,lastPracticed,companion,unlocks,chests,pen,daily,tab});
-  },[learnedMap,totalScore,settings,stageMap,memMap,lastPracticed,companion,unlocks,chests,pen,daily,tab]);
+    savePersisted({learnedMap,totalScore,settings,stageMap,memMap,lastPracticed,companion,unlocks,chests,pen,daily,tab,contest});
+  },[learnedMap,totalScore,settings,stageMap,memMap,lastPracticed,companion,unlocks,chests,pen,daily,tab,contest]);
 
   // Beim Start aus nativem Speicher wiederherstellen, falls localStorage leer war
   useEffect(()=>{
@@ -2910,6 +3156,7 @@ export default function App(){
       if(data.chests)setChests(data.chests);
       if(data.pen)setPen(data.pen);
       if(data.daily)setDaily(data.daily);
+      if(data.contest)setContest(data.contest);
       if(data.companion){setCompanion(normCompanion(data.companion));setScreen(sc=>sc==="hello"?"menu":sc);}
     });
     return()=>{cancelled=true;};
@@ -2922,13 +3169,14 @@ export default function App(){
       if(goalOpen){e.preventDefault();setGoalOpen(false);return;}
       if(showParent){e.preventDefault();setShowParent(false);return;}
       if(practiceWord){e.preventDefault();setPracticeWord(null);return;}
+      if(contestItem){e.preventDefault();setContestItem(null);return;}
       if(screen==="practice"){e.preventDefault();setScreen("map");return;}
       if(screen!=="menu"&&screen!=="hello"){e.preventDefault();setScreen("menu");return;}
       // sonst: nicht abfangen → Seite darf verlassen werden
     };
     window.addEventListener("app:backbutton",onBack);
     return()=>window.removeEventListener("app:backbutton",onBack);
-  },[chestOpen,goalOpen,showParent,practiceWord,screen]);
+  },[chestOpen,goalOpen,showParent,practiceWord,contestItem,screen]);
 
   const allLetters=[...UPPERCASE,...LOWERCASE,...NUMBERS];
   const learnedCount=Object.values(learnedMap).filter(v=>v>0).length;
@@ -2968,9 +3216,11 @@ export default function App(){
     setLastPracticed(m=>({...m,[letter]:now.getTime()}));
     setJournal(j=>[...j,{letter,stars:s,mode:info.mode||mode,time:`${now.getHours()}:${String(now.getMinutes()).padStart(2,"0")}`}]);
     setLastDone({letter,gain:Math.max(0,stars3(newLearned[letter])-stars3(before))});
-    // Lernstufe: ab 4 Sternen (von 5) geht es zur nächsten Stufe (weniger Hilfe)
+    // Lernstufe: ab zwei Sternen (von drei, intern 3 von 5) geht es zur nächsten Stufe
+    // (weniger Hilfe). Vorher waren es intern 4 — das sah für Kinder genauso aus wie 3
+    // (beides zwei Sterne), sie kamen aber nicht weiter.
     const used=info.mode||mode,cur=stageOf(letter);let next=null,firstFromMemory=false;
-    if(s>=4){
+    if(s>=3){
       if(used==="memory"){firstFromMemory=!((memMap[letter]||0)>0);setMemMap(m=>({...m,[letter]:(m[letter]||0)+1}));}
       const target=Math.min(3,MODE_STAGE[used]+1);   // wer es schon aus dem Kopf kann, bleibt dort
       if(target>cur&&!rs.restricted){
@@ -2989,7 +3239,8 @@ export default function App(){
       const nd={...base,letters:[...base.letters,letter]};
       if(nd.letters.length>=DAILY_GOAL&&!nd.celebrated){
         nd.celebrated=true;
-        clearTimeout(goalTimer.current);goalTimer.current=setTimeout(()=>{setGoalOpen(true);sfx("unlock");},2600);
+        clearTimeout(goalTimer.current);goalTimer.current=setTimeout(()=>{setGoalOpen(true);sfx("unlock");
+          sayIt(`Super gemacht${childName?`, ${childName}`:""}! Du hast dein Tagesziel geschafft.`);},2600);
       }
       setDaily(nd);
     }
@@ -3023,8 +3274,11 @@ export default function App(){
     .sort((a,b)=>lastPracticed[a]-lastPracticed[b]).slice(0,6);
 
   const comp=companion||{color:"lila",accs:[]};
+  const usePenNow=penAvailable(pen,unlocks)?pen:"classic";
+  const childName=(settings.childName||"").trim();
   const wrap=(el)=>(
     <CompanionCtx.Provider value={comp}>
+    <ChildCtx.Provider value={childName}>
       {el}
       {chestOpen&&<ChestModal key={chestOpen} reward={chestOpen} effects={fx} onUse={applyTreasure} onClose={()=>setChestOpen(null)}/>}
       {goalOpen&&screen!=="probe"&&<GoalModal effects={fx} onHome={()=>{setGoalOpen(false);setScreen("menu");}} onMore={()=>setGoalOpen(false)}/>}
@@ -3038,17 +3292,18 @@ export default function App(){
       {showRun&&<KlecksRun onDone={()=>setShowRun(false)}/>}
       {showStarRain&&<StarRain onDone={()=>setShowStarRain(false)}/>}
       {showParent&&<ParentZone settings={settingsWithData} onChange={updateSettings} onStartProbe={()=>{setShowParent(false);setScreen("probe");}} onClose={()=>setShowParent(false)} journal={journal}/>}
+    </ChildCtx.Provider>
     </CompanionCtx.Provider>
   );
 
   // ── BEGRÜSSUNG (erster Start) ──
-  if(screen==="hello") return wrap(<Onboarding onSpeak={sayIt} onDone={(c)=>{setCompanion(c);setScreen("menu");}}/>);
+  if(screen==="hello") return wrap(<Onboarding onSpeak={sayIt} onDone={(c,n)=>{setCompanion(c);if(n)setSettings(s=>({...s,childName:n}));setScreen("menu");}}/>);
 
   // ── STARTSEITE ──
   if(screen==="menu"){
     const next=nextLetterFor(tab,learnedMap,stageMap,memMap);
     const hour=new Date().getHours();
-    const hello=hour<11?"Guten Morgen!":hour>=17?"Guten Abend!":"Hallo!";
+    const hello=`${hour<11?"Guten Morgen":hour>=17?"Guten Abend":"Hallo"}${childName?`, ${childName}`:""}!`;
     const goalDone=dailyCount>=DAILY_GOAL;
     const greet=goalDone?`${hello} Heute hast du schon fleißig geübt!`
       :learnedCount===0?`${hello} Komm, wir sammeln Buchstaben!`
@@ -3122,12 +3377,15 @@ export default function App(){
             })}
           </div>
 
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-            <Btn data-nav="words" bg="var(--sun)" sh="var(--sunD)" color="#5a3a00" onClick={()=>{sfx("tap");setScreen("words");}} style={{padding:"14px 8px",borderRadius:20,fontSize:17}}>
-              <Icon name="book" size={24} stroke={2.8}/>Wörter
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+            <Btn data-nav="words" bg="var(--sun)" sh="var(--sunD)" color="#5a3a00" onClick={()=>{sfx("tap");setScreen("words");}} style={{padding:"12px 4px",borderRadius:20,fontSize:15,flexDirection:"column",gap:4}}>
+              <Icon name="book" size={26} stroke={2.8}/>Wörter
             </Btn>
-            <Btn data-nav="collection" bg="var(--grape)" sh="var(--grapeD)" onClick={()=>{sfx("tap");setScreen("collection");}} style={{padding:"14px 8px",borderRadius:20,fontSize:17}}>
-              <Icon name="chest" size={24} stroke={2.8}/>Sammlung
+            <Btn data-nav="contest" bg="linear-gradient(135deg,#ffcf4a,#f5a524)" sh="#c27c0e" color="#5a3a00" onClick={()=>{sfx("tap");setContestItem(null);setScreen("contest");}} style={{padding:"12px 4px",borderRadius:20,fontSize:15,flexDirection:"column",gap:4}}>
+              <Icon name="trophy" size={26} stroke={2.6}/>Wettbewerb
+            </Btn>
+            <Btn data-nav="collection" bg="var(--grape)" sh="var(--grapeD)" onClick={()=>{sfx("tap");setScreen("collection");}} style={{padding:"12px 4px",borderRadius:20,fontSize:15,flexDirection:"column",gap:4}}>
+              <Icon name="chest" size={26} stroke={2.8}/>Sammlung
             </Btn>
           </div>
 
@@ -3167,6 +3425,20 @@ export default function App(){
     <Collection companion={comp} onChange={setCompanion} unlocks={unlocks} pen={pen} onPen={setPen} learnedMap={learnedMap}
       onOpen={(l)=>openLetter(l)} onSpeak={sayIt} onBack={()=>setScreen("menu")}/>
   );
+
+  if(screen==="contest"){
+    // Wartekontrollgruppe der Studie: nur nachfahren (wie überall sonst bis Studienende)
+    if(contestItem) return wrap(
+      <ContestRun key={contestItem.id} item={contestItem} mode={rs.restricted?"trace":"copy"} settings={settings} pen={usePenNow} scale={fs}
+        tools={<PenPicker pen={usePenNow} unlocks={unlocks} onPick={setPen}/>} best={contest[contestItem.id]??null} effects={fx} onSpeak={sayIt}
+        onFinish={(pts)=>setContest(c=>({...c,[contestItem.id]:Math.max(c[contestItem.id]??0,pts)}))}
+        onBack={()=>setContestItem(null)}/>
+    );
+    return wrap(
+      <ContestHome records={contest} onStart={setContestItem} onBack={()=>setScreen("menu")} onSpeak={sayIt}
+        onSetName={(n)=>setSettings(s=>({...s,childName:n}))}/>
+    );
+  }
 
   if(screen==="words"){
     if(practiceWord) return wrap(
@@ -3364,7 +3636,7 @@ function ImpressumScreen({onBack}){
             </p>
 
             <h3 style={s.h3}>2. Speicherung auf deinem Gerät</h3>
-            <p style={s.p}>Diese App speichert <strong>keine personenbezogenen Daten</strong> auf externen Servern. Lernfortschritte (Sterne, gelernte Buchstaben, Punkte, Tagesziel, geöffnete Schatztruhen), die gewählte Farbe und Sachen von Klecks und die Einstellungen aus dem Elternbereich werden ausschließlich lokal im Speicher deines Browsers (localStorage) auf diesem Gerät abgelegt und nicht übertragen. Du kannst sie jederzeit im Elternbereich über „Fortschritt zurücksetzen" oder durch Löschen der Browserdaten entfernen.</p>
+            <p style={s.p}>Diese App speichert <strong>keine personenbezogenen Daten</strong> auf externen Servern. Lernfortschritte (Sterne, gelernte Buchstaben, Punkte, Tagesziel, geöffnete Schatztruhen, Rekorde im Wettbewerb), die gewählte Farbe und Sachen von Klecks, der freiwillig eingetragene Vorname des Kindes und die Einstellungen aus dem Elternbereich werden ausschließlich lokal im Speicher deines Browsers (localStorage) auf diesem Gerät abgelegt und nicht übertragen. Du kannst sie jederzeit im Elternbereich über „Fortschritt zurücksetzen" oder durch Löschen der Browserdaten entfernen.</p>
 
             <h3 style={s.h3}>3. Aufruf der Webseite (Server-Logfiles)</h3>
             <p style={s.p}>Beim Aufrufen der App überträgt dein Browser technisch bedingt Daten an unseren Webserver bzw. Hoster <span style={{background:"#fde68a",borderRadius:4,padding:"1px 5px"}}>[Name des Hosters]</span>: IP-Adresse, Datum und Uhrzeit, aufgerufene Datei, Browsertyp und Betriebssystem. Diese Daten sind für die Auslieferung der App erforderlich (Art. 6 Abs. 1 lit. f DSGVO), werden nicht mit anderen Daten zusammengeführt und nach <span style={{background:"#fde68a",borderRadius:4,padding:"1px 5px"}}>[z. B. 7]</span> Tagen gelöscht. Nach dem ersten Laden funktioniert die App auch offline.</p>

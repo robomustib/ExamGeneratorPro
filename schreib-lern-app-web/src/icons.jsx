@@ -18,6 +18,7 @@ const PATHS = {
   book: "M12 6.5C10 5 7 4.5 4 5v13c3-.5 6 0 8 1.5 2-1.5 5-2 8-1.5V5c-3-.5-6 0-8 1.5zM12 6.5v13",
   chest: "M4 10h16v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM4 10a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4M10 10v3h4v-3",
   map: "M9 4 3.5 6v14L9 18l6 2 5.5-2V4L15 6zM9 4v14M15 6v14",
+  trophy: "M7.5 4h9v4.5a4.5 4.5 0 0 1-9 0zM7.5 6H4.5a3 3 0 0 0 3 4M16.5 6h3a3 3 0 0 1-3 4M12 13v3.5M8.5 20h7M9.5 16.5h5V20h-5z",
   lock: "M6 11h12v9H6zM8.5 11V8a3.5 3.5 0 0 1 7 0v3",
   // Übungsarten
   hand: "M8.5 12.5V5.5a1.5 1.5 0 0 1 3 0V11M11.5 10.5V4a1.5 1.5 0 0 1 3 0v6.5M14.5 10.5V6a1.5 1.5 0 0 1 3 0v7.5a6.5 6.5 0 0 1-6.5 6.5h-.5a6 6 0 0 1-5-2.7l-2.4-3.6a1.5 1.5 0 0 1 2.4-1.8l2 2.6",
@@ -113,6 +114,25 @@ export function ChestArt({ state = "locked", size = 56 }) {
           {state === "ready" && <path d="M28 27.5v4" stroke={woodD} strokeWidth="2" strokeLinecap="round" />}
         </>
       )}
+    </svg>
+  );
+}
+
+// Medaille im Wettbewerb: Gold, Silber, Bronze — ohne Art ein leerer Platzhalter
+const MEDAL_COLORS = {
+  gold: { c: "#ffd23f", d: "#d99a00", l: "#fff3b0" },
+  silber: { c: "#e5e9f0", d: "#98a2b3", l: "#ffffff" },
+  bronze: { c: "#f2a65a", d: "#b4632a", l: "#ffd2a8" },
+};
+export function Medal({ kind, size = 64, style }) {
+  const m = MEDAL_COLORS[kind];
+  return (
+    <svg width={size} height={size * 1.25} viewBox="0 0 48 60" aria-hidden="true" style={{ display: "block", flexShrink: 0, ...style }}>
+      <path d="M14 2h8l5 18h-8zM34 2h-8l-5 18h8z" fill={m ? "#ef4444" : "#e6e9f0"} stroke={m ? "#b91c1c" : "#d3d8e3"} strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M22 2l5 18M26 2l-5 18" stroke={m ? "#3b82f6" : "#d3d8e3"} strokeWidth="2.5" opacity={m ? 0.8 : 1} />
+      <circle cx="24" cy="38" r="17" fill={m ? m.c : "#eef1f6"} stroke={m ? m.d : "#d3d8e3"} strokeWidth="3" />
+      <circle cx="24" cy="38" r="11.5" fill="none" stroke={m ? m.l : "#ffffff"} strokeWidth="2" opacity="0.8" />
+      {m && <path d="M24 30.5l2.3 4.7 5.2.7-3.8 3.6.9 5.1-4.6-2.4-4.6 2.4.9-5.1-3.8-3.6 5.2-.7z" fill={m.l} stroke={m.d} strokeWidth="1" strokeLinejoin="round" />}
     </svg>
   );
 }

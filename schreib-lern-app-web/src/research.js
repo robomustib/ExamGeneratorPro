@@ -11,7 +11,10 @@ import { useSyncExternalStore } from "react";
 
 const CONFIG_URL = "./forschung/config.json";
 const STATE_KEY = "slk_research_v1";
-const APP_VERSION = "2.1";   // 2.1: Strichvorlagen nach den Schreibrichtungs-Plakaten (andere Teilstrich-Nummern)
+// 2.1: Strichvorlagen nach den Schreibrichtungs-Plakaten (andere Teilstrich-Nummern)
+// 2.2: Üben (Abschreiben, Aus dem Kopf) großzügiger bewertet, weiter ab zwei Sternen;
+//      der Schreibtest behält die genaue Bewertung
+const APP_VERSION = "2.2";
 const MAX_BATCH = 40;
 const MAX_QUEUE = 3000;
 

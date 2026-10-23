@@ -101,19 +101,34 @@ nutzen möchte, lädt sie direkt bei Frau Locke herunter.
 - **Nachfahren:** gemessen direkt an der Vorlage im Feld: Wie nah liegt die Schrift an
   der Linie, wie viel der Vorlage ist abgefahren? Startpunkt und Richtung jedes Strichs
   prüft die App schon beim Schreiben.
-- **Abschreiben, Aus dem Kopf (und Schreibtest der Studie):** Ohne Vorlage im Feld
-  schreibt kaum ein Kind an genau derselben Stelle. Bewertet wird deshalb die **Form**:
-  Die App legt die Vorlage zuerst an den Buchstaben des Kindes an (seitlich beliebig
-  verschoben, in der Höhe bis etwa ein Viertel Zeile, 72–140 % groß, Breite leicht
-  anders) und vergleicht erst dann. Eine Stelle gilt nur als getroffen, wenn die Linie
-  dort in dieselbe Richtung läuft wie die Vorlage; Gekritzel bekommt so keine Sterne.
-- **Höchstens zwei Sterne** mit einem passenden Hinweis von Klecks gibt es, wenn
+- **Abschreiben, Aus dem Kopf, Wettbewerb (und Schreibtest der Studie):** Ohne Vorlage im
+  Feld schreibt kaum ein Kind an genau derselben Stelle. Bewertet wird deshalb die
+  **Form**: Die App legt die Vorlage zuerst an den Buchstaben des Kindes an (seitlich
+  beliebig verschoben, Größe und Höhe in Grenzen, Breite leicht anders) und vergleicht
+  erst dann. Eine Stelle gilt nur als getroffen, wenn die Linie dort in dieselbe
+  Richtung läuft wie die Vorlage; Gekritzel bekommt so keine Sterne.
+- **Zwei Stufen:**
+  - *Lernen* (Abschreiben und Aus dem Kopf auf dem Lernweg): großzügig. Größe 62–170 %,
+    mehr Toleranz, niedrigere Schwellen. Ein erkennbar richtiger Buchstabe bringt das
+    Kind weiter, auch wenn er krakelig, schief oder zu groß ist.
+  - *Genau* (Wettbewerb und Schreibtest der Studie): Größe 72–140 %, in der Höhe
+    höchstens etwa eine Viertelzeile verschoben.
+- **Weiter geht es ab zwei Sternen** (von drei). Früher waren es intern 4 von 5 Punkten;
+  das sah für Kinder genauso aus wie 3 Punkte (beides zwei Sterne), sie kamen aber nicht
+  weiter. In einem Test mit verzerrt geschriebenen Buchstaben (schief, zu groß, versetzt,
+  wackelig, Striche treffen sich nicht) kamen beim Aus-dem-Kopf-Schreiben vorher 33 von 59
+  Buchstaben weiter, jetzt alle 59.
+- **Hinweise von Klecks** gibt es, wenn
   - der Buchstabe gespiegelt ist („Gespiegelt!“),
   - die Punkte fehlen (i, j, ä, ö, ü),
   - die Form stimmt, aber der Buchstabe viel zu klein oder zu groß ist (z. B. „o“ statt „O“)
     oder auf der falschen Zeile sitzt (z. B. „p“ statt „P“),
   - ein Teil fehlt (z. B. „F“ statt „E“) oder etwas zu viel ist (z. B. „E“ statt „F“,
     „h“ statt „n“).
+
+  Beim Lernen sind das Tipps, das Kind kommt trotzdem weiter (höchstens zwei Sterne). Im
+  Wettbewerb kosten sie Punkte. Nur ein gespiegelter Buchstabe zählt auch beim Lernen
+  nicht (ein Stern), weil er ein anderer Buchstabe ist.
 - **Anzeige:** Die grüne Vorlage liegt im Ergebnis dort, wo das Kind geschrieben hat. Die
   Sterne stehen unter dem Schreibfeld zwischen „Nochmal“ und „Weiter“; das Feld und seine
   Linien bleiben unverändert und nichts von der Schrift wird verdeckt.
@@ -123,7 +138,7 @@ nutzen möchte, lädt sie direkt bei Frau Locke herunter.
 
 | Befund | Umsetzung in der App |
 |---|---|
-| Am wirksamsten: Buchstaben mit **nummerierten Pfeilen** ansehen und dann **aus dem Gedächtnis** schreiben, mit wachsender Merkzeit ([Berninger u. a. 1997](https://www.washington.edu/news/1998/01/30/in-spite-of-computers-handwriting-instruction-is-important-because-of-carry-over-to-composition/)) | **Lernweg pro Buchstabe:** 🖐️ Geführt → 👀 Abschreiben → 🧠 Aus dem Kopf. Ab 4 Sternen geht es eine Stufe weiter (⭐ zeigt den nächsten Schritt, die Lernkarte den Stand jedes Zeichens). Beim Aus-dem-Kopf-Schreiben: Vorlage mit Pfeilen zeigen, verstecken, Countdown von 1 s, später 3 s und 5 s. |
+| Am wirksamsten: Buchstaben mit **nummerierten Pfeilen** ansehen und dann **aus dem Gedächtnis** schreiben, mit wachsender Merkzeit ([Berninger u. a. 1997](https://www.washington.edu/news/1998/01/30/in-spite-of-computers-handwriting-instruction-is-important-because-of-carry-over-to-composition/)) | **Lernweg pro Buchstabe:** 🖐️ Geführt → 👀 Abschreiben → 🧠 Aus dem Kopf. Ab zwei Sternen geht es eine Stufe weiter (⭐ zeigt den nächsten Schritt, die Lernkarte den Stand jedes Zeichens). Beim Aus-dem-Kopf-Schreiben: Vorlage mit Pfeilen zeigen, verstecken, Countdown von 1 s, später 3 s und 5 s. |
 | Nur **selbst geschriebene** Buchstaben (nicht nachgefahrene oder getippte) aktivieren bei Kindern das Lese-Netzwerk im Gehirn ([James & Engelhardt 2012](https://pmc.ncbi.nlm.nih.gov/articles/PMC4274624)); Abschreiben baut genauere Buchstabenbilder auf als Tippen (Longcamp u. a. 2005, *Acta Psychologica*) | Nachfahren ist nur die erste Stufe; danach Abschreiben (Vorlage daneben, leeres Feld) und freies Schreiben. |
 | Beim Nachfahren kann man **irgendwo anfangen** und falsche Bewegungen einüben ([OT Toolbox](https://www.theottoolbox.com/to-trace-or-not-to-trace/)) | **Startpunkt und Richtung** jedes Strichs werden geprüft. Ein falscher Strich wird zurückgenommen: „Andersherum! Fang beim gelben Punkt an.“ |
 | **Ständiges Sofort-Feedback** verbessert das Lernen nicht ([Patchan & Puranik 2016](https://researchconnections.org/childcare/resources/32955)); zu viel Hilfe macht abhängig ([Guidance-Hypothese](https://www.frontiersin.org/journals/neuroscience/articles/10.3389/fnins.2016.00251/full)) | Grün/Rot nur beim Nachfahren. Beim Abschreiben und Aus-dem-Kopf-Schreiben gibt es erst danach einen **Vergleich mit der Vorlage**. |
@@ -146,14 +161,16 @@ problematischen weg.
 | **Personalisierung und Wahlfreiheit** bei Nebensächlichem (Name, Figur, Farben) steigern Motivation *und* Lernerfolg ([Cordova & Lepper 1996](https://doi.org/10.1037/0022-0663.88.4.715)) | Beim ersten Start sucht das Kind die Farbe von **Klecks** aus, dem Tintenklecks-Begleiter. Stift wählbar (🖍️, in allen Modi: Klassik, Blau, Lila, Türkis, später Glitzer und Regenbogen). Im „Klecks-Zimmer“ kann Klecks mehrere gefundene Sachen gleichzeitig tragen (Hut oder Krone, dazu Schleife, Blume, Brille). |
 | **Lernbegleiter-Figuren** helfen wenig, aber messbar, bei Schulkindern mehr als bei Erwachsenen ([Schroeder, Adesope & Gilbert 2013](https://doi.org/10.2190/EC.49.1.a)) | Klecks gibt Hinweise und Lob in einer Sprechblase (auch vorgelesen) und zeigt mit seiner Mimik, ob es geklappt hat. |
 | **Angekündigte Belohnungen** („Wenn du …, bekommst du …“) verdrängen die Freude an der Sache, **unerwartete** nicht; Lob als Information stärkt sie ([Deci, Koestner & Ryan 1999](https://doi.org/10.1037/0033-2909.125.6.627)) | Keine Zufalls-Kisten. Auf dem Spielbrett stehen **Schatztruhen**; eine Truhe geht auf, wenn alle Buchstaben davor mindestens zwei Sterne haben. *Was* drin ist (Glitzer-, Regenbogen-, Goldstift, Schleife, Hut, Krone, Blume, Brille, Umhang, Regenbogen-Klecks), bleibt bis zum Öffnen eine Überraschung. Die Truhe belohnt gutes Schreiben, nicht Zeit oder Zufall. |
-| **Lob für den Weg, nicht für die Person** führt dazu, dass Kinder bei Fehlern dranbleiben ([Mueller & Dweck 1998](https://doi.org/10.1037/0022-3514.75.1.33); [Gunderson u. a. 2013](https://doi.org/10.1111/cdev.12064)) | Rückmeldungen wie „Jeden Strich am richtigen Punkt angefangen!“, „Du hast die Richtung verbessert!“, „Du hast nicht aufgegeben – so lernt man!“ statt „Du bist toll!“. |
+| **Lob für den Weg, nicht für die Person** führt dazu, dass Kinder bei Fehlern dranbleiben ([Mueller & Dweck 1998](https://doi.org/10.1037/0022-3514.75.1.33); [Gunderson u. a. 2013](https://doi.org/10.1111/cdev.12064)) | Rückmeldungen wie „Jeden Strich am richtigen Punkt angefangen!“, „Du hast die Richtung verbessert!“, „Du hast nicht aufgegeben – so lernt man!“ statt „Du bist toll!“. Mit eingetragenem Namen spricht Klecks das Kind an: „Gut gemacht, Lale! Aus dem Kopf geschrieben!“ (das Lob gilt der Arbeit, der Name macht es persönlich; persönliche Ansprache war Teil der Personalisierung bei Cordova & Lepper). |
+| **Vergleich mit sich selbst** (individuelle Bezugsnorm) statt mit anderen stärkt die Lernmotivation, besonders bei schwächeren Kindern (Rheinberg & Krug 2005, *Motivationsförderung im Schulalltag*, Hogrefe) | Der **Wettbewerb** ist eine freiwillige Herausforderung: Schwungübungen (Welle, Girlande, Arkade, Zickzack, Schleifen), der eigene Name und einfache Wörter. Dort zählt die genaue Bewertung: 0–100 Punkte, Medaille (Bronze ab 55, Silber ab 74, Gold ab 88) und der **eigene Rekord**. Keine Ranglisten. Beim Lernen der Buchstaben bleibt die Bewertung großzügig, damit niemand hängen bleibt. |
 | Gute Lern-Apps sind **aktiv, bei der Sache, sinnvoll und sozial**. Effekte, die vom Lernen ablenken, schaden ([Hirsh-Pasek u. a. 2015](https://doi.org/10.1177/1529100615569721); [Meyer u. a. 2021](https://doi.org/10.1080/17482798.2021.1882516)) | Das Schreibfeld bleibt ruhig. Animationen gibt es nur außerhalb des Felds und nach dem Schreiben. Wer „Bewegung reduzieren“ eingestellt hat, bekommt keine. |
 | Viele Kinder-Apps arbeiten mit **manipulativen Mustern**: Druck durch Figuren, Zeitdruck, Lockangebote, Autoplay ([Radesky u. a. 2022](https://doi.org/10.1001/jamanetworkopen.2022.17641)). Kinder sollen nicht zu längerer Nutzung gedrängt werden ([ICO Age Appropriate Design Code, Standard 13](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/childrens-information/childrens-code-guidance-and-resources/age-appropriate-design-a-code-of-practice-for-online-services/)) | Keine Serien („Streaks“), die abreißen, kein „Komm zurück!“, keine Zeitlimits, keine Verluste. **Tagesziel**: 3 Zeichen, danach sagt Klecks ausdrücklich, dass jetzt Pause sein darf. Automatisches Weiterspringen ist aus; das Kind tippt selbst auf „Weiter ➜“. |
 | Ein klares **Spielziel** mit sichtbarem Fortschritt und freier Wahl (Autonomie und Kompetenz) | **Drei Welten** (Buchstaben-Berg ABC, Buchstaben-Wald abc, Zahlen-Insel 123), jede ein **Spielbrett**: Jeder Buchstabe ist ein Level mit bis zu **drei Sternen**. Die Farbe des Steins zeigt die Lernstufe (hell: geübt, kräftig: aus dem Kopf, gold: sitzt). Nach jedem Level geht es zurück aufs Brett, Klecks **hüpft zum nächsten Stein**, die neuen Sterne fliegen in den Zähler. Nichts ist gesperrt. Eine kleine Geschichte gibt den Rahmen: Klecks' Buchstaben sind verstreut, das Kind sammelt sie durch Schreiben. |
 | Viele verschiedene, bunte Bildchen lenken ab | Ein **ruhiger, einheitlicher Symbolsatz** statt Emojis in Knöpfen, Überschriften und Sprechblasen. Emojis bleiben nur dort, wo sie Lerninhalt sind (Anlaut-Bild „Maus“, Wortbilder) und als Sticker. |
 
 **Ablauf:** Startseite → „Spielen“ startet das nächste Level → Ergebnis mit Sternen →
-„Weiter“ führt aufs Spielbrett → „Los“ startet das nächste Level. Die **Sammlung**
+„Weiter“ führt aufs Spielbrett → „Los“ startet das nächste Level. Der **Wettbewerb**
+(Pokal auf der Startseite) ist eine freiwillige Herausforderung mit Medaillen. Die **Sammlung**
 enthält Klecks' Kleiderschrank und Stifte, das Sticker-Album und eine Übersicht aller
 Buchstaben mit ihren Sternen (ersetzt den früheren Garten).
 
@@ -191,6 +208,12 @@ randomisierte Wartekontrollgruppe.
   `score_raw` und `stars` beim freien Schreiben (Abschreiben, Aus dem Kopf, Schreibtest)
   nach dem Anlegen der Vorlage berechnet (unabhängig von Lage und Größe, mit
   Richtungsvergleich, siehe „Bewertung“); auch diese Werte nicht mit 2.0 vergleichen.
+  Ab **2.2** bewertet die App das Üben großzügiger (Stufe *Lernen*) und lässt Kinder ab
+  zwei Sternen weiter; der Schreibtest behält die Stufe *Genau*. Übungswerte aus 2.1 und
+  2.2 deshalb nicht direkt vergleichen.
+- Der **Wettbewerb** wird nicht an die Studie gemeldet. Kinder der Wartekontrollgruppe
+  fahren dort nach (wie überall bis zum Studienende), statt abzuschreiben.
+- Der **Name des Kindes** bleibt auf dem Gerät und wird nie gesendet.
 
 Forschungsdesign, Datenschutzkonzept und Einrichtung stehen im Dokument
 „Forschungsdesign und Datenschutzkonzept: Schreib & Lern“.
