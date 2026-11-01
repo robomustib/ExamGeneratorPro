@@ -757,7 +757,7 @@ function PracticeLayout({bg,head,steps,children}){
       gridTemplateAreas:'". field" "head field" "steps field" "bubble field" "buttons field" ". field"',
       columnGap:24,rowGap:12,justifyContent:"center",justifyItems:"center",padding:"12px 16px"}
     :{gridTemplateColumns:"minmax(0,1fr)",gridTemplateAreas:'"head" "steps" "bubble" "field" "buttons"',
-      rowGap:12,justifyItems:"center",alignContent:"start",padding:"10px 10px 18px"};
+      rowGap:10,justifyItems:"center",alignContent:"start",padding:"10px 10px 18px"};
   return(
     <LayoutCtx.Provider value={true}>
       <div data-layout={wide?"quer":"hoch"} style={{minHeight:"100vh",boxSizing:"border-box",background:bg,display:"grid",...grid}}>
