@@ -53,7 +53,7 @@ Auf iPhone/iPad löscht das Entfernen der App auch den Fortschritt.
 | Vibration | `navigator.vibrate` — klappt in Chrome auf Android, **nicht** auf dem iPhone. |
 | Fortschritt | Wird im Browser des jeweiligen Geräts gespeichert (`localStorage`). Browserdaten löschen = Fortschritt weg. |
 | Zurück-Taste | Schließt erst Fenster, dann geht es zum Menü — wie in der Android-Version. |
-| Hochformat | Wird nur in der installierten App erzwungen, nicht im Browser-Tab. |
+| Hoch- und Querformat | Die App dreht sich mit, auch installiert. Im Querformat (Tablet oder Handy quer) stehen Klecks, Stufen und Knöpfe links, das Schreibfeld rechts und nutzt die ganze Höhe. Beim Drehen mitten im Schreiben bleibt das Geschriebene erhalten. Eine schon installierte App übernimmt das nach dem Aktualisieren der Webseite meist beim nächsten Start; sonst die App einmal vom Startbildschirm entfernen und neu installieren (der Fortschritt bleibt erhalten, solange die Browserdaten nicht gelöscht werden). |
 
 ## Schrift: Deutsche Druckschrift (Grundschule)
 

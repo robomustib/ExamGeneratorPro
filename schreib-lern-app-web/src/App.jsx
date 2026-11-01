@@ -733,10 +733,44 @@ function annotateStrokes(list){
 // Gezeichnet wird immer im 260×310-Raster. Auf größeren Bildschirmen wird das Feld
 // größer dargestellt (größere Buchstaben sind für Kinderfinger leichter zu treffen)
 // und in Bildschirmauflösung gerendert, damit die Linien scharf bleiben.
-function fieldScale(W=260,H=310){
-  if(typeof window==="undefined")return 1;
-  return Math.max(1,Math.min(1.8,(window.innerWidth-48)/W,(window.innerHeight-360)/H));
+// Hochformat: alles untereinander. Querformat (Tablet oder Handy quer): links Klecks,
+// Stufen und Knöpfe, rechts das Schreibfeld — so nutzt das Feld die ganze Höhe.
+// Wird bei jedem Drehen neu berechnet (colScale: Feldgröße für reine Spaltenansichten).
+const SIDE=330;
+function viewInfo(W=260,H=310){
+  if(typeof window==="undefined")return{wide:false,scale:1,colScale:1};
+  const w=window.innerWidth,h=window.innerHeight;
+  const colScale=Math.max(1,Math.min(1.8,(w-48)/W,(h-360)/H));
+  const wide=w>h&&w>=640;
+  const scale=wide?Math.max(0.8,Math.min(1.8,(h-60)/H,(w-SIDE-100)/W)):colScale;
+  return{wide,scale:+scale.toFixed(3),colScale:+colScale.toFixed(3)};
 }
+const ViewCtx=createContext({wide:false,scale:1,colScale:1});
+// Schreibbildschirm als Raster. Die Schreibfelder legen ihre Teile in die Bereiche
+// bubble, field und buttons; beim Drehen wechselt nur die Anordnung — das Feld wird nicht
+// neu aufgebaut, das Geschriebene bleibt erhalten.
+const LayoutCtx=createContext(false);
+function PracticeLayout({bg,head,steps,children}){
+  const {wide}=useContext(ViewCtx);
+  const grid=wide
+    ?{gridTemplateColumns:`${SIDE}px auto`,gridTemplateRows:"1fr auto auto auto auto 1fr",
+      gridTemplateAreas:'". field" "head field" "steps field" "bubble field" "buttons field" ". field"',
+      columnGap:24,rowGap:12,justifyContent:"center",justifyItems:"center",padding:"12px 16px"}
+    :{gridTemplateColumns:"minmax(0,1fr)",gridTemplateAreas:'"head" "steps" "bubble" "field" "buttons"',
+      rowGap:12,justifyItems:"center",alignContent:"start",padding:"10px 10px 18px"};
+  return(
+    <LayoutCtx.Provider value={true}>
+      <div data-layout={wide?"quer":"hoch"} style={{minHeight:"100vh",boxSizing:"border-box",background:bg,display:"grid",...grid}}>
+        <div style={{gridArea:"head",width:"100%",display:"flex",justifyContent:"center"}}>{head}</div>
+        {steps&&<div style={{gridArea:"steps",display:"flex",justifyContent:"center"}}>{steps}</div>}
+        {children}
+      </div>
+    </LayoutCtx.Provider>
+  );
+}
+// Wurzel eines Schreibfelds: im Raster unsichtbar (die Teile gehören zum Raster), sonst eine Spalte
+const canvasRoot=(inGrid)=>inGrid?{display:"contents"}:{display:"flex",flexDirection:"column",alignItems:"center",gap:10};
+const fieldCell={position:"relative",gridArea:"field",alignSelf:"center"};
 function pixelRatio(scale=1){
   const dpr=typeof window!=="undefined"&&window.devicePixelRatio||1;
   return scale*Math.min(dpr,2);
@@ -884,7 +918,8 @@ function Confetti(){
     requestAnimationFrame(fr);
     return()=>{alive=false;};
   },[]);
-  return <canvas ref={r} width={340} height={420} style={{position:"absolute",top:0,left:"50%",transform:"translateX(-50%)",pointerEvents:"none",zIndex:60}}/>;
+  // füllt genau das Schreibfeld (ragt auch im Querformat nicht über den Bildschirm)
+  return <canvas ref={r} width={340} height={420} style={{position:"absolute",inset:0,width:"100%",height:"100%",pointerEvents:"none",zIndex:60}}/>;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -968,7 +1003,8 @@ function StrokePreview({letter, W=80, H=96}){
 // ═══════════════════════════════════════════════════════════════════════════════
 // ANIM CANVAS  — animates stroke-by-stroke before tracing phase
 // ═══════════════════════════════════════════════════════════════════════════════
-function AnimCanvas({letter, onDone, scale=1, W=260, H=310}){
+function AnimCanvas({letter, onDone, scale=1, W=260, H=310, preview=null}){
+  const inGrid=useContext(LayoutCtx);
   const ref=useRef(null);const rafRef=useRef(null);const tmrRef=useRef(null);
   const th=useContext(ThemeCtx);
   const [k]=useState(()=>pixelRatio(scale));
@@ -1060,11 +1096,16 @@ function AnimCanvas({letter, onDone, scale=1, W=260, H=310}){
     return()=>{cancelAnimationFrame(rafRef.current);clearTimeout(tmrRef.current);};
   },[letter,strokes,drawRules,onDone,W,H,th.acc]);
   return(
-    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:10}}>
-      <KlecksBubble text="Schau zu – dann bist du dran!" mood="think" tone="think" maxWidth={W*scale+22}/>
-      <FieldFrame W={W} H={H} scale={scale}>
-        <canvas ref={ref} width={W*k} height={H*k} style={{display:"block",width:"100%",height:"100%"}}/>
-      </FieldFrame>
+    <div style={canvasRoot(inGrid)}>
+      <div style={{gridArea:"bubble",display:"flex",alignItems:"center",gap:8,width:"100%",maxWidth:W*scale+22}}>
+        <div style={{flex:1,minWidth:0}}><KlecksBubble text="Schau zu – dann bist du dran!" mood="think" tone="think" minH={58}/></div>
+        {preview}
+      </div>
+      <div style={fieldCell}>
+        <FieldFrame W={W} H={H} scale={scale}>
+          <canvas ref={ref} width={W*k} height={H*k} style={{display:"block",width:"100%",height:"100%"}}/>
+        </FieldFrame>
+      </div>
     </div>
   );
 }
@@ -1091,6 +1132,7 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
                      lefthanded=false,highContrast=false,hapticsEnabled=true,onSpeak=()=>{},onTrial=null,scale=1,W=260,H=310,
                      profile=null,copyHint="Schau auf die Vorlage und schreib ab!"}){
   const childName=useContext(ChildCtx);
+  const inGrid=useContext(LayoutCtx);
   const bgRef=useRef(null);const ovRef=useRef(null);
   const [k]=useState(()=>pixelRatio(scale));
   useCanvasScale([bgRef,ovRef],k);
@@ -1412,16 +1454,18 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
     :{text:hint,mood:"happy",tone:"info"};
 
   return(
-    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:10}}>
+    <div style={canvasRoot(inGrid)}>
+      <div style={{gridArea:"bubble",width:"100%",maxWidth:W*scale+22,display:"flex",justifyContent:"center"}}>
       {probe
         ?<div style={{fontSize:15,color:"#334155",background:"white",borderRadius:16,padding:"8px 18px",border:"3px solid #ccfbf1",fontWeight:800,textAlign:"center"}}>{hint}</div>
         :mode==="copy"
-          ?<div style={{display:"flex",alignItems:"center",gap:8,width:"100%",maxWidth:W*scale+22}}>
+          ?<div style={{display:"flex",alignItems:"center",gap:8,width:"100%"}}>
              <div style={{flex:1,minWidth:0}}><KlecksBubble {...bubble} kick={kick} minH={58}/></div>
              <ModelCard letter={letter} W={96} H={114}/>
            </div>
           :<KlecksBubble {...bubble} kick={kick} minH={58} maxWidth={W*scale+22}/>}
-      <div style={{position:"relative"}}>
+      </div>
+      <div style={fieldCell}>
         <FieldFrame W={W} H={H} scale={scale}>
             <canvas ref={bgRef} width={W*k} height={H*k} style={{position:"absolute",inset:0,width:"100%",height:"100%"}}/>
             <canvas ref={ovRef} width={W*k} height={H*k} style={{position:"absolute",inset:0,width:"100%",height:"100%",touchAction:"none",cursor:"crosshair"}}
@@ -1436,7 +1480,7 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
         </FieldFrame>
         {confetti&&<Confetti/>}
       </div>
-      <div style={{display:"flex",gap:10,marginTop:4,flexWrap:"wrap",justifyContent:"center",alignItems:"center"}}>
+      <div style={{gridArea:"buttons",display:"flex",gap:10,marginTop:4,flexWrap:"wrap",justifyContent:"center",alignItems:"center"}}>
         {probe&&!done&&<Btn bg="white" sh="#cbd5e1" color="#64748b" style={{border:"2px solid #cbd5e1"}} onClick={()=>{report(false,{skipped:1});setDone(true);onComplete(0,{mode,skipped:true});}}>Weiß ich nicht</Btn>}
         {!done&&<Btn data-k="redo" bg="white" sh="#d5dbe7" color="var(--ink2)" style={{border:"2px solid #e3e8f2"}} onClick={()=>{sfx("tap");mode==="memory"?setRound(r=>r+1):reset();}}><Icon name="redo" size={20}/>Neu</Btn>}
         {done&&!probe&&<RedoIconBtn onClick={()=>{sfx("tap");mode==="memory"?setRound(r=>r+1):reset();}}/>}
@@ -1491,6 +1535,7 @@ const RedoIconBtn=({onClick})=>(
 // ═══════════════════════════════════════════════════════════════════════════════
 function GuidedCanvas({letter, onComplete, onNext=null, tools=null, pen="classic", onSpeak=()=>{}, onTrial=null, scale=1, W=260, H=310}){
   const childName=useContext(ChildCtx);
+  const inGrid=useContext(LayoutCtx);
   const bgRef=useRef(null);
   const ovRef=useRef(null);
   const compareRef=useRef(null);
@@ -1863,9 +1908,11 @@ function GuidedCanvas({letter, onComplete, onNext=null, tools=null, pen="classic
     :statusMsg.startsWith("Super")?{text:statusMsg,mood:"cheer",tone:"praise"}
     :{text:statusMsg,mood:"happy",tone:"info"};
   return(
-    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:10}}>
-      <KlecksBubble {...bubble} kick={kick} minH={58} maxWidth={W*scale+22}/>
-      <div style={{position:"relative"}}>
+    <div style={canvasRoot(inGrid)}>
+      <div style={{gridArea:"bubble",width:"100%",maxWidth:W*scale+22,display:"flex",justifyContent:"center"}}>
+        <KlecksBubble {...bubble} kick={kick} minH={58} maxWidth={W*scale+22}/>
+      </div>
+      <div style={fieldCell}>
         <FieldFrame W={W} H={H} scale={scale}>
             <canvas ref={bgRef} width={W*k} height={H*k} style={{position:"absolute",inset:0,width:"100%",height:"100%"}}/>
             {phase!=="compare"&&(
@@ -1887,7 +1934,7 @@ function GuidedCanvas({letter, onComplete, onNext=null, tools=null, pen="classic
         </FieldFrame>
         {confetti&&<Confetti/>}
       </div>
-      <div style={{display:"flex",gap:10,marginTop:4,alignItems:"center",flexWrap:"wrap",justifyContent:"center"}}>
+      <div style={{gridArea:"buttons",display:"flex",gap:10,marginTop:4,alignItems:"center",flexWrap:"wrap",justifyContent:"center"}}>
         {phase!=="compare"&&<Btn data-k="redo" bg="white" sh="#d5dbe7" color="var(--ink2)" style={{border:"2px solid #e3e8f2"}} onClick={()=>{sfx("tap");reset();}}><Icon name="redo" size={20}/>Neu</Btn>}
         {phase==="compare"&&<RedoIconBtn onClick={()=>{sfx("tap");reset();}}/>}
         {phase==="compare"&&<StarResult stars={scoreInfo.stars} caption="Grün = genau, Rot = daneben"/>}
@@ -2484,7 +2531,7 @@ function WordPractice({word, settings, pen="classic", onSpeak=()=>{}, onTrial=nu
   const pill=(active,c)=>({width:46,height:46,borderRadius:"50%",background:active?c:"white",color:active?"white":c,border:`3px solid ${c}`,display:"flex",alignItems:"center",justifyContent:"center",padding:0,"--sh":active?"#0002":"#dfe4ee"});
   return(
     <ThemeCtx.Provider value={WORD_THEME}>
-    <div style={{minHeight:"100vh",background:WORD_THEME.bg,display:"flex",flexDirection:"column",alignItems:"center",padding:10,gap:10}}>
+    <PracticeLayout bg={WORD_THEME.bg} head={
       <div style={{display:"flex",alignItems:"center",gap:8,width:"100%",maxWidth:560}}>
         <RoundBtn onClick={onBack} aria-label="Zurück"><Icon name="back" size={24} stroke={3}/></RoundBtn>
         <div className="k-card" style={{flex:1,padding:"8px 12px",display:"flex",alignItems:"center",gap:10,borderRadius:18}}>
@@ -2501,13 +2548,12 @@ function WordPractice({word, settings, pen="classic", onSpeak=()=>{}, onTrial=nu
             })}
           </div>
         </div>
-      </div>
+      </div>} steps={
       <div style={{display:"flex",gap:6,justifyContent:"center"}}>
         <button aria-label="Vorführen" className="k-press" style={pill(phase==="anim","#f97316")} onClick={()=>{setPhase("anim");setReplayKey(k=>k+1);}}><Icon name="play" size={22} color="currentColor"/></button>
         {settings.allowedModes?.guided&&<button data-mode="guided" aria-label="Geführt" className="k-press" style={pill(phase==="trace_guided","#22c55e")} onClick={()=>setPhase("trace_guided")}><Icon name="hand" size={22} color="currentColor" stroke={2.4}/></button>}
         {settings.allowedModes?.trace&&<button data-mode="trace" aria-label="Nachfahren" className="k-press" style={pill(phase==="trace_free","#4361ee")} onClick={()=>setPhase("trace_free")}><Icon name="pencil" size={22} color="currentColor" stroke={2.4}/></button>}
-      </div>
-      <div style={{display:"flex",justifyContent:"center"}}>
+      </div>}>
         {phase==="anim"&&
           <AnimCanvas key={`wanim-${current}-${idx}-${replayKey}`} letter={current} scale={scale}
             onDone={()=>setPhase(settings.allowedModes?.guided?"trace_guided":"trace_free")}/>}
@@ -2519,8 +2565,7 @@ function WordPractice({word, settings, pen="classic", onSpeak=()=>{}, onTrial=nu
             onComplete={handleLetterDone} difficulty={settings.difficulty} mode="trace" pen={pen}
             lefthanded={!!settings.lefthanded} highContrast={!!settings.highContrast} hapticsEnabled={settings.hapticsEnabled!==false}
             onSpeak={onSpeak} scale={scale} onTrial={onTrial&&(t=>onTrial(current,t))}/>}
-      </div>
-    </div>
+    </PracticeLayout>
     </ThemeCtx.Provider>
   );
 }
@@ -2678,7 +2723,7 @@ function ContestRun({item,mode,settings,pen,tools,scale,best,effects,onSpeak,onF
 
   return(
     <ThemeCtx.Provider value={CONTEST_THEME}>
-    <div style={{minHeight:"100vh",background:CONTEST_THEME.bg,display:"flex",flexDirection:"column",alignItems:"center",padding:"10px 10px 18px",gap:12}}>
+    <PracticeLayout bg={CONTEST_THEME.bg} head={
       <div style={{width:"100%",maxWidth:560,display:"flex",alignItems:"center",gap:8}}>
         <RoundBtn onClick={onBack} aria-label="Zurück zum Wettbewerb"><Icon name="back" size={24} stroke={3}/></RoundBtn>
         <div className="k-card" style={{flex:1,minWidth:0,padding:"8px 12px",display:"flex",alignItems:"center",gap:8,borderRadius:18}}>
@@ -2694,14 +2739,14 @@ function ContestRun({item,mode,settings,pen,tools,scale,best,effects,onSpeak,onF
           ):<span style={{fontSize:19,fontWeight:900,color:"var(--ink)"}}>{item.title}</span>}
         </div>
         <RoundBtn data-k="show" aria-label="Vorführen" onClick={()=>{sfx("tap");setPhase("anim");setReplayKey(k=>k+1);}}><Icon name="play" size={22} color={CONTEST_THEME.dark} style={{marginLeft:2}}/></RoundBtn>
-      </div>
+      </div>}>
       {phase==="anim"
         ?<AnimCanvas key={`canim-${idx}-${replayKey}`} letter={current} scale={scale} onDone={()=>setPhase("write")}/>
         :<TraceCanvas key={`contest-${item.id}-${idx}-${replayKey}`} letter={current} mode={mode} profile="genau" copyHint={item.copyHint}
            onComplete={done} onNext={next} difficulty={settings.difficulty} pen={pen}
            lefthanded={!!settings.lefthanded} highContrast={!!settings.highContrast} hapticsEnabled={settings.hapticsEnabled!==false}
            tools={tools} onSpeak={onSpeak} scale={scale}/>}
-    </div>
+    </PracticeLayout>
     </ThemeCtx.Provider>
   );
 }
@@ -3213,8 +3258,14 @@ export default function App(){
     return Object.keys(MODES).find(allowed)||"trace";
   };
   const [mode,setMode]=useState(()=>modeFor(LEARN_PATH[startTab][0]));
-  const fs=useMemo(()=>fieldScale(),[]);
-  useEffect(()=>{setFieldScale(fs);},[fs,rs.enrolled]);
+  const [view,setView]=useState(viewInfo);
+  useEffect(()=>{
+    const on=()=>setView(v=>{const n=viewInfo();return n.wide===v.wide&&n.scale===v.scale&&n.colScale===v.colScale?v:n;});
+    window.addEventListener("resize",on);window.addEventListener("orientationchange",on);
+    return()=>{window.removeEventListener("resize",on);window.removeEventListener("orientationchange",on);};
+  },[]);
+  const fs=view.scale;
+  useEffect(()=>{setFieldScale(screen==="probe"?view.colScale:fs);},[fs,view.colScale,screen,rs.enrolled]);
   useEffect(()=>{setSoundOn(settings.soundEnabled!==false);},[settings.soundEnabled]);
   // Messwerte eines Versuchs an den Forschungsmodus geben (nur bei Teilnahme)
   const studyLog=rs.enrolled?(extra)=>(t)=>logTrial({...t,difficulty:settings.difficulty,restricted:rs.restricted?1:0,...extra}):null;
@@ -3391,6 +3442,7 @@ export default function App(){
   const wrap=(el)=>(
     <CompanionCtx.Provider value={comp}>
     <ChildCtx.Provider value={childName}>
+    <ViewCtx.Provider value={view}>
       {el}
       {chestOpen&&<ChestModal key={chestOpen} reward={chestOpen} effects={fx} onUse={applyTreasure} onClose={()=>setChestOpen(null)}/>}
       {giftOpen&&<GiftModal key={giftOpen} reward={giftOpen==="alles"?null:giftOpen} effects={fx} onSpeak={sayIt}
@@ -3406,6 +3458,7 @@ export default function App(){
       {showRun&&<KlecksRun onDone={()=>setShowRun(false)}/>}
       {showStarRain&&<StarRain onDone={()=>setShowStarRain(false)}/>}
       {showParent&&<ParentZone settings={settingsWithData} onChange={updateSettings} onStartProbe={()=>{setShowParent(false);setScreen("probe");}} onClose={()=>setShowParent(false)} journal={journal}/>}
+    </ViewCtx.Provider>
     </ChildCtx.Provider>
     </CompanionCtx.Provider>
   );
@@ -3518,7 +3571,7 @@ export default function App(){
   if(screen==="probe"){
     if(!rs.enrolled||rs.dueWave==null){setTimeout(()=>setScreen("menu"),0);return null;}
     const wave=rs.dueWave;
-    return wrap(<ProbeTest key={wave} wave={wave} chars={rs.probeChars} difficulty={settings.difficulty} scale={fs} onSpeak={sayIt}
+    return wrap(<ProbeTest key={wave} wave={wave} chars={rs.probeChars} difficulty={settings.difficulty} scale={view.colScale} onSpeak={sayIt}
       onLog={t=>logTrial({...t,difficulty:settings.difficulty,restricted:rs.restricted?1:0})}
       onFinish={()=>{markWaveDone(wave);setScreen("menu");}} onExit={()=>setScreen("menu")}/>);
   }
@@ -3574,7 +3627,7 @@ export default function App(){
   const usePen=penAvailable(pen,unlocks)?pen:"classic";
   return wrap(
     <ThemeCtx.Provider value={world}>
-    <div style={{minHeight:"100vh",background:world.bg,display:"flex",flexDirection:"column",alignItems:"center",padding:"10px 10px 18px",gap:12}}>
+    <PracticeLayout bg={world.bg} head={
       <div style={{width:"100%",maxWidth:560,display:"flex",alignItems:"center",gap:8}}>
         <RoundBtn onClick={()=>setScreen("map")} aria-label="Zurück zum Spielbrett"><Icon name="back" size={24} stroke={3}/></RoundBtn>
         <button className="k-press" onClick={()=>sayLetter(letter)} aria-label={`${letter} vorlesen`}
@@ -3584,9 +3637,8 @@ export default function App(){
         <div style={{flex:1,minWidth:0,display:"flex"}}><AnlautChip letter={letter} onSay={()=>sayLetter(letter)}/></div>
         <RoundBtn data-k="show" aria-label="Vorführen" color={phase==="anim"?"white":world.dark} bg={phase==="anim"?world.acc:"white"} sh={phase==="anim"?world.dark:"#d5dbe7"}
           onClick={()=>{clearTimeout(advanceTimer.current);sfx("tap");setPhase("anim");setReplayKey(k=>k+1);}}><Icon name="play" size={22} color="currentColor" style={{marginLeft:2}}/></RoundBtn>
-      </div>
-
-      {/* Lernweg als Stufen: Hilfe wird Schritt für Schritt weniger */}
+      </div>} steps={
+      /* Lernweg als Stufen: Hilfe wird Schritt für Schritt weniger */
       <div style={{display:"flex",alignItems:"center",gap:0,background:"#ffffffb3",borderRadius:30,padding:"6px 8px"}}>
         {steps.map((m,i)=>{
           const active=phase==="write"&&mode===m;
@@ -3605,7 +3657,7 @@ export default function App(){
             </div>
           );
         })}
-      </div>
+      </div>}>
 
       {levelUp&&levelUp.letter===letter&&(
         <div style={{position:"fixed",top:12,left:0,right:0,display:"flex",justifyContent:"center",zIndex:1500,pointerEvents:"none",padding:"0 12px"}}>
@@ -3615,10 +3667,8 @@ export default function App(){
         </div>
       )}
 
-      <div style={{display:"flex",justifyContent:"center",flexDirection:"column",alignItems:"center",gap:8}}>
-        {phase==="anim"&&<StrokePreview letter={letter}/>}
         {phase==="anim"
-          ?<AnimCanvas key={`anim-${letter}-${replayKey}`} letter={letter} onDone={()=>setPhase("write")} scale={fs}/>
+          ?<AnimCanvas key={`anim-${letter}-${replayKey}`} letter={letter} onDone={()=>setPhase("write")} scale={fs} preview={<StrokePreview letter={letter}/>}/>
           :mode==="guided"
             ?<GuidedCanvas key={`guided-${letter}-${replayKey}`} letter={letter} onComplete={handleDone} onNext={goNext} onSpeak={sayIt} scale={fs}
                pen={usePen} tools={<PenPicker pen={usePen} unlocks={unlocks} onPick={setPen}/>}
@@ -3630,10 +3680,9 @@ export default function App(){
                tools={<PenPicker pen={usePen} unlocks={unlocks} onPick={setPen}/>}
                onSpeak={sayIt} scale={fs} onTrial={studyLog&&studyLog({kind:"practice",ch:letter,stage:stageOf(letter)})}/>
         }
-      </div>
 
       {showScreenTime&&<ScreenTimeReminder limit={settings.screenTime} onDismiss={()=>setShowScreenTime(false)}/>}
-    </div>
+    </PracticeLayout>
     </ThemeCtx.Provider>
   );
 }
