@@ -2947,7 +2947,7 @@ function HouseHome({records,onStart,onBack,onSpeak}){
                 borderTop:f.id==="dach"?"none":"2px dashed #f0dfc0"}}>
                 <div style={{fontSize:15,fontWeight:900,color:"var(--ink)",lineHeight:1.1}}>{f.name}</div>
                 <div style={{display:"flex",gap:6,alignItems:"flex-end"}}>
-                  {FLOOR_EXAMPLES[f.id].map(ch=><Glyph key={ch} letter={ch} height={30} weight={2.4} color="var(--ink2)" tight
+                  {FLOOR_EXAMPLES[f.id].map(ch=><Glyph key={ch} letter={ch} height={f.id==="erd"?19:33} weight={2.4} color="var(--ink2)" tight
                     yr={f.id==="dach"?[LINES.top-5,LINES.base+5]:f.id==="erd"?[LINES.mid-5,LINES.base+5]:[LINES.mid-5,LINES.bottom+5]}/>)}
                 </div>
               </div>
