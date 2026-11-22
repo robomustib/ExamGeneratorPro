@@ -14,7 +14,9 @@ const STATE_KEY = "slk_research_v1";
 // 2.1: Strichvorlagen nach den Schreibrichtungs-Plakaten (andere Teilstrich-Nummern)
 // 2.2: Üben (Abschreiben, Aus dem Kopf) großzügiger bewertet, weiter ab zwei Sternen;
 //      der Schreibtest behält die genaue Bewertung
-const APP_VERSION = "2.2";
+// 2.3: Schreibhaus-Hilfe (Stockwerke leuchten) und Stockwerk-Regel beim Üben (ein Tipp kostet
+//      den dritten Stern); Schreibtest unverändert
+const APP_VERSION = "2.3";
 const MAX_BATCH = 40;
 const MAX_QUEUE = 3000;
 

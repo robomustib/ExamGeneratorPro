@@ -96,6 +96,40 @@ Frau Locke. Sie liegen dem Projekt nicht bei: Ihre Lizenz erlaubt den Einsatz
 im Unterricht, aber keine Weitergabe über Netzwerke oder Clouddienste. Wer sie
 nutzen möchte, lädt sie direkt bei Frau Locke herunter.
 
+## Schreibhaus: Hilfe für die richtige Höhe
+
+Beim freien Schreiben ist für viele Kinder nicht die Form schwer, sondern die **Höhe**:
+Wo fängt der Buchstabe an, wie groß wird er, rutscht er unter die Linie? Die App zeigt
+die Linien deshalb als Haus mit drei Stockwerken:
+
+| Stockwerk | Linien | Wer wohnt dort |
+|---|---|---|
+| **Dachgeschoss** | Ober- bis Mittellinie | Großbuchstaben, Ziffern und Oberlängen (b d f h k l t) reichen bis hier hinauf |
+| **Erdgeschoss** | Mittel- bis Grundlinie | alle Buchstaben; kleine wie a c e m n o wohnen nur hier |
+| **Keller** | Grund- bis Unterlinie | Unterlängen (g j p q y, ß) rutschen hier hinein |
+
+- **Im Schreibfeld** sind die drei Stockwerke farbig hinterlegt, am Rand stehen kleine
+  Zeichen (Dach, Haus, Kellertreppe). Die Stockwerke, in denen der Buchstabe wohnt,
+  **leuchten**; die anderen treten zurück. Klecks sagt es dazu: „Das g wohnt im
+  Erdgeschoss und Keller.“ Das gilt beim Vorführen, Nachfahren und Abschreiben.
+- **Beim Schreiben aus dem Kopf** leuchten die Stockwerke, bis der Buchstabe einmal aus
+  dem Kopf geklappt hat. Danach fällt die Hilfe weg. Nach einem Stockwerk-Fehler
+  leuchten sie beim nächsten Versuch wieder.
+- **Hinweise in Haus-Sprache**, wenn die Ober- oder Unterkante mehr als 0,4 Stockwerke
+  danebenliegt: „Nicht ins Dach! Das a bleibt unten.“, „Zu hoch! Das g rutscht in den
+  Keller.“, „Höher! Das b reicht bis ins Dach.“ Die grüne Vorlage steht dann im
+  richtigen Stockwerk und in der richtigen Größe, damit das Kind den Unterschied sieht.
+- **Bereich „Schreibhaus“** (Startseite):
+  - *Wo wohnt der Buchstabe?* Acht Buchstaben je Runde, das Kind tippt auf das passende
+    Haus (Dach + Erdgeschoss, nur Erdgeschoss, Erdgeschoss + Keller). Bei einem Fehler
+    zeigt Klecks das richtige Haus.
+  - *Hausstriche:* kurze Striche (Erdgeschoss), lange Striche (Dach bis Boden),
+    Keller-Striche und alle drei gemischt; erst nachfahren, dann abschreiben.
+- **Elternbereich → Schreibhaus-Hilfe:** automatisch (Standard), immer oder aus.
+- Der Schreibtest der Studie behält die einfachen Linien ohne Haus.
+- Andere Wörter (z. B. „Dachboden“ oder „Untergeschoss“) lassen sich in `src/App.jsx`
+  bei `FLOORS` und den Sätzen direkt darunter ändern.
+
 ## Bewertung: so entstehen die Sterne
 
 - **Nachfahren:** gemessen direkt an der Vorlage im Feld: Wie nah liegt die Schrift an
@@ -129,6 +163,12 @@ nutzen möchte, lädt sie direkt bei Frau Locke herunter.
   Beim Lernen sind das Tipps, das Kind kommt trotzdem weiter (höchstens zwei Sterne). Im
   Wettbewerb kosten sie Punkte. Nur ein gespiegelter Buchstabe zählt auch beim Lernen
   nicht (ein Stern), weil er ein anderer Buchstabe ist.
+- **Stockwerke (Stufe *Lernen*):** Liegt die Ober- oder Unterkante mehr als 0,4
+  Stockwerke neben der Vorlage, gibt es einen Tipp in Haus-Sprache und höchstens zwei
+  Sterne; das Kind kommt weiter. Drei Sterne gibt es also nur im richtigen Stockwerk.
+  Sitzt der Buchstabe ein ganzes Stockwerk daneben (z. B. „P“ dort, wo „p“ hingehört),
+  reicht es in der Regel nur für einen Stern. In Testproben wurde saubere Schrift in 2 %
+  der Fälle beanstandet, Schrift ein halbes Stockwerk zu hoch immer.
 - **Anzeige:** Die grüne Vorlage liegt im Ergebnis dort, wo das Kind geschrieben hat. Die
   Sterne stehen unter dem Schreibfeld zwischen „Nochmal“ und „Weiter“; das Feld und seine
   Linien bleiben unverändert und nichts von der Schrift wird verdeckt.
@@ -163,6 +203,7 @@ problematischen weg.
 | **Angekündigte Belohnungen** („Wenn du …, bekommst du …“) verdrängen die Freude an der Sache, **unerwartete** nicht; Lob als Information stärkt sie ([Deci, Koestner & Ryan 1999](https://doi.org/10.1037/0033-2909.125.6.627)) | Keine Zufalls-Kisten. Auf dem Spielbrett stehen **Schatztruhen**; eine Truhe geht auf, wenn alle Buchstaben davor mindestens zwei Sterne haben. *Was* drin ist (Glitzer-, Regenbogen-, Goldstift, Schleife, Hut, Krone, Blume, Brille, Umhang, Regenbogen-Klecks), bleibt bis zum Öffnen eine Überraschung. Die Truhe belohnt gutes Schreiben, nicht Zeit oder Zufall. |
 | **Lob für den Weg, nicht für die Person** führt dazu, dass Kinder bei Fehlern dranbleiben ([Mueller & Dweck 1998](https://doi.org/10.1037/0022-3514.75.1.33); [Gunderson u. a. 2013](https://doi.org/10.1111/cdev.12064)) | Rückmeldungen wie „Jeden Strich am richtigen Punkt angefangen!“, „Du hast die Richtung verbessert!“, „Du hast nicht aufgegeben – so lernt man!“ statt „Du bist toll!“. Mit eingetragenem Namen spricht Klecks das Kind an: „Gut gemacht, Lale! Aus dem Kopf geschrieben!“ (das Lob gilt der Arbeit, der Name macht es persönlich; persönliche Ansprache war Teil der Personalisierung bei Cordova & Lepper). |
 | Kinder sollen **viel schreiben** dürfen und dafür etwas bekommen; Überraschungen stärken die Freude, angekündigte Belohnungen fürs bloße Mitmachen können sie schwächen ([Deci, Koestner & Ryan 1999](https://doi.org/10.1037/0033-2909.125.6.627)) | **Fleißglas** (Startseite und Spielbrett): Jedes richtig geschriebene Zeichen (zwei Sterne beim Lernen, Wort-Buchstaben, Wettbewerb) wirft einen Stern ins Glas. Bei 8 Sternen geht eine **Überraschung** auf: neues Zubehör für Klecks (Zauberhut, Kopfhörer, Fliege, Zauberstab), Stifte (Feuer, Ozean, Neon), Klecks-Farben (Gold, Nachtblau) und 20 **Fleiß-Sticker** fürs Album. Belohnt wird das Schreiben, nicht Zeit oder Zufall; nichts geht verloren, es gibt keine Serien. Das Geschenk erscheint erst auf dem Spielbrett oder der Startseite, nie mitten im Schreiben. |
+| Eine **kurze Spielpause** lockert das Üben auf. Sie ist aber eine *angekündigte* Belohnung, und solche können die Freude an der Sache selbst schwächen ([Deci, Koestner & Ryan 1999](https://doi.org/10.1037/0033-2909.125.6.627)); Zufallsmechaniken wie Lostrommeln gehören zu den Mustern, die Kinder zu längerer Nutzung drängen ([Radesky u. a. 2022](https://doi.org/10.1001/jamanetworkopen.2022.17641)) | **Mal-Pause** nach je drei geschriebenen Buchstaben (mindestens zwei Sterne): Das Kind dreht ein **Farbrad**, malt den letzten Buchstaben mit dem Finger aus (die Farbe haftet nur im Buchstaben, das Kind fährt seine Form dabei noch einmal nach) und der Buchstabe **strahlt**. Das Rad ist bewusst kein Glücksspiel: acht gleich große Felder (Glitzer-Gold, Regenbogen, Neon-Pink, Ozean, Feuer, Galaxie, Minze, Silber), keine Niete, keine seltenen Preise, nichts zu kaufen, einmal „Nochmal drehen“. Die Pause hängt am Schreiben, nicht an der Zeit, lässt sich überspringen und im Elternbereich abschalten. Ausgemalte Buchstaben leuchten in der Sammlung (Reiter „Sterne“). |
 | **Vergleich mit sich selbst** (individuelle Bezugsnorm) statt mit anderen stärkt die Lernmotivation, besonders bei schwächeren Kindern (Rheinberg & Krug 2005, *Motivationsförderung im Schulalltag*, Hogrefe) | Der **Wettbewerb** ist eine freiwillige Herausforderung: Schwungübungen (Welle, Girlande, Arkade, Zickzack, Schleifen), der eigene Name und einfache Wörter. Dort zählt die genaue Bewertung: 0–100 Punkte, Medaille (Bronze ab 55, Silber ab 74, Gold ab 88) und der **eigene Rekord**. Keine Ranglisten. Beim Lernen der Buchstaben bleibt die Bewertung großzügig, damit niemand hängen bleibt. |
 | Gute Lern-Apps sind **aktiv, bei der Sache, sinnvoll und sozial**. Effekte, die vom Lernen ablenken, schaden ([Hirsh-Pasek u. a. 2015](https://doi.org/10.1177/1529100615569721); [Meyer u. a. 2021](https://doi.org/10.1080/17482798.2021.1882516)) | Das Schreibfeld bleibt ruhig. Animationen gibt es nur außerhalb des Felds und nach dem Schreiben. Wer „Bewegung reduzieren“ eingestellt hat, bekommt keine. |
 | Viele Kinder-Apps arbeiten mit **manipulativen Mustern**: Druck durch Figuren, Zeitdruck, Lockangebote, Autoplay ([Radesky u. a. 2022](https://doi.org/10.1001/jamanetworkopen.2022.17641)). Kinder sollen nicht zu längerer Nutzung gedrängt werden ([ICO Age Appropriate Design Code, Standard 13](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/childrens-information/childrens-code-guidance-and-resources/age-appropriate-design-a-code-of-practice-for-online-services/)) | Keine Serien („Streaks“), die abreißen, kein „Komm zurück!“, keine Zeitlimits, keine Verluste. **Tagesziel**: 3 Zeichen, danach sagt Klecks ausdrücklich, dass jetzt Pause sein darf. Automatisches Weiterspringen ist aus; das Kind tippt selbst auf „Weiter ➜“. |
@@ -170,7 +211,9 @@ problematischen weg.
 | Viele verschiedene, bunte Bildchen lenken ab | Ein **ruhiger, einheitlicher Symbolsatz** statt Emojis in Knöpfen, Überschriften und Sprechblasen. Emojis bleiben nur dort, wo sie Lerninhalt sind (Anlaut-Bild „Maus“, Wortbilder) und als Sticker. |
 
 **Ablauf:** Startseite → „Spielen“ startet das nächste Level → Ergebnis mit Sternen →
-„Weiter“ führt aufs Spielbrett → „Los“ startet das nächste Level. Der **Wettbewerb**
+„Weiter“ führt aufs Spielbrett → „Los“ startet das nächste Level. Nach jedem dritten
+Buchstaben kommt vor dem Spielbrett die **Mal-Pause**. Im **Schreibhaus** übt das Kind
+die Stockwerke. Der **Wettbewerb**
 (Pokal auf der Startseite) ist eine freiwillige Herausforderung mit Medaillen. Die **Sammlung**
 enthält Klecks' Kleiderschrank und Stifte, das Sticker-Album und eine Übersicht aller
 Buchstaben mit ihren Sternen (ersetzt den früheren Garten). Insgesamt gibt es 19 Schätze
@@ -180,8 +223,8 @@ Weitere Änderungen: runde, gut lesbare Schrift **Nunito** (in die App eingebett
 keine Verbindung zu Google), große „drückbare“ Knöpfe, kurze leise Töne (abschaltbar
 mit 🎵), neues App-Symbol mit Klecks.
 
-Im Elternbereich lassen sich Töne sowie Überraschungen und Effekte ausschalten. Das
-Tagesziel-Ende und das Lob bleiben, weil sie zum Lernen gehören.
+Im Elternbereich lassen sich Töne, Überraschungen und Effekte sowie die Mal-Pause
+ausschalten. Das Tagesziel-Ende und das Lob bleiben, weil sie zum Lernen gehören.
 
 ## Forschungsmodus (für Studien)
 
@@ -213,6 +256,11 @@ randomisierte Wartekontrollgruppe.
   Ab **2.2** bewertet die App das Üben großzügiger (Stufe *Lernen*) und lässt Kinder ab
   zwei Sternen weiter; der Schreibtest behält die Stufe *Genau*. Übungswerte aus 2.1 und
   2.2 deshalb nicht direkt vergleichen.
+  Ab **2.3** gibt es beim Üben die Schreibhaus-Hilfe (leuchtende Stockwerke) und die
+  Stockwerk-Regel (ein Tipp kostet den dritten Stern, `stars` höchstens 4). Der
+  Schreibtest ist unverändert: einfache Linien, keine Hilfe, Stufe *Genau*.
+- **Schreibhaus-Übungen und Mal-Pause** werden nicht an die Studie gemeldet und sind in
+  beiden Gruppen gleich. Kinder der Wartekontrollgruppe fahren die Hausstriche nur nach.
 - Der **Wettbewerb** wird nicht an die Studie gemeldet. Kinder der Wartekontrollgruppe
   fahren dort nach (wie überall bis zum Studienende), statt abzuschreiben.
 - Der **Name des Kindes** bleibt auf dem Gerät und wird nie gesendet.

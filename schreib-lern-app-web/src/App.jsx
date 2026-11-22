@@ -636,6 +636,7 @@ const EDU_TIPS=[
   {icon:"🧠",title:"Aus dem Kopf schreiben",text:"Nachfahren ist nur der Anfang. Am meisten lernen Kinder, wenn sie einen Buchstaben ansehen, abdecken und dann aus dem Gedächtnis schreiben. Die App führt Schritt für Schritt dorthin."},
   {icon:"➡️",title:"Richtung zählt",text:"Achten Sie auf Startpunkt und Schreibrichtung, nicht nur auf das Aussehen. Wer Buchstaben immer gleich schreibt, schreibt später flüssiger."},
   {icon:"🎁",title:"Spielen ohne Druck",text:"Jeder Buchstabe ist ein Level mit bis zu drei Sternen. Schatztruhen auf dem Spielbrett öffnen sich, wenn die Buchstaben davor gut geschrieben sind; was drin ist, bleibt eine Überraschung. Das Fleißglas füllt sich mit jedem richtig geschriebenen Zeichen, alle 8 Zeichen gibt es ein Geschenk. Es gibt keine Serien, die abreißen, keinen Zufall und kein „Komm zurück!“. Nach dem Tagesziel schlägt Klecks eine Pause vor."},
+  {icon:"🏠",title:"Das Schreibhaus",text:"Die Linien sind ein Haus: Dachgeschoss, Erdgeschoss und Keller. Sagen Sie beim Üben dazu, wo der Buchstabe wohnt: „Das g rutscht in den Keller.“ Im Schreibfeld leuchten die passenden Stockwerke, und im Bereich „Schreibhaus“ kann Ihr Kind das Zuordnen und die Hausstriche üben."},
   {icon:"🔁",title:"Wiederholen lohnt sich",text:"Ein Buchstabe sitzt besser, wenn er nach einem Tag noch einmal geübt wird. Die App schlägt dafür im Menü passende Buchstaben vor."},
 ];
 
@@ -2268,7 +2269,7 @@ function ProbeTest({wave,chars,difficulty,scale,onSpeak,onLog,onFinish,onExit}){
   );
   const a=anlautOf(ch);
   return(
-    <div style={page}>
+    <div style={page} data-probe-ch={ch}>
       <div style={{display:"flex",alignItems:"center",gap:8,width:"100%",maxWidth:480}}>
         <button onClick={onExit} style={{background:"white",border:"1px solid #e2e8f0",borderRadius:50,width:36,height:36,fontSize:16,cursor:"pointer"}}>←</button>
         <div style={{flex:1,height:10,background:"#ccfbf1",borderRadius:6,overflow:"hidden"}}>
@@ -2862,7 +2863,7 @@ const HAUSSTRICHE=[
   {ch:"~haus-keller",title:"Keller-Striche",hint:"Keller-Striche: bis ganz nach unten!",say:"Keller-Striche gehen vom Erdgeschoss bis in den Keller."},
   {ch:"~haus-treppe",title:"Kurz, lang, tief",hint:"Kurz, lang, tief – schau genau!",say:"Ein kurzer Strich, ein langer Strich und ein Keller-Strich."},
 ];
-function HouseStrokeRun({item,settings,pen,tools,scale,best,onSpeak,onWrite,onFinish,onBack}){
+function HouseStrokeRun({item,settings,pen,tools,scale,best,copyStep=true,onSpeak,onWrite,onFinish,onBack}){
   const name=useContext(ChildCtx);
   const [step,setStep]=useState("anim");       // anim → trace → copy → final
   const [replayKey,setReplayKey]=useState(0);
@@ -2872,7 +2873,7 @@ function HouseStrokeRun({item,settings,pen,tools,scale,best,onSpeak,onWrite,onFi
   useEffect(()=>{onSpeak(item.say);},[]);
   const done=(s)=>{last.current=s;if(s>=3)onWrite();};
   const next=()=>{
-    if(step==="trace"){setStep("copy");return;}
+    if(step==="trace"&&copyStep){setStep("copy");return;}
     const stars=last.current,title=cheer(name,stars);
     setResult({stars,title,record:best==null||stars>best});setStep("final");
     onFinish(stars);sfx(stars>=3?"fanfare":"done");
@@ -2910,8 +2911,8 @@ function HouseStrokeRun({item,settings,pen,tools,scale,best,onSpeak,onWrite,onFi
       </div>} steps={
       <div style={{display:"flex",alignItems:"center",background:"#ffffffb3",borderRadius:30,padding:"6px 8px"}} aria-label={step==="copy"?"Schritt 2: Abschreiben":"Schritt 1: Nachfahren"}>
         <div style={pill(step==="trace","#4361ee")}><Icon name="pencil" size={24} color={step==="trace"?"white":"#4361ee"} stroke={2.4}/></div>
-        <div style={{width:16,height:4,borderRadius:2,background:step==="copy"?"#f9731688":"#dfe4ee"}}/>
-        <div style={pill(step==="copy","#f97316")}><Icon name="eye" size={24} color={step==="copy"?"white":"#f97316"} stroke={2.4}/></div>
+        {copyStep&&<div style={{width:16,height:4,borderRadius:2,background:step==="copy"?"#f9731688":"#dfe4ee"}}/>}
+        {copyStep&&<div style={pill(step==="copy","#f97316")}><Icon name="eye" size={24} color={step==="copy"?"white":"#f97316"} stroke={2.4}/></div>}
       </div>}>
       {step==="anim"
         ?<AnimCanvas key={`hanim-${replayKey}`} letter={item.ch} scale={scale} zones={zones} onDone={()=>setStep("trace")}/>
@@ -4281,7 +4282,7 @@ export default function App(){
     );
     if(houseItem) return wrap(
       <HouseStrokeRun key={houseItem.ch} item={houseItem} settings={settings} pen={usePenNow} scale={fs} best={house.strokes?.[houseItem.ch]??null}
-        tools={<PenPicker pen={usePenNow} unlocks={unlocks} onPick={setPen}/>} onSpeak={sayIt} onWrite={addJar}
+        tools={<PenPicker pen={usePenNow} unlocks={unlocks} onPick={setPen}/>} onSpeak={sayIt} onWrite={addJar} copyStep={!rs.restricted}
         onFinish={(st)=>setHouse(h=>({...h,strokes:{...h.strokes,[houseItem.ch]:Math.max(h.strokes?.[houseItem.ch]||0,st)}}))}
         onBack={()=>setHouseItem(null)}/>
     );
@@ -4494,7 +4495,7 @@ function ImpressumScreen({onBack}){
             </p>
 
             <h3 style={s.h3}>2. Speicherung auf deinem Gerät</h3>
-            <p style={s.p}>Diese App speichert <strong>keine personenbezogenen Daten</strong> auf externen Servern. Lernfortschritte (Sterne, gelernte Buchstaben, Punkte, Tagesziel, geöffnete Schatztruhen, Rekorde im Wettbewerb), die gewählte Farbe und Sachen von Klecks, der freiwillig eingetragene Vorname des Kindes und die Einstellungen aus dem Elternbereich werden ausschließlich lokal im Speicher deines Browsers (localStorage) auf diesem Gerät abgelegt und nicht übertragen. Du kannst sie jederzeit im Elternbereich über „Fortschritt zurücksetzen" oder durch Löschen der Browserdaten entfernen.</p>
+            <p style={s.p}>Diese App speichert <strong>keine personenbezogenen Daten</strong> auf externen Servern. Lernfortschritte (Sterne, gelernte Buchstaben, Punkte, Tagesziel, geöffnete Schatztruhen, Rekorde im Wettbewerb und im Schreibhaus, ausgemalte Buchstaben), die gewählte Farbe und Sachen von Klecks, der freiwillig eingetragene Vorname des Kindes und die Einstellungen aus dem Elternbereich werden ausschließlich lokal im Speicher deines Browsers (localStorage) auf diesem Gerät abgelegt und nicht übertragen. Du kannst sie jederzeit im Elternbereich über „Fortschritt zurücksetzen" oder durch Löschen der Browserdaten entfernen.</p>
 
             <h3 style={s.h3}>3. Aufruf der Webseite (Server-Logfiles)</h3>
             <p style={s.p}>Beim Aufrufen der App überträgt dein Browser technisch bedingt Daten an unseren Webserver bzw. Hoster <span style={{background:"#fde68a",borderRadius:4,padding:"1px 5px"}}>[Name des Hosters]</span>: IP-Adresse, Datum und Uhrzeit, aufgerufene Datei, Browsertyp und Betriebssystem. Diese Daten sind für die Auslieferung der App erforderlich (Art. 6 Abs. 1 lit. f DSGVO), werden nicht mit anderen Daten zusammengeführt und nach <span style={{background:"#fde68a",borderRadius:4,padding:"1px 5px"}}>[z. B. 7]</span> Tagen gelöscht. Nach dem ersten Laden funktioniert die App auch offline.</p>
