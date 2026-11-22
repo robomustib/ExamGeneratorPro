@@ -74,8 +74,12 @@ const ASPECT = 1.3;          // so viel schmaler/breiter (im Verhältnis zur Hö
 //   stars: Mindestwerte für 5, 4, 3 und 2 Sterne · cap: höchstens so viele Sterne mit Hinweis
 export const PROFILES = {
   genau: { lim: { scale: [0.72, 1.4], maxDy: 30 }, tol: 1, stars: [0.88, 0.74, 0.55, 0.38], cap: 3 },
-  lernen: { lim: { scale: [0.62, 1.7], maxDy: 40 }, tol: 1.25, stars: [0.76, 0.6, 0.48, 0.3], cap: 4 },
+  lernen: { lim: { scale: [0.62, 1.7], maxDy: 40 }, tol: 1.25, stars: [0.76, 0.6, 0.48, 0.3], cap: 4, zones: true },
 };
+// Stockwerke (Schreibhaus: Dachgeschoss, Erdgeschoss, Keller): So weit darf ein Buchstabe oben
+// oder unten von seiner Vorlage abweichen, gemessen in Stockwerk-Höhen, bevor Klecks einen
+// Tipp gibt („Nicht in den Keller!“) und der dritte Stern wegfällt.
+const ZONE_TOL = 0.4;
 const LIM = PROFILES.genau.lim;
 // Nur zum Erkennen „Form stimmt, aber Größe oder Lage auf den Linien nicht“
 const FREE = { scale: [0.35, 2.8], maxDy: 400 };
@@ -245,10 +249,12 @@ function bestFit(drawnStrokes, D, tplStrokes, TOL, lim = LIM) {
 // viel), size (Form stimmt, aber "small"/"big": viel kleiner/größer, z. B. „o“ statt „O“,
 // oder "high"/"low": auf der falschen Zeile, z. B. „p“ statt „P“)
 // und mirrored (Buchstabe deutlich besser gespiegelt). profile: "lernen" oder "genau".
-export function scoreFree(drawnStrokes, tplStrokes, tol, profile = "genau") {
+// Stufe „lernen“ mit opt.zoneH (Höhe eines Stockwerks im Feld): zusätzlich zone = { top, bottom }
+// mit -1 (zu hoch), 0 (passt) oder +1 (zu tief) für die Ober- und die Unterkante; null = passt.
+export function scoreFree(drawnStrokes, tplStrokes, tol, profile = "genau", opt = {}) {
   const pr = PROFILES[profile] || PROFILES.genau, TOL = tol * pr.tol;
   const D = resample(drawnStrokes.map((s) => s.map((p) => [p[0], p[1]])));
-  if (D.length < 4) return { raw: 0, accuracy: 0, coverage: 0, tpl: tplStrokes, fit: { sx: 1, sy: 1, tx: 0, ty: 0 }, missing: null, extra: false, size: null, mirrored: false, profile };
+  if (D.length < 4) return { raw: 0, accuracy: 0, coverage: 0, tpl: tplStrokes, fit: { sx: 1, sy: 1, tx: 0, ty: 0 }, missing: null, extra: false, size: null, zone: null, mirrored: false, profile };
   const best = bestFit(drawnStrokes, D, tplStrokes, TOL, pr.lim);
   const dots = tplStrokes.map((s) => polyLength(s) < DOT);
   const missing = best.parts.some((v, i) => !dots[i] && v < 0.7) ? "part"
@@ -271,6 +277,13 @@ export function scoreFree(drawnStrokes, tplStrokes, tol, profile = "genau") {
       size = f.sy * cy + f.ty < cy ? "high" : "low";
     }
   }
+  // Stockwerke: nur wenn der Buchstabe als solcher erkennbar ist (sonst wäre der Tipp Unsinn)
+  let zone = null;
+  if (pr.zones && opt.zoneH && D.some((p) => !p[5]) && (best.raw >= pr.stars[3] || size)) {
+    const t = ZONE_TOL * opt.zoneH, side = (d) => (d < -t ? -1 : d > t ? 1 : 0);
+    const top = side(hd.y0 - ht.y0), bottom = side(hd.y1 - ht.y1);
+    if (top || bottom) zone = { top, bottom };
+  }
   // Gespiegelt? Nur bei Zeichen, die gespiegelt anders aussehen
   const m = mirrorStrokes(tplStrokes);
   const symmetric = m.flat().every((p) => distToPolyline(p[0], p[1], tplStrokes) < tol * 0.6);
@@ -283,17 +296,18 @@ export function scoreFree(drawnStrokes, tplStrokes, tol, profile = "genau") {
     mirrored = bm.raw > 0.6 && (bm.raw > best.raw + 0.1 || tight(bm) > tight(best) + 0.15);
   }
   const { T, drawnLen, ...rest } = best;
-  return { ...rest, missing, size, mirrored, profile };
+  return { ...rest, missing, size, zone, mirrored, profile };
 }
 
 // Sterne (1–5) für frei Geschriebenes. 5 = gut erkennbare, sauber geformte Schrift;
-// dafür muss ein Kind nicht pixelgenau schreiben. Fehlt ein Teil, ist ein Strich zu viel
-// oder passt die Größe gar nicht, gibt es höchstens cap Sterne (genau: 3, lernen: 4 —
-// beim Lernen ist das ein Tipp, kein Hindernis). Gespiegelt: höchstens 2.
+// dafür muss ein Kind nicht pixelgenau schreiben. Fehlt ein Teil, ist ein Strich zu viel,
+// passt die Größe gar nicht oder sitzt der Buchstabe im falschen Stockwerk, gibt es höchstens
+// cap Sterne (genau: 3, lernen: 4 — beim Lernen ist das ein Tipp, kein Hindernis).
+// Gespiegelt: höchstens 2.
 export function freeStars(sc) {
   const pr = PROFILES[sc.profile] || PROFILES.genau, r = sc.raw, [s5, s4, s3, s2] = pr.stars;
   let s = r >= s5 ? 5 : r >= s4 ? 4 : r >= s3 ? 3 : r >= s2 ? 2 : 1;
-  if (sc.missing || sc.extra || sc.size) s = Math.min(s, pr.cap);
+  if (sc.missing || sc.extra || sc.size || sc.zone) s = Math.min(s, pr.cap);
   if (sc.mirrored) s = Math.min(s, 2);
   return s;
 }

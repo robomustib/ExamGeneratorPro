@@ -45,6 +45,8 @@ button,input,select,textarea{font-family:inherit}
 @keyframes glowPulse   { 0%,100%{box-shadow:0 0 10px #ffc93caa} 50%{box-shadow:0 0 26px #ffc93cff} }
 @keyframes slideUp     { from{transform:translateY(40px);opacity:0} to{transform:translateY(0);opacity:1} }
 @keyframes shake       { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+@keyframes kSpin       { to{transform:rotate(360deg)} }
+@keyframes kShine      { 0%,100%{transform:scale(1);filter:brightness(1)} 50%{transform:scale(1.035);filter:brightness(1.12)} }
 @keyframes hintWiggle  { 0%,100%{transform:rotate(0) scale(1)} 25%{transform:rotate(-6deg) scale(1.08)} 75%{transform:rotate(6deg) scale(1.08)} }
 /* Wer in den Systemeinstellungen „Bewegung reduzieren" gewählt hat, bekommt keine Animationen */
 @media (prefers-reduced-motion: reduce){
@@ -229,21 +231,115 @@ const STROKES=(()=>{
     "~arkade":[S(...[0,1,2].map(i=>arc(X0+WD*(i+0.5),GL,WD/2/AX,36,180,360)))],      // ∩∩∩
     "~zickzack":[S([X0,GL],...[1,2,3,4,5,6].map(i=>[X0+WD/2*i,i%2?ML:GL]))],
     "~schleife":[S(...loops)],
+
+    // ── Hausstriche (Schreibhaus): kurz = Erdgeschoss, lang = Dach bis Boden, Keller = bis unten ──
+    "~haus-kurz":[30,50,70].map(x=>S([x,ML],[x,GL])),
+    "~haus-lang":[30,50,70].map(x=>S([x,OL],[x,GL])),
+    "~haus-keller":[30,50,70].map(x=>S([x,ML],[x,UL])),
+    "~haus-treppe":[S([30,ML],[30,GL]),S([50,OL],[50,GL]),S([70,ML],[70,UL])],
   };
 })();
 
-// Vierliniensystem zeichnen (Mittelband leicht hinterlegt wie im Schulheft)
-function drawLineatur(ctx,W,H,{alpha="30",width=1.5,dash=[4,4]}={}){
+// ═══════════════════════════════════════════════════════════════════════════════
+// SCHREIBHAUS — die drei Stockwerke der Lineatur
+// ═══════════════════════════════════════════════════════════════════════════════
+// Wie im Schulheft: Dachgeschoss (Ober- bis Mittellinie), Erdgeschoss (Mittel- bis
+// Grundlinie), Keller (Grund- bis Unterlinie). Kleine Buchstaben wohnen im Erdgeschoss,
+// Oberlängen und Großbuchstaben reichen ins Dachgeschoss, Unterlängen rutschen in den Keller.
+// Wer andere Wörter möchte (z. B. „Dachboden“), ändert nur die Namen und Sätze hier.
+const FLOORS=[
+  {id:"dach",  name:"Dachgeschoss",y0:LINES.top, y1:LINES.mid,   rgb:"125,190,255"},
+  {id:"erd",   name:"Erdgeschoss", y0:LINES.mid, y1:LINES.base,  rgb:"253,215,80"},
+  {id:"keller",name:"Keller",      y0:LINES.base,y1:LINES.bottom,rgb:"190,150,110"},
+];
+// In welchen Stockwerken wohnt ein Zeichen? Aus den Strichdaten berechnet; Punkte (i, ä …)
+// zählen nicht mit.
+const zoneCache={};
+function zonesOf(letter){
+  if(zoneCache[letter])return zoneCache[letter];
+  const ys=(STROKES[letter]||[]).filter(st=>polyLength(st)>=6).flat().map(p=>p[1]);
+  const top=ys.length?Math.min(...ys):LINES.mid,bottom=ys.length?Math.max(...ys):LINES.base;
+  return zoneCache[letter]={dach:top<LINES.mid-8,erd:true,keller:bottom>LINES.base+8};
+}
+const zoneKind=(l)=>{const z=zonesOf(l);return z.dach&&z.keller?"alle":z.dach?"dach":z.keller?"keller":"erd";};
+const zoneWho=(l)=>/^[0-9]$/.test(l)?`Die ${l}`:`Das ${l}`;
+// Kurz für die Sprechblase, ausführlich zum Vorlesen
+function zoneShort(l){
+  const w=zoneWho(l);
+  return {alle:`${w} wohnt im ganzen Haus.`,dach:`${w} wohnt im Dach- und Erdgeschoss.`,keller:`${w} wohnt im Erdgeschoss und Keller.`,erd:`${w} wohnt im Erdgeschoss.`}[zoneKind(l)];
+}
+function zoneLong(l){
+  const n=sayName(l),w=n[0].toUpperCase()+n.slice(1);
+  return {alle:`${w} wohnt im ganzen Haus: vom Dachgeschoss bis in den Keller.`,dach:`${w} wohnt im Dachgeschoss und im Erdgeschoss.`,
+    keller:`${w} wohnt im Erdgeschoss und im Keller.`,erd:`${w} wohnt im Erdgeschoss.`}[zoneKind(l)];
+}
+// Tipp, wenn der Buchstabe im falschen Stockwerk sitzt. z: Ober- und Unterkante,
+// -1 = zu hoch, +1 = zu tief (aus der Bewertung). Schwungübungen bekommen allgemeine Sätze.
+function zoneNote(l,z){
+  if(l.startsWith("~")){
+    return z.top<0&&z.bottom<0?"Zu hoch! Schau auf die Stockwerke.":z.top>0&&z.bottom>0?"Zu tief! Schau auf die Stockwerke."
+      :z.top<0&&z.bottom>0?"Zu groß! Schau auf die Stockwerke.":z.top>0&&z.bottom<0?"Zu klein! Schau auf die Stockwerke."
+      :z.top<0?"Oben zu weit! Nur bis zur Linie.":z.top>0?"Höher! Bis oben an die Linie.":z.bottom>0?"Unten zu weit! Nur bis zur Linie.":"Tiefer! Bis unten an die Linie.";
+  }
+  const zs=zonesOf(l),w=zoneWho(l),home=zoneShort(l);
+  if(z.top<0&&z.bottom<0)return zs.keller?`Zu hoch! ${w} rutscht in den Keller.`:`Zu hoch! ${home}`;
+  if(z.top>0&&z.bottom>0)return zs.dach?`Zu tief! ${w} reicht bis ins Dach.`:`Zu tief! ${home}`;
+  if(z.top<0&&z.bottom>0)return zoneKind(l)==="erd"?`Zu groß! ${w} bleibt im Erdgeschoss.`:`Zu groß! ${home}`;
+  if(z.top>0&&z.bottom<0)return zs.dach?`Zu klein! ${w} reicht bis ins Dach.`:zs.keller?`Zu klein! ${w} rutscht in den Keller.`:"Zu klein! Füll das Erdgeschoss aus.";
+  if(z.top<0)return zs.dach?"Nicht übers Dach hinaus!":`Nicht ins Dach! ${w} bleibt unten.`;
+  if(z.top>0)return zs.dach?`Höher! ${w} reicht bis ins Dach.`:"Größer! Bis zur Decke vom Erdgeschoss.";
+  if(z.bottom>0)return zs.keller?"Nicht so tief! Nur bis zur Kellerlinie.":"Nicht in den Keller! Bleib auf dem Boden.";
+  return zs.keller?`Tiefer! ${w} rutscht in den Keller.`:"Tiefer! Bis auf den Boden.";
+}
+// Größenfehler der genauen Bewertung in dieselbe Form bringen
+const SIZE_ZONE={small:{top:1,bottom:-1},big:{top:-1,bottom:1},high:{top:-1,bottom:-1},low:{top:1,bottom:1}};
+
+// Vierliniensystem zeichnen.
+//   ohne house: Mittelband leicht hinterlegt wie im Schulheft (Schreibtest der Studie)
+//   house:      die drei Stockwerke farbig, am linken Rand kleine Zeichen (Dach, Haus, Treppe)
+//   lit:        Stockwerke, in denen der Buchstabe wohnt ({dach,erd,keller}) — sie leuchten,
+//               die anderen treten zurück; glow 0–1 lässt das Leuchten pulsieren
+function drawLineatur(ctx,W,H,{alpha="30",width=1.5,dash=[4,4],house=false,lit=null,glow=1,icons=true}={}){
   ctx.save();
-  ctx.fillStyle="#fde68a26";
-  ctx.fillRect(0,H*LINES.mid/130,W,H*(LINES.base-LINES.mid)/130);
+  if(!house){
+    ctx.fillStyle="#fde68a26";
+    ctx.fillRect(0,H*LINES.mid/130,W,H*(LINES.base-LINES.mid)/130);
+  } else FLOORS.forEach(f=>{
+    const a=!lit?(f.id==="erd"?0.15:0.07):lit[f.id]?0.2+0.16*glow:0.035;
+    ctx.fillStyle=`rgba(${f.rgb},${a})`;
+    ctx.fillRect(0,H*f.y0/130,W,H*(f.y1-f.y0)/130);
+  });
   ctx.lineWidth=width;ctx.setLineDash(dash);
   [[LINES.top,"#3b82f6"],[LINES.mid,"#3b82f6"],[LINES.base,"#ef4444"],[LINES.bottom,"#3b82f6"]].forEach(([y,c])=>{
     ctx.strokeStyle=c+alpha;
     ctx.beginPath();ctx.moveTo(0,H*y/130);ctx.lineTo(W,H*y/130);ctx.stroke();
   });
+  if(house&&icons&&W>=150){
+    // Zeichen am Rand: Dach, Haus mit Tür, Kellertreppe
+    ctx.setLineDash([]);
+    const u=W*0.055,cx=W*0.045;
+    FLOORS.forEach(f=>{
+      const cy=H*(f.y0+f.y1)/2/130;
+      ctx.globalAlpha=!lit?0.55:lit[f.id]?0.95:0.22;
+      ctx.beginPath();
+      if(f.id==="dach"){
+        ctx.moveTo(cx-u*0.55,cy+u*0.35);ctx.lineTo(cx,cy-u*0.45);ctx.lineTo(cx+u*0.55,cy+u*0.35);ctx.closePath();
+        ctx.fillStyle="#e2725b";ctx.fill();
+      } else if(f.id==="erd"){
+        ctx.fillStyle="#f0a63a";ctx.fillRect(cx-u*0.45,cy-u*0.4,u*0.9,u*0.8);
+        ctx.fillStyle="#8a5a2b";ctx.fillRect(cx-u*0.13,cy-u*0.02,u*0.26,u*0.42);
+      } else {
+        ctx.moveTo(cx-u*0.5,cy-u*0.4);ctx.lineTo(cx-u*0.17,cy-u*0.4);ctx.lineTo(cx-u*0.17,cy-u*0.1);ctx.lineTo(cx+u*0.17,cy-u*0.1);
+        ctx.lineTo(cx+u*0.17,cy+u*0.2);ctx.lineTo(cx+u*0.5,cy+u*0.2);ctx.lineTo(cx+u*0.5,cy+u*0.42);ctx.lineTo(cx-u*0.5,cy+u*0.42);ctx.closePath();
+        ctx.fillStyle="#a07850";ctx.fill();
+      }
+    });
+    ctx.globalAlpha=1;
+  }
   ctx.restore();
 }
+// Schwungübungen reichen bis an den Rand: dort keine Zeichen
+const houseIcons=(letter)=>!letter.startsWith("~")||letter.startsWith("~haus");
 
 // Buchstabe als kleines Bild aus denselben Strichdaten (Auswahlraster, Anzeige),
 // damit dort dieselbe Schulschrift erscheint wie beim Schreiben (z. B. „a" statt Arial-„a").
@@ -873,16 +969,16 @@ function drawModel(ctx,strokes,{color="#4361ee",width=9,alpha=1,numbers=true,arr
 }
 
 // Kleine Vorlagenkarte neben dem Schreibfeld (Modus „Abschreiben")
-function ModelCard({letter,W=110,H=131}){
+function ModelCard({letter,W=110,H=131,zones=null}){
   const ref=useRef(null);
   const [k]=useState(()=>pixelRatio(1));
   const strokes=useStrokes(letter,W,H);
   useCanvasScale([ref],k);
   useEffect(()=>{
     const ctx=ref.current.getContext("2d");
-    ctx.clearRect(0,0,W,H);drawLineatur(ctx,W,H,{alpha:"40",width:1,dash:[3,3]});
+    ctx.clearRect(0,0,W,H);drawLineatur(ctx,W,H,{alpha:"40",width:1,dash:[3,3],house:true,lit:zones});
     drawModel(ctx,strokes,{width:4.5,font:10});
-  },[strokes,W,H]);
+  },[strokes,W,H,zones]);
   return(
     <div style={{background:"white",borderRadius:14,padding:4,border:"2px solid #fdba74",boxShadow:"0 2px 10px #f9731630"}}>
       <canvas ref={ref} width={W*k} height={H*k} style={{display:"block",width:W,height:H,borderRadius:10,background:"#fafafa"}}/>
@@ -942,7 +1038,7 @@ function StrokePreview({letter, W=80, H=96}){
       // Light background
       ctx.fillStyle="#f8fafc";ctx.fillRect(0,0,W,H);
       // Ruled lines
-      drawLineatur(ctx,W,H,{alpha:"30",width:1,dash:[3,3]});
+      drawLineatur(ctx,W,H,{alpha:"30",width:1,dash:[3,3],house:true});
       // All previous strokes faint grey
       for(let i=0;i<si;i++){
         const p=strokes[i];
@@ -1003,7 +1099,7 @@ function StrokePreview({letter, W=80, H=96}){
 // ═══════════════════════════════════════════════════════════════════════════════
 // ANIM CANVAS  — animates stroke-by-stroke before tracing phase
 // ═══════════════════════════════════════════════════════════════════════════════
-function AnimCanvas({letter, onDone, scale=1, W=260, H=310, preview=null}){
+function AnimCanvas({letter, onDone, scale=1, W=260, H=310, preview=null, zones=null}){
   const inGrid=useContext(LayoutCtx);
   const ref=useRef(null);const rafRef=useRef(null);const tmrRef=useRef(null);
   const th=useContext(ThemeCtx);
@@ -1011,8 +1107,8 @@ function AnimCanvas({letter, onDone, scale=1, W=260, H=310, preview=null}){
   useCanvasScale([ref],k);
   const strokes=useStrokes(letter,W,H);
   const drawRules=useCallback((ctx)=>{
-    drawLineatur(ctx,W,H);
-  },[W,H]);
+    drawLineatur(ctx,W,H,{house:true,lit:zones,icons:houseIcons(letter)});
+  },[W,H,zones,letter]);
   useEffect(()=>{
     const canvas=ref.current;if(!canvas)return;
     const ctx=canvas.getContext("2d");let si=0,pi=0;
@@ -1128,9 +1224,11 @@ const COACH={
 };
 // profile: Bewertung beim freien Schreiben — "lernen" (Lernweg, großzügig) oder "genau"
 // (Wettbewerb, Schreibtest). copyHint: Satz beim Abschreiben (z. B. für Schwungübungen).
+// zoneHelp: Schreibhaus-Hilfe — die Stockwerke, in denen der Buchstabe wohnt, leuchten, und
+// Klecks sagt sie an. Nach einem Stockwerk-Fehler leuchten sie beim nächsten Versuch immer.
 function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="medium",mode="trace",memoryDelay=1,pen="classic",
                      lefthanded=false,highContrast=false,hapticsEnabled=true,onSpeak=()=>{},onTrial=null,scale=1,W=260,H=310,
-                     profile=null,copyHint="Schau auf die Vorlage und schreib ab!"}){
+                     profile=null,copyHint=null,zoneHelp=false}){
   const childName=useContext(ChildCtx);
   const inGrid=useContext(LayoutCtx);
   const bgRef=useRef(null);const ovRef=useRef(null);
@@ -1167,8 +1265,14 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
   const guided=mode==="trace";                         // Vorlage im Feld?
   const probe=mode==="probe";                          // Schreibtest: keine Rückmeldung
   const canWrite=memPhase==="write"&&!done;
+  const [zoneRetry,setZoneRetry]=useState(false);
+  const lit=!probe&&(zoneHelp||zoneRetry)?zonesOf(letter):null;
+  const litRef=useRef(lit);litRef.current=lit;
+  const zoneGlow=useRef(1);
 
-  const drawRules=useCallback((ctx)=>{drawLineatur(ctx,W,H);},[W,H]);
+  const drawRules=useCallback((ctx)=>{
+    drawLineatur(ctx,W,H,probe?{}:{house:true,lit,glow:zoneGlow.current,icons:houseIcons(letter)});
+  },[W,H,probe,lit,letter]);
 
   const drawTemplate=useCallback((ctx,pulseR=11)=>{
     ctx.clearRect(0,0,W,H);drawRules(ctx);
@@ -1269,6 +1373,27 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
   useEffect(()=>{if(bgRef.current)drawTemplate(bgRef.current.getContext("2d"));},[memPhase]);
   useEffect(()=>()=>{clearTimeout(coachTimer.current);report(false);},[]);
 
+  // Schreibhaus-Hilfe: Die Stockwerke pulsieren kurz, wenn das Kind dran ist (ohne Vorlage im Feld)
+  useEffect(()=>{
+    if(guided||!lit||!canWrite||reducedMotion())return;
+    const t0=performance.now();let raf;
+    const tick=(now)=>{
+      const t=Math.min(1,(now-t0)/1500);
+      zoneGlow.current=0.5+0.5*Math.cos(t*Math.PI*4);
+      const bg=bgRef.current;if(!bg)return;
+      drawTemplate(bg.getContext("2d"));
+      if(t<1)raf=requestAnimationFrame(tick);
+    };
+    raf=requestAnimationFrame(tick);
+    return()=>{cancelAnimationFrame(raf);zoneGlow.current=1;};
+  },[guided,lit,canWrite,drawTemplate]);
+  // … und Klecks sagt beim Abschreiben, wo der Buchstabe wohnt
+  useEffect(()=>{
+    if(mode!=="copy"||!litRef.current||copyHint||letter.startsWith("~"))return;
+    const t=setTimeout(()=>onSpeak(zoneLong(letter)),350);
+    return()=>clearTimeout(t);
+  },[letter,mode,round]);
+
   // Aus-dem-Kopf: zeigen → warten (Countdown) → schreiben.
   // Nach einem Erfolg wird die Wartezeit fürs nächste Mal länger; der gerade fertige Versuch
   // startet davon nicht neu (sonst überdeckt die Vorlage den Vergleich mit der Schrift).
@@ -1277,7 +1402,7 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
     const delay=trialDelay.current=delayNow.current;
     setMemPhase("show");
     const timers=[];
-    const write=()=>{setMemPhase("write");markOnset();onSpeak("Jetzt du! Schreib ihn aus dem Kopf.");};
+    const write=()=>{setMemPhase("write");markOnset();onSpeak(litRef.current&&!letter.startsWith("~")?`Jetzt du! ${zoneLong(letter)}`:"Jetzt du! Schreib ihn aus dem Kopf.");};
     timers.push(setTimeout(()=>{
       if(delay<=0){write();return;}
       setMemPhase("wait");setCountdown(delay);
@@ -1400,7 +1525,11 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
     const TOL=diff.tolerance*(guided?1:1.3);
     // Nachfahren: direkt an der Vorlage im Feld messen. Frei geschrieben: Es zählt die Form —
     // die Vorlage wird an die Schrift angelegt (Stelle und Größe in Grenzen egal).
-    const sc=guided?scoreDrawing(drawn.current,strokes,TOL):scoreFree(drawn.current,strokes,TOL,profile||(probe?"genau":"lernen"));
+    const sc=guided?scoreDrawing(drawn.current,strokes,TOL)
+      :scoreFree(drawn.current,strokes,TOL,profile||(probe?"genau":"lernen"),{zoneH:H*(LINES.base-LINES.mid)/130});
+    // Stockwerk daneben: Tipp in Haus-Sprache, und beim nächsten Versuch leuchten die Stockwerke
+    const zoneOff=guided||probe?null:sc.zone||SIZE_ZONE[sc.size]||null;
+    if(zoneOff)setZoneRetry(true);
     const raw=sc.raw,tpl=guided?strokes:sc.tpl,mirrored=!guided&&sc.mirrored;
     const s=guided?Math.max(1,Math.min(5,Math.round(raw*5))):freeStars(sc);
     report(true,{accuracy:+sc.accuracy.toFixed(3),coverage:+sc.coverage.toFixed(3),score_raw:+raw.toFixed(3),stars:s,mirrored:guided?null:mirrored?1:0});
@@ -1415,14 +1544,21 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
       // Vergleich zeigen: Vorlage hinter die Schrift des Kindes legen — dort, wo das Kind
       // geschrieben hat, damit es sieht, wie gut die Form passt
       const ctx=bgRef.current.getContext("2d");
-      ctx.clearRect(0,0,W,H);drawRules(ctx);
-      drawModel(ctx,tpl,{color:"#22c55e",width:16,alpha:0.35,numbers:false,arrows:false});
+      ctx.clearRect(0,0,W,H);
+      drawLineatur(ctx,W,H,{house:true,lit:lit||(zoneOff?zonesOf(letter):null),icons:houseIcons(letter)});
+      // Stockwerk daneben: Grün steht im richtigen Stockwerk und in der richtigen Größe (nur
+      // seitlich zur Schrift geschoben), damit das Kind den Unterschied sieht
+      let shown=tpl;
+      if(zoneOff){
+        const d=bbox(drawn.current.flat()),t=bbox(strokes.flat()),dx=(d.x0+d.x1)/2-(t.x0+t.x1)/2;
+        shown=strokes.map(st=>st.map(([x,y])=>[x+dx,y]));
+      }
+      drawModel(ctx,shown,{color:"#22c55e",width:16,alpha:zoneOff?0.5:0.35,numbers:false,arrows:false});
     }
     let note=null;
     if(mirrored)note="Gespiegelt! Schau, in welche Richtung er zeigt.";
     else if(!guided&&sc.missing==="dots")note="Die Punkte nicht vergessen!";
-    else if(!guided&&sc.size)note={small:"Schreib so groß wie die Vorlage!",big:"Etwas kleiner – so groß wie die Vorlage!",
-      high:"Etwas zu hoch. Schau auf die Linien!",low:"Etwas zu tief. Schau auf die Linien!"}[sc.size];
+    else if(zoneOff)note=zoneNote(letter,zoneOff);
     else if(!guided&&sc.missing)note="Da fehlt ein Teil. Grün zeigt dir, welcher.";
     else if(!guided&&sc.extra)note="Ein Strich zu viel. Grün zeigt, wie es geht.";
     else if(formationErrors.current>=2)note="Tipp: Immer beim gelben Punkt anfangen.";
@@ -1441,8 +1577,8 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
   const allStrokesDone=guided&&strokeIdx.current>=strokes.length;
   const hint=mode==="memory"&&memPhase==="show"?"Merk dir den Buchstaben!"
     :mode==="memory"&&memPhase==="wait"?"Gleich bist du dran …"
-    :mode==="memory"?"Jetzt aus dem Kopf schreiben!"
-    :mode==="copy"?copyHint
+    :mode==="memory"?(lit&&!letter.startsWith("~")?`Aus dem Kopf! ${zoneShort(letter)}`:"Jetzt aus dem Kopf schreiben!")
+    :mode==="copy"?(copyHint||(lit&&!letter.startsWith("~")?zoneShort(letter):"Schau auf die Vorlage und schreib ab!"))
     :probe?"Schreib ihn aus dem Kopf!"
     :allStrokesDone?"Super! Tippe auf Fertig."
     :`Strich ${strokeIdx.current+1} von ${strokes.length} – fahr ihn nach!`;
@@ -1461,7 +1597,7 @@ function TraceCanvas({letter,onComplete,onNext=null,tools=null,difficulty="mediu
         :mode==="copy"
           ?<div style={{display:"flex",alignItems:"center",gap:8,width:"100%"}}>
              <div style={{flex:1,minWidth:0}}><KlecksBubble {...bubble} kick={kick} minH={58}/></div>
-             <ModelCard letter={letter} W={96} H={114}/>
+             <ModelCard letter={letter} W={96} H={114} zones={lit}/>
            </div>
           :<KlecksBubble {...bubble} kick={kick} minH={58} maxWidth={W*scale+22}/>}
       </div>
@@ -1533,7 +1669,7 @@ const RedoIconBtn=({onClick})=>(
 // ═══════════════════════════════════════════════════════════════════════════════
 // GUIDED CANVAS  — Phase 1: geführt, Phase 2: frei nachzeichnen, Phase 3: Vergleich
 // ═══════════════════════════════════════════════════════════════════════════════
-function GuidedCanvas({letter, onComplete, onNext=null, tools=null, pen="classic", onSpeak=()=>{}, onTrial=null, scale=1, W=260, H=310}){
+function GuidedCanvas({letter, onComplete, onNext=null, tools=null, pen="classic", onSpeak=()=>{}, onTrial=null, scale=1, W=260, H=310, zones=null}){
   const childName=useContext(ChildCtx);
   const inGrid=useContext(LayoutCtx);
   const bgRef=useRef(null);
@@ -1576,8 +1712,8 @@ function GuidedCanvas({letter, onComplete, onNext=null, tools=null, pen="classic
   const strokes=useStrokes(letter,W,H);
 
   const drawRules=useCallback((ctx)=>{
-    drawLineatur(ctx,W,H);
-  },[W,H]);
+    drawLineatur(ctx,W,H,{house:true,lit:zones,icons:houseIcons(letter)});
+  },[W,H,zones,letter]);
 
   // Shared arrow helper
   const arrow=(ctx,pts,atIdx,color,size=13)=>{
@@ -1656,7 +1792,7 @@ function GuidedCanvas({letter, onComplete, onNext=null, tools=null, pen="classic
     const sx=1,sy=1; // der Bildschirm-Maßstab steckt bereits im Canvas-Kontext
     ctx.clearRect(0,0,W,H);
     ctx.fillStyle="#f8fafc";ctx.fillRect(0,0,W,H);
-    drawLineatur(ctx,W,H,{alpha:"25",width:1,dash:[3,3]});
+    drawLineatur(ctx,W,H,{alpha:"25",width:1,dash:[3,3],house:true,lit:zones,icons:houseIcons(letter)});
     strokes.forEach(pts=>{
       ctx.beginPath();ctx.moveTo(pts[0][0]*sx,pts[0][1]*sy);
       for(let j=1;j<pts.length;j++)ctx.lineTo(pts[j][0]*sx,pts[j][1]*sy);
@@ -1689,7 +1825,7 @@ function GuidedCanvas({letter, onComplete, onNext=null, tools=null, pen="classic
       ctx.font=`bold ${10*sx}px Arial`;ctx.fillStyle="#92400e";
       ctx.fillText(si2+1,pts2[0][0]*sx+8*sx,pts2[0][1]*sy-4*sy);
     });
-  },[strokes,W,H]);
+  },[strokes,W,H,zones,letter]);
 
   const calcScore=useCallback(()=>{
     const pts=freePoints.current.filter(p=>p);if(pts.length<4)return 0;
@@ -2290,6 +2426,21 @@ function ParentZone({settings,onChange,onClose,journal,onStartProbe}){
           })}
         </div>
 
+        {/* Schreibhaus-Hilfe */}
+        <div style={{marginBottom:14,paddingBottom:14,borderBottom:"1px solid #e2e8f0"}}>
+          <h4 style={{margin:"0 0 4px",fontSize:14,fontWeight:800,color:"#1e3a8a"}}>🏠 Schreibhaus-Hilfe</h4>
+          <p style={{fontSize:11,color:"#94a3b8",margin:"0 0 10px"}}>Die Stockwerke, in denen ein Buchstabe wohnt (Dachgeschoss, Erdgeschoss, Keller), leuchten im Schreibfeld, und Klecks sagt sie an.</p>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {[["auto","Automatisch","leuchten, bis der Buchstabe einmal aus dem Kopf geklappt hat"],["always","Immer","auch beim Schreiben aus dem Kopf"],["off","Aus","nur die Linien"]].map(([k,label,desc])=>{
+              const on=(settings.zoneHelp||"auto")===k;
+              return(
+                <button key={k} data-zone-help={k} onClick={()=>onChange({...settings,zoneHelp:k})} style={{padding:"9px 14px",borderRadius:12,border:`2px solid ${on?"#f59e0b":"#e2e8f0"}`,background:on?"#fff7e0":"white",color:"#374151",fontSize:13,cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}>
+                  <b>{label}</b> <span style={{color:"#6b7280",fontSize:11}}>– {desc}</span>
+                </button>);
+            })}
+          </div>
+        </div>
+
         {/* Barrierefreiheit */}
         <div style={{marginBottom:14,paddingBottom:14,borderBottom:"1px solid #e2e8f0"}}>
           <h4 style={{margin:"0 0 4px",fontSize:14,fontWeight:800,color:"#1e3a8a"}}>♿ Barrierefreiheit</h4>
@@ -2312,9 +2463,9 @@ function ParentZone({settings,onChange,onClose,journal,onStartProbe}){
         {/* Options */}
         <div style={{marginBottom:14,paddingBottom:14,borderBottom:"1px solid #e2e8f0"}}>
           <h4 style={{margin:"0 0 8px",fontSize:14,fontWeight:800,color:"#1e3a8a"}}>⚙️ Optionen</h4>
-          {[["autoAdvance","Automatisch zum nächsten Buchstaben (sonst mit dem Knopf „Weiter“)"],["speechEnabled","Vorlesen aktiviert"],["soundEnabled","Töne (kurze Klänge bei Erfolg)"],["rewardVideos","Effekte zeigen (Truhe öffnen, Sternenregen, hüpfender Klecks)"]].map(([k,label])=>(
+          {[["autoAdvance","Automatisch zum nächsten Buchstaben (sonst mit dem Knopf „Weiter“)"],["speechEnabled","Vorlesen aktiviert"],["soundEnabled","Töne (kurze Klänge bei Erfolg)"],["rewardVideos","Effekte zeigen (Truhe öffnen, Sternenregen, hüpfender Klecks)"],["paintBreak","Mal-Pause nach drei geschriebenen Buchstaben (Farbrad und Ausmalen)"]].map(([k,label])=>(
             <label key={k} style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:"#374151",marginBottom:8,cursor:"pointer"}}>
-              <input type="checkbox" checked={k==="soundEnabled"?settings[k]!==false:!!settings[k]} onChange={e=>onChange({...settings,[k]:e.target.checked})} style={{width:16,height:16}}/>
+              <input type="checkbox" data-opt={k} checked={k==="soundEnabled"||k==="paintBreak"?settings[k]!==false:!!settings[k]} onChange={e=>onChange({...settings,[k]:e.target.checked})} style={{width:16,height:16}}/>
               {label}
             </label>
           ))}
@@ -2335,6 +2486,7 @@ function ParentZone({settings,onChange,onClose,journal,onStartProbe}){
             <div><b>Sicher aus dem Kopf geschrieben:</b> {Object.values(settings.memMap||{}).filter(v=>v>0).length}</div>
             <div><b>Geöffnete Schatztruhen:</b> {(settings.chests||[]).length} von {Object.values(CHESTS).flat().length}</div>
             <div><b>Fleißglas gefüllt:</b> {settings.jar?.filled||0}-mal</div>
+            <div><b>Ausgemalte Leuchtbuchstaben:</b> {Object.keys(settings.paint?.done||{}).length}</div>
           </div>
           {journal.length>0&&(
             <div style={{marginTop:10}}>
@@ -2496,6 +2648,7 @@ function WordPractice({word, settings, pen="classic", onSpeak=()=>{}, onTrial=nu
   const [finished,setFinished]=useState(false);
 
   const current=letters[idx];
+  const wz=(settings.zoneHelp||"auto")!=="off"?zonesOf(current):null;   // Schreibhaus-Hilfe
 
   const handleLetterDone=(stars)=>{
     if(stars>=3)onWrite();
@@ -2555,16 +2708,503 @@ function WordPractice({word, settings, pen="classic", onSpeak=()=>{}, onTrial=nu
         {settings.allowedModes?.trace&&<button data-mode="trace" aria-label="Nachfahren" className="k-press" style={pill(phase==="trace_free","#4361ee")} onClick={()=>setPhase("trace_free")}><Icon name="pencil" size={22} color="currentColor" stroke={2.4}/></button>}
       </div>}>
         {phase==="anim"&&
-          <AnimCanvas key={`wanim-${current}-${idx}-${replayKey}`} letter={current} scale={scale}
+          <AnimCanvas key={`wanim-${current}-${idx}-${replayKey}`} letter={current} scale={scale} zones={wz}
             onDone={()=>setPhase(settings.allowedModes?.guided?"trace_guided":"trace_free")}/>}
         {phase==="trace_guided"&&
-          <GuidedCanvas key={`wguided-${current}-${idx}-${replayKey}`} letter={current} onComplete={handleLetterDone} onSpeak={onSpeak} scale={scale} pen={pen}
+          <GuidedCanvas key={`wguided-${current}-${idx}-${replayKey}`} letter={current} onComplete={handleLetterDone} onSpeak={onSpeak} scale={scale} pen={pen} zones={wz}
             onTrial={onTrial&&(t=>onTrial(current,t))}/>}
         {phase==="trace_free"&&
           <TraceCanvas key={`wtrace-${current}-${idx}-${replayKey}`} letter={current}
-            onComplete={handleLetterDone} difficulty={settings.difficulty} mode="trace" pen={pen}
+            onComplete={handleLetterDone} difficulty={settings.difficulty} mode="trace" pen={pen} zoneHelp={!!wz}
             lefthanded={!!settings.lefthanded} highContrast={!!settings.highContrast} hapticsEnabled={settings.hapticsEnabled!==false}
             onSpeak={onSpeak} scale={scale} onTrial={onTrial&&(t=>onTrial(current,t))}/>}
+    </PracticeLayout>
+    </ThemeCtx.Provider>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SCHREIBHAUS-ÜBUNGEN — Stockwerke kennenlernen und treffen
+// ═══════════════════════════════════════════════════════════════════════════════
+// „Wo wohnt der Buchstabe?“ (zuordnen) und Hausstriche (kurze, lange und Keller-Striche
+// schreiben). Beides übt, was beim freien Schreiben schwerfällt: die richtige Höhe.
+const HOUSE_THEME={key:"haus",acc:"#f59e0b",dark:"#b45309",soft:"#fff1d6",bg:"linear-gradient(180deg,#ffe9c2 0%,#fff8ea 45%,#ffffff 100%)"};
+
+// Haus mit drei Stockwerken. lit: leuchtende Stockwerke; letter: Zeichen an seinem Platz
+// (die Strichdaten liegen schon auf denselben Linien wie die Stockwerke).
+function HouseArt({lit=null,letter=null,size=96,ink="#1e3a8a",weight=3.6,style}){
+  const strokes=letter?STROKES[letter]||[]:[];
+  return(
+    <svg width={size} height={size*1.26} viewBox="0 0 100 126" aria-hidden="true" style={{display:"block",flexShrink:0,...style}}>
+      <path d="M6 22 50 3l44 19z" fill="#e2725b" stroke="#b9503c" strokeWidth="2" strokeLinejoin="round"/>
+      <rect x="14" y="22" width="72" height="33" fill={lit?.dach?"#bfdcff":"#f1f5fb"} stroke="#c2cee0" strokeWidth="1.5"/>
+      <rect x="14" y="55" width="72" height="33" fill={lit?.erd?"#ffe38a":"#f8f5ea"} stroke="#c2cee0" strokeWidth="1.5"/>
+      <rect x="14" y="88" width="72" height="33" fill={lit?.keller?"#d9bd9c":"#f1ece5"} stroke="#b9a48c" strokeWidth="1.5" strokeDasharray="4 3"/>
+      <path d="M0 88h100" stroke="#6fbf5f" strokeWidth="3" strokeLinecap="round"/>
+      {!letter&&<>
+        <circle cx="50" cy="38.5" r="6.5" fill="#ffffff" stroke="#c2cee0" strokeWidth="1.5"/>
+        <rect x="43" y="67" width="14" height="21" rx="2" fill="#b98556"/>
+        <rect x="22" y="63" width="12" height="12" rx="1.5" fill="#ffffff" stroke="#c2cee0" strokeWidth="1.5"/>
+        <path d="M66 96h8v8h8v8" fill="none" stroke="#a07850" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+      </>}
+      {strokes.map((st,i)=><polyline key={i} points={st.map(q=>q.join(",")).join(" ")} fill="none" stroke={ink} strokeWidth={weight} strokeLinecap="round" strokeLinejoin="round"/>)}
+    </svg>
+  );
+}
+
+// „Wo wohnt der Buchstabe?“ — acht Buchstaben je Runde, gemischt aus allen Stockwerken
+const SORT_POOL={erd:"aceimnorsuvwxzäöü".split(""),dach:"bdfhklt".split(""),gross:"ABEFHLMRT".split(""),keller:"gjpqy".split("")};
+const pickSome=(arr,n)=>[...arr].sort(()=>Math.random()-0.5).slice(0,n);
+const sortRound=()=>pickSome([...pickSome(SORT_POOL.erd,3),...pickSome(SORT_POOL.dach,2),...pickSome(SORT_POOL.gross,1),...pickSome(SORT_POOL.keller,2)],8);
+const HOUSE_CHOICES=[
+  {id:"dach",lit:{dach:true,erd:true},label:"Dach + Erdgeschoss"},
+  {id:"erd",lit:{erd:true},label:"Erdgeschoss"},
+  {id:"keller",lit:{erd:true,keller:true},label:"Erdgeschoss + Keller"},
+];
+const sortStars=(n)=>n>=7?5:n>=5?3:1;
+
+function HouseSortGame({best,onFinish,onBack,onSpeak}){
+  const name=useContext(ChildCtx);
+  const {wide,colScale}=useContext(ViewCtx);
+  // Auf Tablets größer; auf schmalen Handys müssen drei Häuser nebeneinander passen
+  const u=Math.max(0.85,Math.min(colScale,((typeof window!=="undefined"?window.innerWidth:400)-(wide?260:28))/354));
+  const [queue,setQueue]=useState(sortRound);
+  const [idx,setIdx]=useState(0);
+  const [state,setState]=useState("ask");      // ask | right | wrong
+  const [wrongId,setWrongId]=useState(null);
+  const [score,setScore]=useState(0);          // beim ersten Mal richtig
+  const [missed,setMissed]=useState(false);
+  const [final,setFinal]=useState(null);
+  const timer=useRef(null);
+  useEffect(()=>()=>clearTimeout(timer.current),[]);
+  const l=queue[idx],kind=zoneKind(l),big=UPPERCASE.includes(l);
+  useEffect(()=>{if(!final)onSpeak(`Wo wohnt ${sayName(l)}?`);},[idx,queue,final]);
+  const next=(sc)=>{
+    if(idx<queue.length-1){setIdx(i=>i+1);setState("ask");setWrongId(null);setMissed(false);return;}
+    const stars=sortStars(sc),title=cheer(name,stars);
+    setFinal({n:sc,stars,title,record:best==null||sc>best});
+    onFinish(sc);sfx(sc>=5?"fanfare":"done");
+    onSpeak(`${title} ${sc} von ${queue.length} beim ersten Mal richtig!`);
+  };
+  const choose=(id)=>{
+    if(state==="right")return;
+    if(id===kind){
+      const sc=score+(missed?0:1);setScore(sc);
+      setState("right");sfx("stroke");onSpeak(`Richtig! ${zoneLong(l)}`);
+      timer.current=setTimeout(()=>next(sc),2000);
+    } else {
+      sfx("oops");setState("wrong");setWrongId(id);setMissed(true);
+      onSpeak(`Schau genau. ${zoneLong(l)}`);
+    }
+  };
+  const restart=()=>{clearTimeout(timer.current);setQueue(sortRound());setIdx(0);setState("ask");setWrongId(null);setScore(0);setMissed(false);setFinal(null);};
+
+  if(final) return(
+    <div style={{minHeight:"100vh",boxSizing:"border-box",background:HOUSE_THEME.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:14,padding:20,textAlign:"center"}}>
+      <Klecks size={110} mood="cheer" anim="jump"/>
+      <h2 style={{margin:0,fontSize:26,fontWeight:900,color:"#92400e",lineHeight:1.2}}>{final.title}</h2>
+      <div className="k-card" style={{padding:"14px 24px",display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+        <div data-sort-score={final.n} style={{fontSize:36,fontWeight:900,color:"var(--ink)",lineHeight:1.1}}>{final.n} von {queue.length}</div>
+        <div style={{fontSize:15,fontWeight:800,color:"var(--ink2)"}}>beim ersten Mal richtig</div>
+        <div style={{display:"flex",gap:4,marginTop:6}}>{[1,2,3].map(k=><Star key={k} size={36} on={k<=stars3(final.stars)}/>)}</div>
+        {final.record&&best!=null&&<div style={{fontSize:15,fontWeight:900,color:"#16a34a"}}>Neuer Rekord!</div>}
+      </div>
+      <div style={{display:"flex",gap:10}}>
+        <Btn data-k="again" bg="var(--sun)" sh="var(--sunD)" color="#5a3a00" onClick={()=>{sfx("tap");restart();}}><Icon name="redo" size={20}/>Nochmal</Btn>
+        <Btn data-k="house-done" bg="var(--sky)" sh="var(--skyD)" onClick={onBack}><Icon name="check" size={20} stroke={3}/>Fertig</Btn>
+      </div>
+    </div>
+  );
+
+  const ask=`Wo wohnt ${zoneWho(l).replace(/^D/,"d")}?`;
+  const bubble=state==="right"?{text:`Richtig! ${zoneShort(l)}`,mood:"cheer",tone:"praise"}
+    :state==="wrong"?{text:`Schau genau: ${zoneShort(l)}`,mood:"think",tone:"coach"}
+    :{text:ask,mood:"happy",tone:"info"};
+  return(
+    <ThemeCtx.Provider value={HOUSE_THEME}>
+    <div data-sort-letter={l} data-sort-kind={kind} style={{minHeight:"100vh",boxSizing:"border-box",background:HOUSE_THEME.bg,padding:"10px 10px 18px",display:"flex",flexDirection:"column",alignItems:"center",gap:12}}>
+      <div style={{width:"100%",maxWidth:560,display:"flex",alignItems:"center",gap:8}}>
+        <RoundBtn onClick={onBack} aria-label="Zurück zum Schreibhaus"><Icon name="back" size={24} stroke={3}/></RoundBtn>
+        <div className="k-card" style={{flex:1,padding:"10px 12px",borderRadius:18,display:"flex",alignItems:"center",gap:7,justifyContent:"center"}} aria-label={`Buchstabe ${idx+1} von ${queue.length}`}>
+          {queue.map((_,i)=><span key={i} style={{width:14,height:14,borderRadius:"50%",background:i<idx?"var(--mint)":i===idx?HOUSE_THEME.acc:"#e3e8f2"}}/>)}
+        </div>
+      </div>
+      <KlecksBubble {...bubble} minH={58} maxWidth={520}/>
+      <div style={{display:"flex",flexDirection:wide?"row":"column",alignItems:"center",gap:wide?28:14,flex:wide?1:"none"}}>
+        <button className="k-press" aria-label={`${sayName(l)} vorlesen`} onClick={()=>onSpeak(`Wo wohnt ${sayName(l)}?`)}
+          style={{background:"white","--sh":"#e7d3a8",border:"3px solid #ffd98a",borderRadius:24,width:150*u,height:150*u,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2,padding:0,flexShrink:0}}>
+          <Glyph key={l} letter={l} height={104*u} weight={3.6} color="var(--ink)" fit/>
+          <span style={{fontSize:Math.min(17,13*u),fontWeight:900,color:"var(--muted)"}}>{big?"groß":"klein"}</span>
+        </button>
+        <div style={{display:"flex",gap:8,justifyContent:"center",alignItems:"stretch"}}>
+          {HOUSE_CHOICES.map(c=>{
+            const right=c.id===kind,wrong=state==="wrong"&&wrongId===c.id;
+            return(
+              <button key={c.id} data-house={c.id} className="k-press" onClick={()=>choose(c.id)}
+                style={{background:"white","--sh":"#e7d3a8",border:`3px solid ${state!=="ask"&&right?"var(--mint)":wrong?"#f87171":"#ffe1a6"}`,borderRadius:20,padding:"8px 4px 6px",
+                  width:110*u,display:"flex",flexDirection:"column",alignItems:"center",gap:4,
+                  animation:wrong?"shake 0.3s ease-in-out 2":state==="wrong"&&right?"kPulse 1s ease-in-out infinite":"none"}}>
+                <HouseArt lit={c.lit} letter={state==="right"&&right?l:null} size={84*u}/>
+                <div style={{fontSize:Math.min(16,12*u),fontWeight:900,color:"var(--ink2)",lineHeight:1.15,textAlign:"center"}}>{c.label}</div>
+              </button>);
+          })}
+        </div>
+      </div>
+    </div>
+    </ThemeCtx.Provider>
+  );
+}
+
+// Hausstriche: zuschauen → nachfahren → abschreiben (die Stockwerke leuchten)
+const HAUSSTRICHE=[
+  {ch:"~haus-kurz",title:"Kurze Striche",hint:"Kurze Striche: nur im Erdgeschoss!",say:"Kurze Striche wohnen im Erdgeschoss."},
+  {ch:"~haus-lang",title:"Lange Striche",hint:"Lange Striche: vom Dach bis zum Boden!",say:"Lange Striche gehen vom Dachgeschoss bis zum Boden."},
+  {ch:"~haus-keller",title:"Keller-Striche",hint:"Keller-Striche: bis ganz nach unten!",say:"Keller-Striche gehen vom Erdgeschoss bis in den Keller."},
+  {ch:"~haus-treppe",title:"Kurz, lang, tief",hint:"Kurz, lang, tief – schau genau!",say:"Ein kurzer Strich, ein langer Strich und ein Keller-Strich."},
+];
+function HouseStrokeRun({item,settings,pen,tools,scale,best,onSpeak,onWrite,onFinish,onBack}){
+  const name=useContext(ChildCtx);
+  const [step,setStep]=useState("anim");       // anim → trace → copy → final
+  const [replayKey,setReplayKey]=useState(0);
+  const [result,setResult]=useState(null);
+  const last=useRef(0);
+  const zones=zonesOf(item.ch);
+  useEffect(()=>{onSpeak(item.say);},[]);
+  const done=(s)=>{last.current=s;if(s>=3)onWrite();};
+  const next=()=>{
+    if(step==="trace"){setStep("copy");return;}
+    const stars=last.current,title=cheer(name,stars);
+    setResult({stars,title,record:best==null||stars>best});setStep("final");
+    onFinish(stars);sfx(stars>=3?"fanfare":"done");
+    onSpeak(`${title} ${stars>=3?"Du triffst die Stockwerke!":"Übung macht den Meister."}`);
+  };
+  const restart=()=>{setStep("anim");setResult(null);setReplayKey(k=>k+1);};
+
+  if(step==="final") return(
+    <div style={{minHeight:"100vh",boxSizing:"border-box",background:HOUSE_THEME.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:14,padding:20,textAlign:"center"}}>
+      <Klecks size={110} mood="cheer" anim="jump"/>
+      <h2 style={{margin:0,fontSize:26,fontWeight:900,color:"#92400e",lineHeight:1.2}}>{result.title}</h2>
+      <div className="k-card" style={{padding:"14px 24px",display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
+        <HouseArt lit={zones} letter={item.ch} size={84}/>
+        <div style={{fontSize:17,fontWeight:900,color:"var(--ink)"}}>{item.title}</div>
+        <div data-house-stars={result.stars} style={{display:"flex",gap:4}}>{[1,2,3].map(k=><Star key={k} size={36} on={k<=stars3(result.stars)}/>)}</div>
+      </div>
+      <div style={{display:"flex",gap:10}}>
+        <Btn data-k="again" bg="var(--sun)" sh="var(--sunD)" color="#5a3a00" onClick={()=>{sfx("tap");restart();}}><Icon name="redo" size={20}/>Nochmal</Btn>
+        <Btn data-k="house-done" bg="var(--sky)" sh="var(--skyD)" onClick={onBack}><Icon name="check" size={20} stroke={3}/>Fertig</Btn>
+      </div>
+    </div>
+  );
+
+  const pill=(on,c)=>({width:46,height:46,borderRadius:"50%",background:on?c:"white",border:`3px solid ${c}`,display:"flex",alignItems:"center",justifyContent:"center"});
+  return(
+    <ThemeCtx.Provider value={HOUSE_THEME}>
+    <PracticeLayout bg={HOUSE_THEME.bg} head={
+      <div style={{width:"100%",maxWidth:560,display:"flex",alignItems:"center",gap:8}}>
+        <RoundBtn onClick={onBack} aria-label="Zurück zum Schreibhaus"><Icon name="back" size={24} stroke={3}/></RoundBtn>
+        <div className="k-card" style={{flex:1,minWidth:0,padding:"6px 12px",display:"flex",alignItems:"center",gap:10,borderRadius:18}}>
+          <HouseArt lit={zones} size={30}/>
+          <span style={{fontSize:18,fontWeight:900,color:"var(--ink)"}}>{item.title}</span>
+        </div>
+        <RoundBtn data-k="show" aria-label="Vorführen" onClick={()=>{sfx("tap");setStep("anim");setReplayKey(k=>k+1);}}><Icon name="play" size={22} color={HOUSE_THEME.dark} style={{marginLeft:2}}/></RoundBtn>
+      </div>} steps={
+      <div style={{display:"flex",alignItems:"center",background:"#ffffffb3",borderRadius:30,padding:"6px 8px"}} aria-label={step==="copy"?"Schritt 2: Abschreiben":"Schritt 1: Nachfahren"}>
+        <div style={pill(step==="trace","#4361ee")}><Icon name="pencil" size={24} color={step==="trace"?"white":"#4361ee"} stroke={2.4}/></div>
+        <div style={{width:16,height:4,borderRadius:2,background:step==="copy"?"#f9731688":"#dfe4ee"}}/>
+        <div style={pill(step==="copy","#f97316")}><Icon name="eye" size={24} color={step==="copy"?"white":"#f97316"} stroke={2.4}/></div>
+      </div>}>
+      {step==="anim"
+        ?<AnimCanvas key={`hanim-${replayKey}`} letter={item.ch} scale={scale} zones={zones} onDone={()=>setStep("trace")}/>
+        :<TraceCanvas key={`hrun-${item.ch}-${step}-${replayKey}`} letter={item.ch} mode={step} profile="lernen" zoneHelp copyHint={step==="copy"?item.hint:null}
+           onComplete={done} onNext={next} difficulty={settings.difficulty} pen={pen}
+           lefthanded={!!settings.lefthanded} highContrast={!!settings.highContrast} hapticsEnabled={settings.hapticsEnabled!==false}
+           tools={tools} onSpeak={onSpeak} scale={scale}/>}
+    </PracticeLayout>
+    </ThemeCtx.Provider>
+  );
+}
+
+const HOUSE_INTRO="Im Schreibhaus wohnen die Buchstaben. Oben ist das Dachgeschoss, in der Mitte das Erdgeschoss und unten der Keller.";
+const FLOOR_EXAMPLES={dach:["b","h","A"],erd:["a","e","m"],keller:["g","j","p"]};
+function HouseHome({records,onStart,onBack,onSpeak}){
+  const HS=118,HH=HS*1.26;
+  useEffect(()=>{onSpeak(HOUSE_INTRO);},[]);
+  const tile={background:"white","--sh":"#e7d3a8",border:"3px solid #ffe1a6",borderRadius:20,padding:"10px 6px 8px",display:"flex",flexDirection:"column",alignItems:"center",gap:5};
+  const h3={fontSize:17,fontWeight:900,color:"#92400e",margin:"0 0 10px"};
+  const sortBest=records.sort;
+  return(
+    <ThemeCtx.Provider value={HOUSE_THEME}>
+    <div style={{minHeight:"100vh",boxSizing:"border-box",background:HOUSE_THEME.bg,padding:16}}>
+      <ScreenHeader title={<span style={{display:"flex",alignItems:"center",gap:8}}><Icon name="house" size={26} color="#d97706" stroke={2.6}/>Schreibhaus</span>} color="#92400e" onBack={onBack}/>
+      <div style={{maxWidth:560,margin:"0 auto",display:"flex",flexDirection:"column",gap:18}}>
+        <button className="k-card k-press" data-k="house-intro" onClick={()=>onSpeak(HOUSE_INTRO)} aria-label="Das Schreibhaus – vorlesen"
+          style={{"--sh":"#e7d3a8",display:"flex",alignItems:"center",gap:10,padding:"12px 12px 12px 8px",textAlign:"left",border:"none"}}>
+          <HouseArt lit={{dach:true,erd:true,keller:true}} size={HS}/>
+          <div style={{position:"relative",flex:1,height:HH}}>
+            {FLOORS.map(f=>(
+              <div key={f.id} style={{position:"absolute",left:0,right:0,top:HH*(f.y0/126),height:HH*(33/126),display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,
+                borderTop:f.id==="dach"?"none":"2px dashed #f0dfc0"}}>
+                <div style={{fontSize:15,fontWeight:900,color:"var(--ink)",lineHeight:1.1}}>{f.name}</div>
+                <div style={{display:"flex",gap:6,alignItems:"flex-end"}}>
+                  {FLOOR_EXAMPLES[f.id].map(ch=><Glyph key={ch} letter={ch} height={30} weight={2.4} color="var(--ink2)" tight
+                    yr={f.id==="dach"?[LINES.top-5,LINES.base+5]:f.id==="erd"?[LINES.mid-5,LINES.base+5]:[LINES.mid-5,LINES.bottom+5]}/>)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </button>
+
+        <section>
+          <h3 style={h3}>Spiel</h3>
+          <button data-house-item="sort" className="k-press" style={{...tile,width:"100%",flexDirection:"row",gap:12,padding:"10px 14px",justifyContent:"flex-start"}} onClick={()=>{sfx("tap");onStart("sort");}}>
+            <HouseArt lit={{erd:true,keller:true}} letter="g" size={50}/>
+            <div style={{textAlign:"left"}}>
+              <div style={{fontSize:18,fontWeight:900,color:"var(--ink)"}}>Wo wohnt der Buchstabe?</div>
+              <div data-sort-best={sortBest??""} style={{fontSize:13,fontWeight:800,color:"var(--muted)"}}>{sortBest!=null?`Rekord: ${sortBest} von 8`:"Tippe auf das richtige Haus"}</div>
+            </div>
+          </button>
+        </section>
+
+        <section>
+          <h3 style={h3}>Hausstriche schreiben</h3>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:10}}>
+            {HAUSSTRICHE.map(it=>{const b=records.strokes?.[it.ch]||0;return(
+              <button key={it.ch} data-house-item={it.ch} className="k-press" style={tile} onClick={()=>{sfx("tap");onStart(it);}}>
+                <HouseArt lit={zonesOf(it.ch)} letter={it.ch} size={64}/>
+                <div style={{fontSize:15,fontWeight:900,color:"var(--ink)"}}>{it.title}</div>
+                <div data-best={b} style={{display:"flex"}}>{[1,2,3].map(k=><Star key={k} size={16} on={k<=stars3(b)}/>)}</div>
+              </button>);})}
+          </div>
+        </section>
+      </div>
+    </div>
+    </ThemeCtx.Provider>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MAL-PAUSE — Farbrad drehen, Buchstaben ausmalen, er strahlt
+// ═══════════════════════════════════════════════════════════════════════════════
+// Nach drei geschriebenen Buchstaben (je mindestens zwei Sterne) gibt es eine kurze Pause
+// zum Malen. Das Farbrad ist kein Glücksspiel: Jedes Feld ist gleich groß und gleich schön,
+// es gibt keine Niete, nichts zu verlieren und nichts zu kaufen. Beim Ausmalen fährt das
+// Kind die Form des Buchstabens noch einmal mit dem Finger nach; danach strahlt er und
+// leuchtet in der Sammlung.
+const PAINT_EVERY=3;
+const PAINT_THEME={key:"malen",acc:"#ec4899",dark:"#be185d",soft:"#fce7f3",bg:"linear-gradient(180deg,#ffdff1 0%,#fff4fb 45%,#ffffff 100%)"};
+// seg: Farbe des Feldes auf dem Rad und in der Sammlung · at(x,y): Farbe an einer Stelle des
+// Schreibfelds (damit Regenbogen, Feuer und Glitzer lebendig aussehen) · glitter: Glitzerpunkte
+const PAINTS=[
+  {id:"gold",   name:"Glitzer-Gold",   seg:"#ffc533",glitter:"#fffbe0",at:(x,y)=>`hsl(${Math.round(43+5*Math.sin(x*0.07+y*0.05))},97%,${Math.round(55+7*Math.sin(y*0.09))}%)`},
+  {id:"regen",  name:"Regenbogen",     seg:"#a855f7",glitter:null,     at:(x,y)=>`hsl(${Math.round((x*1.3+y*0.7)%360)},92%,58%)`},
+  {id:"neon",   name:"Neon-Pink",      seg:"#ff3dbb",glitter:null,     at:(x,y)=>`hsl(${Math.round(318+8*Math.sin(y*0.05))},100%,${Math.round(60+5*Math.sin(x*0.08))}%)`},
+  {id:"ozean",  name:"Ozean-Glitzer",  seg:"#22b8cf",glitter:"#e6fdff",at:(x,y)=>`hsl(${Math.round(178+40*y/310)},85%,${Math.round(50+6*Math.sin(x*0.08))}%)`},
+  {id:"feuer",  name:"Feuer",          seg:"#ff7a1a",glitter:null,     at:(x,y)=>`hsl(${Math.round(52-44*y/310)},100%,56%)`},
+  {id:"galaxie",name:"Galaxie-Glitzer",seg:"#6d4bd8",glitter:"#ffffff",at:(x,y)=>`hsl(${Math.round(255+35*Math.sin(x*0.03+y*0.04))},72%,${Math.round(46+6*Math.sin(y*0.07))}%)`},
+  {id:"minze",  name:"Minz-Glitzer",   seg:"#2fd4a0",glitter:"#f2fffa",at:(x,y)=>`hsl(${Math.round(158+10*Math.sin(x*0.06))},72%,${Math.round(52+6*Math.sin(y*0.08))}%)`},
+  {id:"silber", name:"Silber-Glitzer", seg:"#b9c4d6",glitter:"#ffffff",at:(x,y)=>`hsl(216,18%,${Math.round(74+9*Math.sin(x*0.09+y*0.06))}%)`},
+];
+const paintById=(id)=>PAINTS.find(q=>q.id===id)||null;
+const SPIN_MS=3600;
+const sparklePath=(x,y,r)=>`M${x} ${y-r}Q${x} ${y} ${x+r} ${y}Q${x} ${y} ${x} ${y+r}Q${x} ${y} ${x-r} ${y}Q${x} ${y} ${x} ${y-r}Z`;
+
+// Farbrad: acht gleich große Felder, Zeiger oben
+function ColorWheel({rot,spinning,size}){
+  const n=PAINTS.length,a=360/n,rad=(d)=>(d-90)*Math.PI/180,pt=(d,r)=>`${(50+r*Math.cos(rad(d))).toFixed(2)} ${(50+r*Math.sin(rad(d))).toFixed(2)}`;
+  return(
+    <div style={{position:"relative",width:size,height:size}}>
+      <svg viewBox="0 0 100 100" width={size} height={size} aria-hidden="true"
+        style={{display:"block",transform:`rotate(${rot}deg)`,transition:spinning?`transform ${SPIN_MS}ms cubic-bezier(.12,.72,.14,1)`:"none",filter:"drop-shadow(0 4px 0 #0000001f)"}}>
+        <defs>
+          <linearGradient id="wheelRainbow" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#ff5f6d"/><stop offset="0.25" stopColor="#ffc93c"/><stop offset="0.5" stopColor="#4ade80"/><stop offset="0.75" stopColor="#38bdf8"/><stop offset="1" stopColor="#a855f7"/>
+          </linearGradient>
+        </defs>
+        <circle cx="50" cy="50" r="49" fill="#ffffff" stroke="#e3a900" strokeWidth="2"/>
+        {PAINTS.map((q,i)=>(
+          <g key={q.id}>
+            <path d={`M50 50L${pt(i*a,46)}A46 46 0 0 1 ${pt((i+1)*a,46)}Z`} fill={q.id==="regen"?"url(#wheelRainbow)":q.seg} stroke="#ffffff" strokeWidth="1.2" strokeLinejoin="round"/>
+            {q.glitter&&[[30,-7,3.4],[36,6,2.2],[22,5,1.8]].map(([r,d,sz],j)=>{const [x,y]=pt((i+0.5)*a+d,r).split(" ").map(Number);return <path key={j} d={sparklePath(x,y,sz)} fill="#ffffff" opacity="0.95"/>;})}
+          </g>
+        ))}
+        <circle cx="50" cy="50" r="9" fill="#ffffff" stroke="#e3a900" strokeWidth="2"/>
+      </svg>
+      <svg viewBox="0 0 24 24" width={size*0.16} height={size*0.16} aria-hidden="true" style={{position:"absolute",left:"50%",top:-size*0.045,transform:"translateX(-50%)"}}>
+        <path d="M4 3h16l-8 17z" fill="#ef4444" stroke="#ffffff" strokeWidth="2" strokeLinejoin="round"/>
+      </svg>
+    </div>
+  );
+}
+
+function PaintBreak({letter,scale,effects,onSpeak,onDone,onSkip,W=260,H=310}){
+  const name=useContext(ChildCtx);
+  const [phase,setPhase]=useState("wheel");      // wheel → spin → won → paint → shine
+  const [rot,setRot]=useState(0);
+  const [won,setWon]=useState(null);
+  const [respins,setRespins]=useState(1);
+  const [progress,setProgress]=useState(0);
+  const bgRef=useRef(null),inkRef=useRef(null),fxRef=useRef(null);
+  const [k]=useState(()=>pixelRatio(scale));
+  useCanvasScale([bgRef,inkRef,fxRef],k);
+  const strokes=useStrokes(letter,W,H);
+  const samples=useMemo(()=>strokes.flat(),[strokes]);
+  const covered=useRef(null),drawing=useRef(false),lastPos=useRef(null),timers=useRef([]);
+  const TUBE=36,BR=21;
+  const q=won!=null?PAINTS[won]:null;
+  const who=zoneWho(letter),whoLow=who.replace(/^D/,"d");
+  const later=(fn,ms)=>{timers.current.push(setTimeout(fn,ms));};
+  useEffect(()=>{onSpeak(`Mal-Pause${name?`, ${name}`:""}! Dreh das Farbrad!`);return()=>timers.current.forEach(clearTimeout);},[]);
+
+  const spin=()=>{
+    if(phase==="spin")return;
+    const i=Math.floor(Math.random()*PAINTS.length),a=360/PAINTS.length;
+    // Feld i soll oben unter dem Zeiger landen (mit etwas Spielraum, nie auf der Kante)
+    setRot(r=>Math.ceil(r/360)*360+360*5+(360-(i+0.5)*a)+(Math.random()*24-12));
+    setPhase("spin");sfx("pop");
+    const quick=reducedMotion();
+    if(!quick)[150,330,540,780,1050,1360,1720,2140,2640,3200].forEach(t=>later(()=>sfx("tap"),t));
+    later(()=>{setWon(i);setPhase("won");sfx("unlock");onSpeak(`${PAINTS[i].name}! Mal ${whoLow} damit aus.`);},quick?250:SPIN_MS+150);
+  };
+
+  const tube=(ctx)=>{
+    const path=()=>strokes.forEach(pts=>{ctx.beginPath();ctx.moveTo(pts[0][0],pts[0][1]);for(let j=1;j<pts.length;j++)ctx.lineTo(pts[j][0],pts[j][1]);ctx.stroke();});
+    ctx.clearRect(0,0,W,H);ctx.lineCap="round";ctx.lineJoin="round";
+    ctx.strokeStyle="#aab4c8";ctx.lineWidth=TUBE+5;path();
+    ctx.strokeStyle="#f3f5fa";ctx.lineWidth=TUBE;path();
+  };
+  const startPaint=()=>{
+    sfx("pop");setPhase("paint");setProgress(0);covered.current=new Uint8Array(samples.length);
+    onSpeak("Mal mit dem Finger alles aus!");
+  };
+  // Malgrund zeichnen, sobald die Flächen da sind
+  useEffect(()=>{
+    if(phase!=="paint")return;
+    const bg=bgRef.current,ink=inkRef.current;if(!bg||!ink)return;
+    const b=bg.getContext("2d");b.clearRect(0,0,W,H);drawLineatur(b,W,H,{house:true,lit:zonesOf(letter)});
+    tube(ink.getContext("2d"));
+  },[phase]);
+
+  // Farbe nur dort, wo der Buchstabe ist (source-atop); Glitzerpunkte obendrauf
+  const dab=(ctx,x,y,count=true)=>{
+    ctx.globalCompositeOperation="source-atop";
+    ctx.fillStyle=q.at(x,y);ctx.beginPath();ctx.arc(x,y,BR,0,Math.PI*2);ctx.fill();
+    if(q.glitter&&Math.random()<0.6){
+      ctx.fillStyle=q.glitter;
+      for(let i=0;i<2;i++){const a=Math.random()*6.283,r=Math.random()*BR*0.85;ctx.beginPath();ctx.arc(x+r*Math.cos(a),y+r*Math.sin(a),0.7+Math.random()*1.7,0,6.283);ctx.fill();}
+    }
+    ctx.globalCompositeOperation="source-over";
+    if(!count)return;
+    const cov=covered.current;
+    for(let i=0;i<samples.length;i++)if(!cov[i]&&Math.hypot(samples[i][0]-x,samples[i][1]-y)<BR*0.9)cov[i]=1;
+  };
+  const getPos=(e)=>{const c=inkRef.current,r=c.getBoundingClientRect(),src=e.touches?e.touches[0]:e;return[(src.clientX-r.left)*W/r.width,(src.clientY-r.top)*H/r.height];};
+  const finish=()=>{
+    if(phase!=="paint")return;
+    const ctx=inkRef.current.getContext("2d");
+    // Rest füllen, damit der ganze Buchstabe leuchtet
+    samples.forEach((p,i)=>{if(i%2===0)dab(ctx,p[0],p[1],false);});
+    if(q.glitter){ctx.globalCompositeOperation="source-atop";ctx.fillStyle=q.glitter;
+      for(let i=0;i<90;i++){const p=samples[Math.floor(Math.random()*samples.length)];ctx.beginPath();ctx.arc(p[0]+(Math.random()-0.5)*TUBE*0.8,p[1]+(Math.random()-0.5)*TUBE*0.8,0.7+Math.random()*1.8,0,6.283);ctx.fill();}
+      ctx.globalCompositeOperation="source-over";}
+    setProgress(1);setPhase("shine");sfx("fanfare");
+    onSpeak(`Wow${name?`, ${name}`:""}! ${who} strahlt!`);
+  };
+  const move=(pos)=>{
+    const ctx=inkRef.current.getContext("2d"),a=lastPos.current||pos,d=Math.hypot(pos[0]-a[0],pos[1]-a[1]),n=Math.max(1,Math.ceil(d/6));
+    for(let i=1;i<=n;i++)dab(ctx,a[0]+(pos[0]-a[0])*i/n,a[1]+(pos[1]-a[1])*i/n);
+    lastPos.current=pos;
+    let c=0;const cov=covered.current;for(let i=0;i<cov.length;i++)c+=cov[i];
+    const pr=c/Math.max(1,cov.length);
+    setProgress(v=>pr-v>=0.02||pr>=0.9?pr:v);
+    if(pr>=0.9)finish();
+  };
+  const down=(e)=>{e.preventDefault();if(phase!=="paint")return;drawing.current=true;lastPos.current=null;move(getPos(e));};
+  const drag=(e)=>{e.preventDefault();if(!drawing.current||phase!=="paint")return;move(getPos(e));};
+  const up=(e)=>{e?.preventDefault();drawing.current=false;lastPos.current=null;};
+
+  // Strahlen: Funkeln auf dem Buchstaben
+  useEffect(()=>{
+    if(phase!=="shine")return;
+    const ctx=fxRef.current.getContext("2d");
+    const sp=Array.from({length:18},()=>({p:samples[Math.floor(Math.random()*samples.length)],ph:Math.random()*6.283,v:0.0025+Math.random()*0.004,sz:5+Math.random()*8,
+      ox:(Math.random()-0.5)*TUBE,oy:(Math.random()-0.5)*TUBE}));
+    const draw=(t)=>{
+      ctx.clearRect(0,0,W,H);
+      sp.forEach(z=>{
+        const a=Math.max(0,Math.sin(t*z.v+z.ph));if(a<0.03)return;
+        const x=z.p[0]+z.ox,y=z.p[1]+z.oy,r=z.sz*a;
+        ctx.globalAlpha=a;ctx.fillStyle="#ffffff";ctx.shadowColor="#fff6c2";ctx.shadowBlur=8;
+        ctx.beginPath();ctx.moveTo(x,y-r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.quadraticCurveTo(x,y,x,y+r);ctx.quadraticCurveTo(x,y,x-r,y);ctx.quadraticCurveTo(x,y,x,y-r);ctx.fill();
+      });
+      ctx.globalAlpha=1;ctx.shadowBlur=0;
+    };
+    if(reducedMotion()){draw(600);return;}
+    let raf;const tick=(t)=>{draw(t);raf=requestAnimationFrame(tick);};
+    raf=requestAnimationFrame(tick);
+    return()=>cancelAnimationFrame(raf);
+  },[phase]);
+
+  const bubble=phase==="wheel"?{text:`Mal-Pause${name?`, ${name}`:""}! Dreh das Farbrad!`,mood:"cheer",tone:"praise"}
+    :phase==="spin"?{text:"Welche Farbe wird es?",mood:"think",tone:"think"}
+    :phase==="won"?{text:`${q.name}! Mal ${whoLow} damit aus.`,mood:"cheer",tone:"praise"}
+    :phase==="paint"?{text:progress>=0.5?"Weiter so – gleich strahlt er!":"Mal mit dem Finger alles aus!",mood:"happy",tone:"info"}
+    :{text:`Wow${name?`, ${name}`:""}! ${who} strahlt!`,mood:"cheer",tone:"praise"};
+  const canvasPhase=phase==="paint"||phase==="shine";
+  const wheelSize=Math.min(W*scale*0.92,H*scale*0.72);
+  const glow=q?(q.id==="regen"?"#ffd23f":q.seg):"#ffd23f";
+  return(
+    <ThemeCtx.Provider value={PAINT_THEME}>
+    <PracticeLayout bg={PAINT_THEME.bg} head={
+      <div style={{width:"100%",maxWidth:560,display:"flex",alignItems:"center",gap:8}}>
+        <RoundBtn data-k="paint-skip" onClick={onSkip} aria-label="Mal-Pause überspringen"><Icon name="close" size={22} stroke={3}/></RoundBtn>
+        <div className="k-card" style={{flex:1,minWidth:0,padding:"8px 12px",display:"flex",alignItems:"center",gap:10,borderRadius:18}}>
+          <Icon name="brush" size={24} color={PAINT_THEME.acc} stroke={2.4}/>
+          <span style={{fontSize:19,fontWeight:900,color:"var(--ink)"}}>Mal-Pause</span>
+          <span style={{marginLeft:"auto",display:"flex",alignItems:"center",justifyContent:"center",width:40,height:40,borderRadius:12,background:PAINT_THEME.soft}}>
+            <Glyph letter={letter} height={30} weight={3} color={PAINT_THEME.dark} fit/>
+          </span>
+        </div>
+      </div>}>
+      <div style={{gridArea:"bubble",width:"100%",maxWidth:W*scale+22,display:"flex",justifyContent:"center"}}>
+        <KlecksBubble {...bubble} minH={58} maxWidth={W*scale+22}/>
+      </div>
+      <div style={fieldCell} data-paint-phase={phase} data-paint-color={q?.id||""} data-paint-progress={Math.round(progress*100)}>
+        <FieldFrame W={W} H={H} scale={scale}>
+          {canvasPhase?(<>
+            <canvas ref={bgRef} width={W*k} height={H*k} style={{position:"absolute",inset:0,width:"100%",height:"100%"}}/>
+            {phase==="shine"&&<div aria-hidden="true" style={{position:"absolute",inset:"-30%",background:`repeating-conic-gradient(${glow}55 0 10deg, transparent 10deg 20deg)`,
+              WebkitMaskImage:"radial-gradient(circle,#000 25%,transparent 68%)",maskImage:"radial-gradient(circle,#000 25%,transparent 68%)",animation:"kSpin 16s linear infinite"}}/>}
+            <canvas ref={inkRef} width={W*k} height={H*k}
+              style={{position:"absolute",inset:0,width:"100%",height:"100%",touchAction:"none",cursor:"crosshair",
+                filter:phase==="shine"?`drop-shadow(0 0 ${Math.round(9*scale)}px ${glow}) drop-shadow(0 0 ${Math.round(22*scale)}px ${glow}aa)`:"none",
+                animation:phase==="shine"?"kShine 1.8s ease-in-out infinite":"none"}}
+              onMouseDown={down} onMouseMove={drag} onMouseUp={up} onMouseLeave={up} onTouchStart={down} onTouchMove={drag} onTouchEnd={up}/>
+            <canvas ref={fxRef} width={W*k} height={H*k} style={{position:"absolute",inset:0,width:"100%",height:"100%",pointerEvents:"none"}}/>
+          </>):(
+            <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:14*scale}}>
+              <ColorWheel rot={rot} spinning={phase==="spin"&&!reducedMotion()} size={wheelSize}/>
+              {phase==="won"&&<div data-k="paint-won" style={{display:"flex",alignItems:"center",gap:8,background:"white",borderRadius:18,padding:"6px 14px",fontSize:17*Math.min(1.2,scale),fontWeight:900,color:"var(--ink)",boxShadow:"0 3px 0 #0f172a14",animation:"popIn 0.35s ease-out"}}>
+                <span style={{width:26,height:26,borderRadius:"50%",background:q.id==="regen"?"conic-gradient(#ff5f6d,#ffc93c,#4ade80,#38bdf8,#a855f7,#ff5f6d)":q.seg,border:"3px solid white",boxShadow:"0 0 0 2px #0001"}}/>{q.name}
+              </div>}
+            </div>
+          )}
+        </FieldFrame>
+        {phase==="shine"&&effects&&<StarRain onDone={()=>{}}/>}
+      </div>
+      <div style={{gridArea:"buttons",display:"flex",gap:10,marginTop:4,flexWrap:"wrap",justifyContent:"center",alignItems:"center",minHeight:52}}>
+        {phase==="wheel"&&<Btn data-k="spin" bg="var(--coral)" sh="var(--coralD)" onClick={spin} style={{fontSize:20,padding:"12px 30px",borderRadius:22,animation:"glowPulse 1.6s infinite"}}>Drehen!</Btn>}
+        {phase==="won"&&<Btn data-k="paint-go" bg="var(--mint)" sh="var(--mintD)" onClick={startPaint} style={{fontSize:18,padding:"11px 22px"}}><Icon name="brush" size={22} stroke={2.6}/>Ausmalen</Btn>}
+        {phase==="won"&&respins>0&&<Btn data-k="respin" bg="white" sh="#d5dbe7" color="var(--ink2)" style={{border:"2px solid #e3e8f2"}} onClick={()=>{setRespins(n=>n-1);spin();}}><Icon name="redo" size={20}/>Nochmal drehen</Btn>}
+        {phase==="paint"&&(
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <div aria-label={`${Math.round(progress*100)} Prozent ausgemalt`} style={{width:130,height:16,borderRadius:10,background:"#ffffff",border:"2px solid #f3c6de",overflow:"hidden"}}>
+              <div style={{width:`${Math.round(progress*100)}%`,height:"100%",background:q.id==="regen"?"linear-gradient(90deg,#ff5f6d,#ffc93c,#4ade80,#38bdf8,#a855f7)":q.seg,transition:"width .2s"}}/>
+            </div>
+            {progress>=0.5&&<Btn data-k="paint-done" bg="var(--mint)" sh="var(--mintD)" onClick={finish} style={{fontSize:16,padding:"9px 16px"}}><Icon name="check" size={20} stroke={3.2}/>Fertig</Btn>}
+          </div>
+        )}
+        {phase==="shine"&&<Btn data-k="paint-next" bg="var(--coral)" sh="var(--coralD)" onClick={()=>{sfx("pop");onDone(q.id);}} style={{minWidth:130,fontSize:17,padding:"11px 20px",animation:"popIn 0.35s ease-out"}}>Weiter<Icon name="next" size={22} stroke={3.2}/></Btn>}
+      </div>
     </PracticeLayout>
     </ThemeCtx.Provider>
   );
@@ -3065,9 +3705,14 @@ function GoalModal({effects,onHome,onMore}){
 }
 
 // Übersicht aller Zeichen mit ihren Sternen
-function LetterStars({learnedMap,onOpen}){
+function LetterStars({learnedMap,painted={},onOpen}){
+  const lit=Object.keys(painted).length;
   return(
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
+      <div className="k-card" data-k="leucht" data-n={lit} style={{padding:"10px 14px",display:"flex",alignItems:"center",gap:10,fontSize:14,fontWeight:800,color:"var(--ink2)",lineHeight:1.3}}>
+        <Icon name="brush" size={24} color="#ec4899" stroke={2.4}/>
+        <span><b style={{color:"var(--ink)"}}>{lit} Leuchtbuchstaben.</b> Nach drei geschriebenen Buchstaben darfst du einen ausmalen.</span>
+      </div>
       {Object.values(WORLDS).map(wd=>(
         <div key={wd.key} className="k-card" style={{padding:14}}>
           <div style={{display:"flex",alignItems:"center",gap:8,fontWeight:900,fontSize:16,color:wd.dark,marginBottom:10}}>
@@ -3075,9 +3720,10 @@ function LetterStars({learnedMap,onOpen}){
             <span style={{marginLeft:"auto"}}><StarCount n={totalStars(learnedMap,LEARN_PATH[wd.key])} max={LEARN_PATH[wd.key].length*3} style={{boxShadow:"none",background:"#f4f5f8",fontSize:14}}/></span>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:6}}>
-            {LEARN_PATH[wd.key].map(l=>{const n=stars3(learnedMap[l]||0);return(
-              <button key={l} data-letter={l} onClick={()=>onOpen(l)} style={{background:n?wd.soft:"#f6f7fa",border:"none",borderRadius:12,padding:"4px 2px 3px",display:"flex",flexDirection:"column",alignItems:"center",cursor:"pointer"}}>
-                <Glyph letter={l} height={30} weight={2.6} color={n?"var(--ink)":"#a3abbd"}/>
+            {LEARN_PATH[wd.key].map(l=>{const n=stars3(learnedMap[l]||0),pc=paintById(painted[l]);return(
+              <button key={l} data-letter={l} data-painted={pc?.id||""} onClick={()=>onOpen(l)} style={{background:pc?"#fff7fb":n?wd.soft:"#f6f7fa",border:"none",borderRadius:12,padding:"4px 2px 3px",display:"flex",flexDirection:"column",alignItems:"center",cursor:"pointer",
+                boxShadow:pc?`inset 0 0 0 2px ${pc.seg}66, 0 0 10px ${pc.seg}66`:"none"}}>
+                <Glyph letter={l} height={30} weight={pc?3.4:2.6} color={pc?pc.seg:n?"var(--ink)":"#a3abbd"}/>
                 <div style={{display:"flex"}}>{[1,2,3].map(k=><Star key={k} size={10} on={k<=n}/>)}</div>
               </button>);})}
           </div>
@@ -3088,7 +3734,7 @@ function LetterStars({learnedMap,onOpen}){
 }
 
 // ── Sammlung: Klecks anziehen, Stifte, Sticker und alle Sterne ──
-function Collection({companion,onChange,unlocks,pen,onPen,learnedMap,onOpen,onBack,onSpeak}){
+function Collection({companion,onChange,unlocks,pen,onPen,learnedMap,painted={},onOpen,onBack,onSpeak}){
   const [tab,setTab]=useState("klecks");
   const [kick,setKick]=useState(0);
   const accs=Object.keys(TREASURES).filter(id=>TREASURES[id].kind==="acc"),worn=accList(companion.accs);
@@ -3105,7 +3751,7 @@ function Collection({companion,onChange,unlocks,pen,onPen,learnedMap,onOpen,onBa
           ))}
         </div>
         {tab==="sticker"&&<StickerBook learnedMap={learnedMap} unlocks={unlocks}/>}
-        {tab==="sterne"&&<LetterStars learnedMap={learnedMap} onOpen={onOpen}/>}
+        {tab==="sterne"&&<LetterStars learnedMap={learnedMap} painted={painted} onOpen={onOpen}/>}
         {tab==="klecks"&&(<>
           <div className="k-card" style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"18px 12px 12px"}}>
             <Klecks key={kick} size={140} mood={kick?"cheer":"happy"} anim={kick?"jump":"bob"} onClick={()=>{setKick(k=>k+1);sfx("pop");onSpeak("Hihi! Das kitzelt!");}} title="Klecks"/>
@@ -3235,6 +3881,12 @@ export default function App(){
   const [daily,setDaily]=useState(()=>persisted.daily||{date:"",letters:[],celebrated:false});
   const [contest,setContest]=useState(()=>persisted.contest||{});          // Wettbewerb: bester Punktestand je Aufgabe
   const [contestItem,setContestItem]=useState(null);
+  const [house,setHouse]=useState(()=>({sort:null,strokes:{},...(persisted.house||{})}));   // Schreibhaus: Rekorde
+  const [houseItem,setHouseItem]=useState(null);                          // null | "sort" | Hausstrich
+  // Mal-Pause: n geschriebene Buchstaben seit der letzten, due = jetzt dran, done = ausgemalte
+  // Buchstaben mit ihrer Farbe (leuchten in der Sammlung)
+  const [paint,setPaint]=useState(()=>({n:0,due:false,done:{},...(persisted.paint||{})}));
+  const [paintKey,setPaintKey]=useState(0);
   // Fleißglas: n Sterne im Glas, filled = wie oft voll, gift = Überraschung, die noch gezeigt wird
   const [jar,setJar]=useState(()=>({n:0,filled:0,gift:null,...(persisted.jar||{})}));
   const [giftOpen,setGiftOpen]=useState(null);
@@ -3249,6 +3901,12 @@ export default function App(){
   // Wartekontrollgruppe der Studie: bis zum Studienende nur geführt und nachfahren
   const allowed=(m)=>!!settings.allowedModes?.[m]&&(!rs.restricted||m==="guided"||m==="trace");
   const stageOf=(l)=>stageMap[l]||1;
+  // Schreibhaus-Hilfe (Elternbereich): "auto" — Stockwerke leuchten, bis der Buchstabe einmal
+  // aus dem Kopf geklappt hat; "always" — immer; "off" — nie
+  const zoneOn=(m,l)=>{
+    const z=settings.zoneHelp||"auto";
+    return z==="always"||(z==="auto"&&(m!=="memory"||!((memMap[l]||0)>0)));
+  };
   // Empfohlener Modus für einen Buchstaben: seine Lernstufe, sonst die nächstniedrigere erlaubte
   const modeFor=(l)=>{
     for(let st=stageOf(l);st>=1;st--){
@@ -3283,8 +3941,8 @@ export default function App(){
 
   // Fortschritt automatisch speichern
   useEffect(()=>{
-    savePersisted({learnedMap,totalScore,settings,stageMap,memMap,lastPracticed,companion,unlocks,chests,pen,daily,tab,contest,jar});
-  },[learnedMap,totalScore,settings,stageMap,memMap,lastPracticed,companion,unlocks,chests,pen,daily,tab,contest,jar]);
+    savePersisted({learnedMap,totalScore,settings,stageMap,memMap,lastPracticed,companion,unlocks,chests,pen,daily,tab,contest,jar,house,paint});
+  },[learnedMap,totalScore,settings,stageMap,memMap,lastPracticed,companion,unlocks,chests,pen,daily,tab,contest,jar,house,paint]);
 
   // Beim Start aus nativem Speicher wiederherstellen, falls localStorage leer war
   useEffect(()=>{
@@ -3303,6 +3961,8 @@ export default function App(){
       if(data.daily)setDaily(data.daily);
       if(data.contest)setContest(data.contest);
       if(data.jar)setJar(j=>({...j,...data.jar}));
+      if(data.house)setHouse(h=>({...h,...data.house}));
+      if(data.paint)setPaint(q=>({...q,...data.paint}));
       if(data.companion){setCompanion(normCompanion(data.companion));setScreen(sc=>sc==="hello"?"menu":sc);}
     });
     return()=>{cancelled=true;};
@@ -3317,13 +3977,14 @@ export default function App(){
       if(showParent){e.preventDefault();setShowParent(false);return;}
       if(practiceWord){e.preventDefault();setPracticeWord(null);return;}
       if(contestItem){e.preventDefault();setContestItem(null);return;}
-      if(screen==="practice"){e.preventDefault();setScreen("map");return;}
+      if(houseItem){e.preventDefault();setHouseItem(null);return;}
+      if(screen==="practice"||screen==="paint"){e.preventDefault();if(screen==="paint")setPaint(q=>({...q,due:false}));setScreen("map");return;}
       if(screen!=="menu"&&screen!=="hello"){e.preventDefault();setScreen("menu");return;}
       // sonst: nicht abfangen → Seite darf verlassen werden
     };
     window.addEventListener("app:backbutton",onBack);
     return()=>window.removeEventListener("app:backbutton",onBack);
-  },[chestOpen,giftOpen,goalOpen,showParent,practiceWord,contestItem,screen]);
+  },[chestOpen,giftOpen,goalOpen,showParent,practiceWord,contestItem,houseItem,screen]);
 
   const allLetters=[...UPPERCASE,...LOWERCASE,...NUMBERS];
   const learnedCount=Object.values(learnedMap).filter(v=>v>0).length;
@@ -3351,7 +4012,12 @@ export default function App(){
   const chooseMode=(m)=>{clearTimeout(advanceTimer.current);sfx("tap");setMode(m);setPhase("write");setReplayKey(k=>k+1);};
   const openMap=(w)=>{setTab(w);setMapWorld(w);setScreen("map");};
   // Nach einem Level zurück aufs Spielbrett: Klecks hüpft zum nächsten Stein
-  const goNext=()=>{setMapWorld(tabOf(letter));setScreen("map");};
+  const paintOn=settings.paintBreak!==false;
+  const goNext=()=>{
+    setMapWorld(tabOf(letter));
+    if(paint.due&&paintOn){setPaintKey(n=>n+1);setScreen("paint");}
+    else setScreen("map");
+  };
   const showHint=(text)=>{setHint(text);sayIt(text);clearTimeout(hintTimer.current);hintTimer.current=setTimeout(()=>setHint(null),3500);};
 
   const addJar=()=>{
@@ -3364,6 +4030,9 @@ export default function App(){
   };
   const handleDone=(s,info={})=>{
     if(s>=3)addJar();
+    // Mal-Pause: nach je drei geschriebenen Buchstaben (mindestens zwei Sterne)
+    const paintNow=paintOn&&s>=3&&(paint.due||paint.n+1>=PAINT_EVERY);
+    if(paintOn&&s>=3)setPaint(q=>q.due?q:q.n+1>=PAINT_EVERY?{...q,n:0,due:true}:{...q,n:q.n+1});
     const now=new Date();
     const before=learnedMap[letter]||0;
     const newLearned={...learnedMap,[letter]:Math.max(before,s)};
@@ -3403,11 +4072,14 @@ export default function App(){
     if(settings.autoAdvance){
       // Elternoption: direkt weiter zum nächsten Buchstaben auf dem Lernweg
       const path=LEARN_PATH[tabOf(letter)],i=path.indexOf(letter);
-      advanceTimer.current=setTimeout(()=>selectLetter(path[(i+1)%path.length]),next?5200:3800);
+      advanceTimer.current=setTimeout(()=>{
+        if(paintNow){setMapWorld(tabOf(letter));setPaintKey(n=>n+1);setScreen("paint");}
+        else selectLetter(path[(i+1)%path.length]);
+      },next?5200:3800);
     }
   };
 
-  const calm=(screen==="map"||screen==="menu"||(screen==="contest"&&!contestItem)||(screen==="words"&&!practiceWord))&&!chestOpen&&!goalOpen&&!showParent;
+  const calm=(screen==="map"||screen==="menu"||(screen==="contest"&&!contestItem)||(screen==="house"&&!houseItem)||(screen==="words"&&!practiceWord))&&!chestOpen&&!goalOpen&&!showParent;
   useEffect(()=>{
     if(!jar.gift||giftOpen||!calm)return;
     const t=setTimeout(()=>{setGiftOpen(jar.gift);setJar(j=>({...j,gift:null}));},700);
@@ -3428,9 +4100,9 @@ export default function App(){
     setChestOpen(null);
   };
 
-  const settingsWithData={...settings,learnedMap,totalScore,stageMap,memMap,unlocks,chests,jar};
+  const settingsWithData={...settings,learnedMap,totalScore,stageMap,memMap,unlocks,chests,jar,paint};
   // Lerndaten nicht in die Einstellungen übernehmen
-  const updateSettings=({learnedMap:_l,totalScore:_t,stageMap:_s,memMap:_m,unlocks:_u,chests:_c,jar:_j,...rest})=>setSettings(rest);
+  const updateSettings=({learnedMap:_l,totalScore:_t,stageMap:_s,memMap:_m,unlocks:_u,chests:_c,jar:_j,paint:_p,...rest})=>setSettings(rest);
   // Verteiltes Üben: Buchstaben, die vor mehr als einem Tag geübt wurden
   const due=Object.keys(lastPracticed)
     .filter(l=>(learnedMap[l]||0)>0&&Date.now()-lastPracticed[l]>REVIEW_AFTER_MS)
@@ -3447,7 +4119,7 @@ export default function App(){
       {chestOpen&&<ChestModal key={chestOpen} reward={chestOpen} effects={fx} onUse={applyTreasure} onClose={()=>setChestOpen(null)}/>}
       {giftOpen&&<GiftModal key={giftOpen} reward={giftOpen==="alles"?null:giftOpen} effects={fx} onSpeak={sayIt}
         onUse={(id)=>{applyTreasure(id);setGiftOpen(null);}} onClose={()=>{sfx("pop");setGiftOpen(null);}}/>}
-      {goalOpen&&screen!=="probe"&&<GoalModal effects={fx} onHome={()=>{setGoalOpen(false);setScreen("menu");}} onMore={()=>setGoalOpen(false)}/>}
+      {goalOpen&&screen!=="probe"&&screen!=="paint"&&<GoalModal effects={fx} onHome={()=>{setGoalOpen(false);setScreen("menu");}} onMore={()=>setGoalOpen(false)}/>}
       {hint&&(
         <div style={{position:"fixed",left:0,right:0,bottom:96,display:"flex",justifyContent:"center",zIndex:1500,pointerEvents:"none",padding:"0 16px"}}>
           <div role="status" style={{background:"white",borderRadius:18,padding:"10px 16px",fontSize:15,fontWeight:800,color:"var(--ink2)",boxShadow:"0 5px 0 #0f172a14,0 12px 28px #0f172a24",animation:"popIn 0.3s ease-out",maxWidth:420,display:"flex",alignItems:"center",gap:10}}>
@@ -3544,7 +4216,10 @@ export default function App(){
             })}
           </div>
 
-          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10}}>
+            <Btn data-nav="house" bg="linear-gradient(135deg,#ffb86b,#f08a3c)" sh="#c2611a" color="#5a2a00" onClick={()=>{sfx("tap");setHouseItem(null);setScreen("house");}} style={{padding:"12px 4px",borderRadius:20,fontSize:15,flexDirection:"column",gap:4}}>
+              <Icon name="house" size={26} stroke={2.6}/>Schreibhaus
+            </Btn>
             <Btn data-nav="words" bg="var(--sun)" sh="var(--sunD)" color="#5a3a00" onClick={()=>{sfx("tap");setScreen("words");}} style={{padding:"12px 4px",borderRadius:20,fontSize:15,flexDirection:"column",gap:4}}>
               <Icon name="book" size={26} stroke={2.8}/>Wörter
             </Btn>
@@ -3589,9 +4264,29 @@ export default function App(){
   }
 
   if(screen==="collection") return wrap(
-    <Collection companion={comp} onChange={setCompanion} unlocks={unlocks} pen={pen} onPen={setPen} learnedMap={learnedMap}
+    <Collection companion={comp} onChange={setCompanion} unlocks={unlocks} pen={pen} onPen={setPen} learnedMap={learnedMap} painted={paint.done}
       onOpen={(l)=>openLetter(l)} onSpeak={sayIt} onBack={()=>setScreen("menu")}/>
   );
+
+  if(screen==="paint") return wrap(
+    <PaintBreak key={`paint-${paintKey}`} letter={letter} scale={fs} effects={fx} onSpeak={sayIt}
+      onDone={(id)=>{setPaint(q=>({...q,due:false,done:{...q.done,[letter]:id}}));setScreen("map");}}
+      onSkip={()=>{setPaint(q=>({...q,due:false}));setScreen("map");}}/>
+  );
+
+  if(screen==="house"){
+    if(houseItem==="sort") return wrap(
+      <HouseSortGame best={house.sort} onSpeak={sayIt} onBack={()=>setHouseItem(null)}
+        onFinish={(n)=>{setHouse(h=>({...h,sort:Math.max(h.sort??0,n)}));if(n>=5)addJar();}}/>
+    );
+    if(houseItem) return wrap(
+      <HouseStrokeRun key={houseItem.ch} item={houseItem} settings={settings} pen={usePenNow} scale={fs} best={house.strokes?.[houseItem.ch]??null}
+        tools={<PenPicker pen={usePenNow} unlocks={unlocks} onPick={setPen}/>} onSpeak={sayIt} onWrite={addJar}
+        onFinish={(st)=>setHouse(h=>({...h,strokes:{...h.strokes,[houseItem.ch]:Math.max(h.strokes?.[houseItem.ch]||0,st)}}))}
+        onBack={()=>setHouseItem(null)}/>
+    );
+    return wrap(<HouseHome records={house} onStart={setHouseItem} onBack={()=>setScreen("menu")} onSpeak={sayIt}/>);
+  }
 
   if(screen==="contest"){
     // Wartekontrollgruppe der Studie: nur nachfahren (wie überall sonst bis Studienende)
@@ -3668,13 +4363,13 @@ export default function App(){
       )}
 
         {phase==="anim"
-          ?<AnimCanvas key={`anim-${letter}-${replayKey}`} letter={letter} onDone={()=>setPhase("write")} scale={fs} preview={<StrokePreview letter={letter}/>}/>
+          ?<AnimCanvas key={`anim-${letter}-${replayKey}`} letter={letter} onDone={()=>setPhase("write")} scale={fs} preview={<StrokePreview letter={letter}/>} zones={zoneOn("anim",letter)?zonesOf(letter):null}/>
           :mode==="guided"
-            ?<GuidedCanvas key={`guided-${letter}-${replayKey}`} letter={letter} onComplete={handleDone} onNext={goNext} onSpeak={sayIt} scale={fs}
+            ?<GuidedCanvas key={`guided-${letter}-${replayKey}`} letter={letter} onComplete={handleDone} onNext={goNext} onSpeak={sayIt} scale={fs} zones={zoneOn("guided",letter)?zonesOf(letter):null}
                pen={usePen} tools={<PenPicker pen={usePen} unlocks={unlocks} onPick={setPen}/>}
                onTrial={studyLog&&studyLog({kind:"practice",ch:letter,stage:stageOf(letter)})}/>
             :<TraceCanvas key={`trace-${letter}-${mode}-${replayKey}`} letter={letter} onComplete={handleDone} onNext={goNext}
-               difficulty={settings.difficulty} mode={mode} pen={usePen}
+               difficulty={settings.difficulty} mode={mode} pen={usePen} zoneHelp={zoneOn(mode,letter)}
                memoryDelay={MEMORY_DELAYS[Math.min(memMap[letter]||0,MEMORY_DELAYS.length-1)]}
                lefthanded={!!settings.lefthanded} highContrast={!!settings.highContrast} hapticsEnabled={settings.hapticsEnabled!==false}
                tools={<PenPicker pen={usePen} unlocks={unlocks} onPick={setPen}/>}
